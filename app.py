@@ -17,8 +17,7 @@ from metrics import pair_metrics
 from latent_opt import (
     init_latent_state,
     propose_latent_pair_ridge,
-    propose_pair_prompt_anchor,
-    propose_pair_prompt_anchor_iterative,
+    propose_next_pair,
     z_to_latents,
     z_from_prompt,
     update_latent_ridge,
@@ -65,7 +64,16 @@ def _apply_state(new_state):
     st.session_state.lstate = new_state
     # Initialize pair around the prompt anchor (symmetric)
     try:
-        z1, z2 = propose_pair_prompt_anchor_linesearch(new_state, st.session_state.prompt, trust_r=trust_r, gamma=gamma_orth)
+        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+        z1, z2 = propose_next_pair(
+            new_state,
+            st.session_state.prompt,
+            mode=mode,
+            trust_r=trust_r,
+            gamma=gamma_orth,
+            steps=int(iter_steps),
+            eta=(float(iter_eta) if iter_eta > 0.0 else None),
+        )
         st.session_state.lz_pair = (z1, z2)
     except Exception:
         st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
@@ -100,6 +108,9 @@ beta = st.slider("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
 trust_r = st.slider("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
 lr_mu_ui = st.slider("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
 gamma_orth = st.slider("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+# Optional iterative controls (default disabled)
+iter_steps = st.slider("Iterative steps", 1, 10, 1, 1)
+iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
 # 7 GB VRAM recipe: lighter model, smaller size, no CLIP
@@ -365,7 +376,10 @@ with left:
         feats_a = z_a - z_p
         feats_b = z_b - z_p
         update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
-        st.session_state.lz_pair = propose_pair_prompt_anchor_linesearch(lstate, base_prompt, trust_r=trust_r, gamma=gamma_orth)
+        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+        st.session_state.lz_pair = propose_next_pair(
+            lstate, base_prompt, mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None)
+        )
         _update_history()
         save_state(lstate, st.session_state.state_path)
         if callable(st_rerun):
@@ -380,7 +394,10 @@ with right:
         feats_a = z_a - z_p
         feats_b = z_b - z_p
         update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
-        st.session_state.lz_pair = propose_pair_prompt_anchor_linesearch(lstate, base_prompt, trust_r=trust_r, gamma=gamma_orth)
+        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+        st.session_state.lz_pair = propose_next_pair(
+            lstate, base_prompt, mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None)
+        )
         _update_history()
         save_state(lstate, st.session_state.state_path)
         if callable(st_rerun):
@@ -452,6 +469,15 @@ try:
         st.sidebar.write(f"‖μ−z_prompt‖: {float(np.linalg.norm(st.session_state.lstate.mu - z_p)):.3f}")
         st.sidebar.write(f"‖z_a−z_prompt‖: {float(np.linalg.norm(za - z_p)):.3f}")
         st.sidebar.write(f"‖z_b−z_prompt‖: {float(np.linalg.norm(zb - z_p)):.3f}")
+    # Predicted value for current A/B
+    v_left = float(np.dot(w, (za - z_p)))
+    v_right = float(np.dot(w, (zb - z_p)))
+    if callable(_metric):
+        _metric("V(left)", f"{v_left:.3f}")
+        _metric("V(right)", f"{v_right:.3f}")
+    else:
+        st.sidebar.write(f"V(left): {v_left:.3f}")
+        st.sidebar.write(f"V(right): {v_right:.3f}")
     # Instant step sizes if A/B is chosen (actual, accounts for clamp)
     lr_mu_val = float(lr_mu_ui)
     mu = st.session_state.lstate.mu

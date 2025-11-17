@@ -248,3 +248,26 @@ def propose_pair_prompt_anchor_linesearch(
         n = float(np.linalg.norm(v))
         return v if (n <= trust_r or n == 0.0) else (v * (trust_r / n))
     return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
+
+
+def propose_next_pair(
+    state: LatentState,
+    prompt: str,
+    *,
+    mode: str = "line",
+    trust_r: Optional[float] = None,
+    gamma: float = 0.0,
+    steps: int = 3,
+    eta: Optional[float] = None,
+):
+    """Unified proposer API.
+
+    - mode='line' → line-search along w (default).
+    - mode='iter' → small projected steps along w; honors `steps` and `eta`.
+    Falls back to line-search if mode is unrecognized.
+    """
+    if str(mode).lower() == "iter":
+        return propose_pair_prompt_anchor_iterative(
+            state, prompt, steps=int(max(1, steps)), eta=eta, trust_r=trust_r, gamma=gamma
+        )
+    return propose_pair_prompt_anchor_linesearch(state, prompt, trust_r=trust_r, gamma=gamma)

@@ -346,6 +346,7 @@ Prompt-anchored ridge (Nov 17, 2025):
   - Test: `tests/test_prompt_anchor_orth.py` asserts midpoint symmetry and presence of an orthogonal component when `γ>0`.
 - Step size control (109b): Added a sidebar slider `Step size (lr_μ)` and plumbed it into `update_latent_ridge(..., lr_mu=...)`. Sidebar step(A)/step(B) now reflect this live value.
 - Line search (109c): Added `propose_pair_prompt_anchor_linesearch` which tries a few Δ magnitudes along `w` and picks the largest within the trust radius. The app now uses this line-search path (with optional orthogonal γ) for proposals.
+ - Iterative controls (110a): Exposed `Iterative steps` and `Iterative step (eta)` sliders. When either is activated (`steps>1` or `eta>0`), the app switches from line-search to the iterative proposer for the next pair.
  
 Ops note (Nov 17, 2025):
 - Killed an external heavy training process (nn_predictor CLI in another repo) per user request to free RAM/SWAP. It entered a zombie state (PPID a zsh shell), which holds no RAM; closing that shell will reap it. No changes to this repo.
