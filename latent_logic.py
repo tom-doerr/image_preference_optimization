@@ -1,6 +1,7 @@
 from typing import Optional
 import numpy as np
 from latent_state import LatentState
+from dataclasses import dataclass
 from latent_ridge import append_pair, ridge_fit
 import hashlib
 
@@ -250,6 +251,15 @@ def propose_pair_prompt_anchor_linesearch(
     return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
 
 
+@dataclass
+class ProposerOpts:
+    mode: str = "line"          # 'line' or 'iter'
+    trust_r: Optional[float] = None
+    gamma: float = 0.0
+    steps: int = 3
+    eta: Optional[float] = None
+
+
 def propose_next_pair(
     state: LatentState,
     prompt: str,
@@ -259,6 +269,7 @@ def propose_next_pair(
     gamma: float = 0.0,
     steps: int = 3,
     eta: Optional[float] = None,
+    opts: Optional[ProposerOpts] = None,
 ):
     """Unified proposer API.
 
@@ -266,6 +277,13 @@ def propose_next_pair(
     - mode='iter' → small projected steps along w; honors `steps` and `eta`.
     Falls back to line-search if mode is unrecognized.
     """
+    if opts is not None:
+        # opts (if provided) overrides individual kwargs
+        mode = opts.mode
+        trust_r = opts.trust_r
+        gamma = opts.gamma
+        steps = opts.steps
+        eta = opts.eta
     if str(mode).lower() == "iter":
         return propose_pair_prompt_anchor_iterative(
             state, prompt, steps=int(max(1, steps)), eta=eta, trust_r=trust_r, gamma=gamma

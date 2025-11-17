@@ -65,15 +65,15 @@ def _apply_state(new_state):
     # Initialize pair around the prompt anchor (symmetric)
     try:
         mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        z1, z2 = propose_next_pair(
-            new_state,
-            st.session_state.prompt,
+        from latent_opt import ProposerOpts  # local import to avoid test stub issues
+        opts = ProposerOpts(
             mode=mode,
             trust_r=trust_r,
             gamma=gamma_orth,
             steps=int(iter_steps),
             eta=(float(iter_eta) if iter_eta > 0.0 else None),
         )
+        z1, z2 = propose_next_pair(new_state, st.session_state.prompt, opts=opts)
         st.session_state.lz_pair = (z1, z2)
     except Exception:
         st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
@@ -226,6 +226,61 @@ if not hasattr(st.sidebar, 'write'):
 # Ensure st.metric exists in test stubs; map to write format if missing
 if not hasattr(st.sidebar, 'metric'):
     st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
+
+# Consolidated sidebar metric helpers
+def _sb_metric(label: str, value) -> None:
+    try:
+        if callable(getattr(st.sidebar, 'metric', None)):
+            st.sidebar.metric(label, str(value))
+        else:
+            st.sidebar.write(f"{label}: {value}")
+    except Exception:
+        st.sidebar.write(f"{label}: {value}")
+
+
+def _sb_metric_rows(pairs, per_row: int = 2) -> None:
+    try:
+        for i in range(0, len(pairs), per_row):
+            row = pairs[i:i + per_row]
+            if hasattr(st.sidebar, 'columns') and callable(getattr(st.sidebar, 'columns', None)) and len(row) > 1:
+                cols = st.sidebar.columns(len(row))
+                for (label, value), col in zip(row, cols):
+                    with col:
+                        _sb_metric(label, value)
+            else:
+                for label, value in row:
+                    _sb_metric(label, value)
+    except Exception:
+        for label, value in pairs:
+            _sb_metric(label, value)
+
+
+def _render_pair_sidebar(lstate, prompt: str, za: np.ndarray, zb: np.ndarray, lr_mu_val: float) -> None:
+    """Render vector info, prompt distances, predicted values, and step sizes for current pair."""
+    w = lstate.w
+    m = pair_metrics(w, za, zb)
+    st.sidebar.subheader("Vector info (current pair)")
+    _sb_metric_rows([
+        ("‖z_a‖", f"{m['za_norm']:.3f}"),
+        ("‖z_b‖", f"{m['zb_norm']:.3f}"),
+        ("‖z_b−z_a‖", f"{m['diff_norm']:.3f}")
+    ], per_row=2)
+    cos = m['cos_w_diff']
+    _sb_metric_rows([("cos(w, z_b−z_a)", "n/a" if (cos is None or not np.isfinite(float(cos))) else f"{float(cos):.3f}")], per_row=1)
+    z_p = z_from_prompt(lstate, prompt)
+    _sb_metric_rows([
+        ("‖μ−z_prompt‖", f"{float(np.linalg.norm(lstate.mu - z_p)):.3f}"),
+        ("‖z_a−z_prompt‖", f"{float(np.linalg.norm(za - z_p)):.3f}"),
+        ("‖z_b−z_prompt‖", f"{float(np.linalg.norm(zb - z_p)):.3f}")
+    ], per_row=2)
+    v_left = float(np.dot(w, (za - z_p)))
+    v_right = float(np.dot(w, (zb - z_p)))
+    _sb_metric_rows([("V(left)", f"{v_left:.3f}"), ("V(right)", f"{v_right:.3f}")], per_row=2)
+    mu = lstate.mu
+    _sb_metric_rows([
+        ("step(A)", f"{lr_mu_val * float(np.linalg.norm(za - mu)):.3f}"),
+        ("step(B)", f"{lr_mu_val * float(np.linalg.norm(zb - mu)):.3f}")
+    ], per_row=2)
 # Environment/version
 st.sidebar.subheader("Environment")
 env = get_env_summary()
@@ -377,9 +432,9 @@ with left:
         feats_b = z_b - z_p
         update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
         mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        st.session_state.lz_pair = propose_next_pair(
-            lstate, base_prompt, mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None)
-        )
+        from latent_opt import ProposerOpts
+        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+        st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
         _update_history()
         save_state(lstate, st.session_state.state_path)
         if callable(st_rerun):
@@ -395,9 +450,9 @@ with right:
         feats_b = z_b - z_p
         update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
         mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        st.session_state.lz_pair = propose_next_pair(
-            lstate, base_prompt, mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None)
-        )
+        from latent_opt import ProposerOpts
+        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+        st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
         _update_history()
         save_state(lstate, st.session_state.state_path)
         if callable(st_rerun):
@@ -437,56 +492,7 @@ if recent:
 # Vector info for current pair
 try:
     za, zb = st.session_state.lz_pair
-    w = st.session_state.lstate.w
-    m = pair_metrics(w, za, zb)
-    st.sidebar.subheader("Vector info (current pair)")
-    if callable(_metric):
-        _metric("‖z_a‖", f"{m['za_norm']:.3f}")
-        _metric("‖z_b‖", f"{m['zb_norm']:.3f}")
-        _metric("‖z_b−z_a‖", f"{m['diff_norm']:.3f}")
-    else:
-        st.sidebar.write(f"‖z_a‖: {m['za_norm']:.3f}")
-        st.sidebar.write(f"‖z_b‖: {m['zb_norm']:.3f}")
-        st.sidebar.write(f"‖z_b−z_a‖: {m['diff_norm']:.3f}")
-    cos = m['cos_w_diff']
-    if callable(_metric):
-        if cos is None or not np.isfinite(float(cos)):
-            _metric("cos(w, z_b−z_a)", "n/a")
-        else:
-            _metric("cos(w, z_b−z_a)", f"{float(cos):.3f}")
-    else:
-        if cos is None or not np.isfinite(float(cos)):
-            st.sidebar.write("cos(w, z_b−z_a): n/a")
-        else:
-            st.sidebar.write(f"cos(w, z_b−z_a): {float(cos):.3f}")
-    # Distances to prompt vector
-    z_p = z_from_prompt(st.session_state.lstate, base_prompt)
-    if callable(_metric):
-        _metric("‖μ−z_prompt‖", f"{float(np.linalg.norm(st.session_state.lstate.mu - z_p)):.3f}")
-        _metric("‖z_a−z_prompt‖", f"{float(np.linalg.norm(za - z_p)):.3f}")
-        _metric("‖z_b−z_prompt‖", f"{float(np.linalg.norm(zb - z_p)):.3f}")
-    else:
-        st.sidebar.write(f"‖μ−z_prompt‖: {float(np.linalg.norm(st.session_state.lstate.mu - z_p)):.3f}")
-        st.sidebar.write(f"‖z_a−z_prompt‖: {float(np.linalg.norm(za - z_p)):.3f}")
-        st.sidebar.write(f"‖z_b−z_prompt‖: {float(np.linalg.norm(zb - z_p)):.3f}")
-    # Predicted value for current A/B
-    v_left = float(np.dot(w, (za - z_p)))
-    v_right = float(np.dot(w, (zb - z_p)))
-    if callable(_metric):
-        _metric("V(left)", f"{v_left:.3f}")
-        _metric("V(right)", f"{v_right:.3f}")
-    else:
-        st.sidebar.write(f"V(left): {v_left:.3f}")
-        st.sidebar.write(f"V(right): {v_right:.3f}")
-    # Instant step sizes if A/B is chosen (actual, accounts for clamp)
-    lr_mu_val = float(lr_mu_ui)
-    mu = st.session_state.lstate.mu
-    if callable(_metric):
-        _metric("step(A)", f"{lr_mu_val * float(np.linalg.norm(za - mu)):.3f}")
-        _metric("step(B)", f"{lr_mu_val * float(np.linalg.norm(zb - mu)):.3f}")
-    else:
-        st.sidebar.write(f"step(A): {lr_mu_val * float(np.linalg.norm(za - mu)):.3f}")
-        st.sidebar.write(f"step(B): {lr_mu_val * float(np.linalg.norm(zb - mu)):.3f}")
+    _render_pair_sidebar(st.session_state.lstate, base_prompt, za, zb, lr_mu_val=float(lr_mu_ui))
 except Exception:
     pass
 if mu_show:
