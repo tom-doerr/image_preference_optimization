@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    image: image-preference-optimizer:latest
+    ports:
+      - "${PORT:-8501}:8501"
+    environment:
+      - FLUX_LOCAL_MODEL=${FLUX_LOCAL_MODEL:-stabilityai/sd-turbo}
+      - HUGGINGFACE_HUB_TOKEN
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    volumes:
+      - .:/app
+      - hf_cache:/root/.cache/huggingface
+    device_requests:
+      - capabilities: ["gpu"]
+    restart: unless-stopped
+
+  tests-smoke:
+    build: .
+    image: image-preference-optimizer:latest
+    command: ["bash", "scripts/run_tests.sh", "smoke"]
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+    profiles: ["test"]
+
+  gen:
+    build: .
+    image: image-preference-optimizer:latest
+    command: ["python", "scripts/generate_and_inspect.py"]
+    environment:
+      - FLUX_LOCAL_MODEL=${FLUX_LOCAL_MODEL:-stabilityai/sd-turbo}
+    volumes:
+      - .:/app
+      - hf_cache:/root/.cache/huggingface
+    device_requests:
+      - capabilities: ["gpu"]
+    profiles: ["gen"]
+
+volumes:
+  hf_cache:

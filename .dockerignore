@@ -1,0 +1,12 @@
+.git
+.gitignore
+__pycache__
+.pytest_cache
+.venv
+*.npz
+generated/
+.streamlit*
+*.pid
+*.log
+HF_HOME
+HUGGINGFACE_HUB_CACHE
