@@ -16,8 +16,7 @@ What was added:
 - `app.py`: Streamlit UI using local FLUX (Diffusers on CUDA); optimizes latents directly; ridge proposals; auto-load/save state.
 - `flux_local.py`: minimal Diffusers client; CUDA-only; no API fallback; requires `FLUX_LOCAL_MODEL`.
 - Tests: `tests/test_learning.py`, `tests/test_latent_opt.py`, `tests/test_flux_local.py`, `tests/test_e2e_app.py`, `tests/test_persistence.py`.
-  - CLIP: `clip_features.py` (OpenCLIP ViT‑B/32) added; used to append image embeddings to ridge features; toggle in sidebar.
-  - Tests: `tests/test_feature_extension.py` validates ridge with extended feature vectors.
+  - CLIP support has been removed to simplify and reduce VRAM. The old `clip_features.py` and its tests were deleted.
   - E2E (logic): `tests/test_e2e_ridge_flow.py`.
   - E2E (GPU, opt‑in): `tests/test_e2e_gpu_generate.py` runs real generation when `E2E_GENERATE=1` and a model id is set.
 
@@ -223,9 +222,8 @@ Per‑prompt persistence (Nov 13, 2025):
 Import UX (Nov 13, 2025):
 - Uploaded `.npz` files now embed the source prompt. If it differs from the current prompt, we warn and provide a one-click action: “Switch to uploaded prompt and load now”. This sets the Prompt, loads the uploaded state, and resets caches.
 
-CLIP notes (removed Nov 14–16, 2025):
-- CLIP support was removed for simplicity and VRAM reasons. `clip_features.py` remains only for historical reference; not imported by the app.
-- Proposals use only latent dims (`w[:d]`).
+CLIP removal (Nov 17, 2025):
+- CLIP support and the `clip_features.py` module were removed. Proposals and ridge learning use only latent dims (`w[:d]`).
 
 Preference data usage (Nov 12, 2025):
 - Logistic: online-only; we don’t store the full history. Each click applies a gradient step to `w` and moves `μ` toward the winner. The accumulated value of `w` is the summary of all past pairs.
@@ -234,7 +232,7 @@ Preference data usage (Nov 12, 2025):
 - Pitfall to watch: `propose_latent_pair_ridge` picks a random orthogonal direction if the computed d2 degenerates. This is a tiny fallback; consider removing it if strict “no fallbacks” is desired, and add a test for the degenerate case.
 
 Learning fix (Nov 12, 2025):
-- Ridge proposals now use `w[:d]` when `w` has extended feature dims (e.g., CLIP). Added a unit test to ensure proposals remain in z-space.
+- Ridge proposals always use `w[:d]` (latent-only).
 
 New learnings (Nov 14, 2025):
 - Fixed “all red images” when injecting custom latents: `z_to_latents` now subtracts per‑channel mean before decode, keeping initial noise unbiased. Combined with scheduler‑scaled std in `generate_flux_image_latents`, this removes the red tint without extra knobs.
