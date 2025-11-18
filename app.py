@@ -212,7 +212,15 @@ try:
 except Exception:
     pass
 
-env_panel(get_env_summary())
+try:
+    _exp = getattr(st.sidebar, 'expander', None)
+    if callable(_exp):
+        with _exp("Environment", expanded=False):
+            env_panel(get_env_summary())
+    else:
+        env_panel(get_env_summary())
+except Exception:
+    env_panel(get_env_summary())
 
 info = state_summary(lstate)
 pairs_state = [("Latent dim", f"{info['d']}")]
