@@ -285,16 +285,14 @@ try:
         pass
 except Exception:
     pass
-width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
-height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
-steps = _sb_sld("Steps", 1, 50, value=Config.DEFAULT_STEPS)
-guidance = _sb_sld("Guidance", 0.0, 10.0, value=Config.DEFAULT_GUIDANCE, step=0.1)
+from ui_controls import build_size_controls
+width, height, steps, guidance, _apply_clicked = build_size_controls(st, lstate)
 try:
     st.session_state['steps'] = int(steps)
     st.session_state['guidance'] = float(guidance)
 except Exception:
     pass
-if st.sidebar.button("Apply size now"):
+if _apply_clicked:
     _apply_state(init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)
     _toast(f"Applied size {int(width)}x{int(height)}")
@@ -412,25 +410,13 @@ else:
     curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
 
 _exp = getattr(st.sidebar, 'expander', None)
-if callable(_exp):
-    with _exp("Batch controls", expanded=(selected_gen_mode==_gen_opts[0])):
-        from constants import DEFAULT_BATCH_SIZE
-        batch_size = _sb_sld("Batch size", 2, 12, value=DEFAULT_BATCH_SIZE, step=1)
-    with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[1])):
-        from constants import DEFAULT_QUEUE_SIZE
-        queue_size = _sb_sld("Queue size", 2, 16, value=DEFAULT_QUEUE_SIZE, step=1)
-        try:
-            st.session_state['queue_size'] = int(queue_size)
-        except Exception:
-            pass
-else:
-    from constants import DEFAULT_BATCH_SIZE, DEFAULT_QUEUE_SIZE
-    batch_size = _sb_sld("Batch size", 2, 12, value=DEFAULT_BATCH_SIZE, step=1)
-    queue_size = _sb_sld("Queue size", 2, 16, value=DEFAULT_QUEUE_SIZE, step=1)
-    try:
-        st.session_state['queue_size'] = int(queue_size)
-    except Exception:
-        pass
+from ui_controls import build_batch_controls, build_queue_controls
+batch_size = build_batch_controls(st, expanded=(selected_gen_mode==_gen_opts[0]))
+queue_size = build_queue_controls(st, expanded=(selected_gen_mode==_gen_opts[1]))
+try:
+    st.session_state['queue_size'] = int(queue_size)
+except Exception:
+    pass
 
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""

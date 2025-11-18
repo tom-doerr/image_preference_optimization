@@ -16,6 +16,11 @@ def build_size_controls(st, lstate) -> Tuple[int, int, int, float, bool]:
     height = num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
     steps = sld("Steps", 1, 50, 6)
     guidance = sld("Guidance", 0.0, 10.0, 3.5, 0.1)
+    # Fallbacks for stubs that return None
+    width = lstate.width if width is None else width
+    height = lstate.height if height is None else height
+    steps = 6 if steps is None else steps
+    guidance = 3.5 if guidance is None else guidance
     apply_clicked = False
     try:
         if st.sidebar.button("Apply size now"):
@@ -48,7 +53,8 @@ def build_batch_controls(st, expanded: bool = False) -> int:
     ctx = expander("Batch controls", expanded=expanded) if callable(expander) else None
     if ctx is not None:
         ctx.__enter__()
-    batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
+    sld = _sb_sld(st)
+    batch_size = sld("Batch size", 2, 12, value=6, step=1)
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return int(batch_size)
@@ -59,7 +65,8 @@ def build_queue_controls(st, expanded: bool = False) -> int:
     ctx = expander("Queue controls", expanded=expanded) if callable(expander) else None
     if ctx is not None:
         ctx.__enter__()
-    queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
+    sld = _sb_sld(st)
+    queue_size = sld("Queue size", 2, 16, value=6, step=1)
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return int(queue_size)
@@ -95,4 +102,3 @@ def build_mode_select(st) -> Tuple[Optional[str], bool, bool]:
     if selected_mode is not None:
         return selected_mode, (selected_mode == gen_opts[1]), (selected_mode == gen_opts[2])
     return selected_mode, cm, aq
-
