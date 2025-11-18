@@ -116,6 +116,8 @@ iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 curation_mode = st.sidebar.checkbox("Batch curation mode", value=False)
 batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
+async_queue_mode = st.sidebar.checkbox("Async queue mode", value=False)
+queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
 reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
 iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
@@ -522,6 +524,67 @@ def _curation_train_and_next():
     _curation_new_batch()
 
 
+# Async queue mode helpers
+def _queue_ensure_exec():
+    ex = st.session_state.get('_queue_exec')
+    if ex is None:
+        ex = ThreadPoolExecutor(max_workers=2)
+        st.session_state._queue_exec = ex
+    return ex
+
+
+def _queue_add_one():
+    # propose single z (use ridge first vector or random around prompt)
+    try:
+        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+        from latent_opt import ProposerOpts
+        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+        za, _ = propose_next_pair(lstate, base_prompt, opts=opts)
+    except Exception:
+        # random around prompt
+        z_p = z_from_prompt(lstate, base_prompt)
+        r = lstate.rng.standard_normal(lstate.d)
+        r = r / (np.linalg.norm(r) + 1e-12)
+        za = z_p + lstate.sigma * 0.8 * r
+    lat = z_to_latents(lstate, za)
+    ex = _queue_ensure_exec()
+    fut = ex.submit(
+        generate_flux_image_latents,
+        base_prompt,
+        lat,
+        lstate.width,
+        lstate.height,
+        steps,
+        guidance_eff,
+    )
+    item = {'z': za, 'future': fut, 'label': None}
+    q = st.session_state.get('queue') or []
+    q.append(item)
+    st.session_state.queue = q
+
+
+def _queue_fill_up_to():
+    q = st.session_state.get('queue') or []
+    # remove any finished and labeled items (they should have been popped already by UI)
+    st.session_state.queue = q
+    while len(st.session_state.queue) < int(queue_size):
+        _queue_add_one()
+
+
+def _queue_label(idx: int, label: int):
+    q = st.session_state.get('queue') or []
+    if 0 <= idx < len(q):
+        z = q[idx]['z']
+        _curation_add(int(label), z)
+        # optionally refit from saved dataset for immediate model update
+        try:
+            _curation_train_and_next()  # trains from disk; does not alter queue
+        except Exception:
+            pass
+        q.pop(idx)
+        st.session_state.queue = q
+
+
 # Autorun: generate the pair once on load (keep it simple)
 if not curation_mode:
     generate_pair()
@@ -576,7 +639,7 @@ except Exception:
     d_left = d_right = None
     v_left = v_right = None
 with left:
-    if not curation_mode:
+    if not curation_mode and not async_queue_mode:
         if img_left is not None:
             cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
             st.image(img_left, caption=cap, use_container_width=True)
@@ -633,8 +696,29 @@ with left:
             _curation_train_and_next()
             if callable(st_rerun):
                 st_rerun()
+    if async_queue_mode:
+        st.subheader("Async queue")
+        q = st.session_state.get('queue') or []
+        for i, it in enumerate(list(q)):
+            img = it['future'].result() if it['future'].done() else None
+            if img is not None:
+                st.image(img, caption=f"Item {i}", use_container_width=True)
+            else:
+                st.write(f"Item {i}: loading…")
+            cols = st.columns(2)
+            with cols[0]:
+                if st.button(f"Accept {i}"):
+                    _queue_label(i, 1)
+                    if callable(st_rerun):
+                        st_rerun()
+            with cols[1]:
+                if st.button(f"Reject {i}"):
+                    _queue_label(i, -1)
+                    if callable(st_rerun):
+                        st_rerun()
+        _queue_fill_up_to()
 with right:
-    if not curation_mode:
+    if not curation_mode and not async_queue_mode:
         if img_right is not None:
             cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
             st.image(img_right, caption=cap, use_container_width=True)
