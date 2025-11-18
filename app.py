@@ -6,9 +6,6 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from constants import (
     DEFAULT_PROMPT,
-    SMALL_VRAM_MAX_WIDTH,
-    SMALL_VRAM_MAX_HEIGHT,
-    SMALL_VRAM_MAX_STEPS,
 )
 from constants import Config
 from env_info import get_env_summary
@@ -226,13 +223,7 @@ iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
 # 7 GB VRAM recipe: lighter model, smaller size, no CLIP
-small_vram = st.sidebar.checkbox("7 GB VRAM mode", value=False)
-if small_vram:
-    selected_model = "runwayml/stable-diffusion-v1-5"
-    width = min(int(width), SMALL_VRAM_MAX_WIDTH) if width is not None else SMALL_VRAM_MAX_WIDTH
-    height = min(int(height), SMALL_VRAM_MAX_HEIGHT) if height is not None else SMALL_VRAM_MAX_HEIGHT
-    steps = min(int(steps), SMALL_VRAM_MAX_STEPS) if steps is not None else SMALL_VRAM_MAX_STEPS
-    pass
+# 7 GB VRAM mode removed; users can lower size/steps manually via controls
 
 is_turbo = True
 guidance_eff = 0.0

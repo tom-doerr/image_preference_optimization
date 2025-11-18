@@ -231,7 +231,7 @@ Quick generation checklist (Nov 13, 2025):
 
 UI note (Nov 13, 2025):
 - If you only see one image, it’s likely the μ preview at the bottom. The A/B pair shows in two side-by-side columns above; click “Generate pair” after selecting a model. If a loader error occurs, Streamlit shows a red traceback and the pair won’t render.
-- For low-VRAM runs, use “7 GB VRAM mode” or set 512–640px; otherwise one of the generation calls may OOM and the page will error.
+- 7 GB VRAM mode has been removed to simplify the UI. For low-VRAM runs, manually lower Width/Height (e.g., 448–512) and Steps (e.g., 6–10).
 
 Preview toggle (Nov 13, 2025):
 - Added a sidebar toggle “Show μ preview”. When off, the preview section is hidden to reduce UI confusion, while A/B generation remains unaffected.

@@ -60,20 +60,8 @@ def stub_streamlit_small_vram():
 
 
 class TestSmallVramMode(unittest.TestCase):
-    def test_small_vram_profile_applies(self):
-        sys.modules['streamlit'] = stub_streamlit_small_vram()
-        # Stub flux_local to allow autorun on import
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-        import importlib
-        import app
-        importlib.reload(app)
-        self.assertEqual(app.selected_model, 'runwayml/stable-diffusion-v1-5')
-        self.assertLessEqual(app.width, 448)
-        self.assertLessEqual(app.height, 448)
-        self.assertLessEqual(app.steps, 12)
+    def test_small_vram_profile_removed(self):
+        self.skipTest('7 GB VRAM mode removed from UI; adjust size/steps manually')
 
 
 if __name__ == '__main__':
