@@ -105,7 +105,7 @@ trust_r = st.slider("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
 lr_mu_ui = st.slider("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
 gamma_orth = st.slider("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 # Optional iterative controls (default disabled)
-iter_steps = st.slider("Iterative steps", 1, 10, 1, 1)
+iter_steps = st.slider("Optimization steps (latent)", 1, 10, 1, 1)
 iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
