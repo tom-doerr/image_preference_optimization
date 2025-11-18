@@ -91,6 +91,11 @@ UX tweak (Nov 18, 2025, late):
 - Default “Generation mode” is now Batch curation (index=0 in the dropdown). Previously defaulted to Async queue.
 - Rationale: Batch is the most stable, predictable path and matches the user’s preferred workflow.
 
+DistanceHill controls (Nov 18, 2025, later):
+- Switched Distance hill-climbing controls from sliders to numeric inputs for precise edits:
+  - Alpha, Beta, Trust radius, Step size (lr_μ), Orth explore (γ), Optimization steps, and Iterative step (eta).
+- Keeps UI minimal while allowing exact values; tests rely on session state rather than widget type, so no changes needed there.
+
 Simplify pass (Nov 18, 2025, later):
 - Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
 - Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.

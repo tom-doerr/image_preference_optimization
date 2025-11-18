@@ -310,13 +310,14 @@ else:
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
     with _exp("Proposer controls", expanded=False):
-        alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, value=0.5, step=0.05)
-        beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, value=0.5, step=0.05)
-        trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, value=2.5, step=0.1)
-        lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, value=0.3, step=0.05)
-        gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
+        # Distance hill climbing settings: use numeric inputs for precision
+        alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
+        beta = _sb_num("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
+        trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1, format="%.1f")
+        lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01, format="%.2f")
+        gamma_orth = _sb_num("Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.01, format="%.2f")
         # Optional iterative controls (default disabled)
-        iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
+        iter_steps = _sb_num("Optimization steps (latent)", min_value=1, max_value=10, value=1, step=1)
         try:
             # Show concise iteration summary and per-step predicted values
             st.sidebar.write(f"Iter steps: {int(iter_steps)}")
@@ -422,7 +423,7 @@ try:
     st.session_state['reg_lambda'] = float(reg_lambda)
 except Exception:
     pass
-iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
+iter_eta = _sb_num("Iterative step (eta)", min_value=0.0, max_value=1.0, value=0.0, step=0.01, format="%.2f")
 use_clip = False
 
 # 7 GB VRAM recipe: lighter model, smaller size, no CLIP
