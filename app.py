@@ -110,6 +110,7 @@ iter_steps = st.slider("Optimization steps (latent)", 1, 10, 1, 1)
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 curation_mode = st.sidebar.checkbox("Batch curation mode", value=False)
 batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
+reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
 iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
@@ -415,8 +416,8 @@ def _curation_train_and_next():
     if X is not None and y is not None and len(y) > 0:
         # fit ridge and update w
         try:
-            from latent_logic import ridge_fit
-            lstate.w = ridge_fit(X, y, lam=1e-2)
+            import latent_logic as _ll
+            lstate.w = _ll.ridge_fit(X, y, lam=float(reg_lambda))
         except Exception:
             pass
         # persist dataset
@@ -488,7 +489,7 @@ with left:
             z_p = z_from_prompt(lstate, base_prompt)
             feats_a = z_a - z_p
             feats_b = z_b - z_p
-            update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
+            update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
             from latent_opt import ProposerOpts
             opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
@@ -538,7 +539,7 @@ with right:
             z_p = z_from_prompt(lstate, base_prompt)
             feats_a = z_a - z_p
             feats_b = z_b - z_p
-            update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
+            update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
             from latent_opt import ProposerOpts
             opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
@@ -548,7 +549,6 @@ with right:
                 st_rerun()
 
 st.write(f"Interactions: {lstate.step}")
-    # Best μ history UI removed
 if st.button("Reset", type="secondary"):
     _apply_state(init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)
