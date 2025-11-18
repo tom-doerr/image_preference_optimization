@@ -5,7 +5,7 @@ from typing import Any, Optional, Tuple
 import numpy as np
 
 
-def _lstate_and_prompt():
+def _lstate_and_prompt() -> Tuple[Any, str]:
     import streamlit as st
     try:
         prompt = st.session_state.get('prompt')

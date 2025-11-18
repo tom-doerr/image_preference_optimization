@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+from typing import Any
 import numpy as np
 
 
-def _ensure_queue():
+def _ensure_queue() -> None:
     import streamlit as st
     if 'queue' not in st.session_state:
         st.session_state.queue = []
 
 
-def _queue_add_one():
+def _queue_add_one() -> None:
     import streamlit as st
     import background as bg
     from latent_opt import z_to_latents
@@ -50,7 +51,7 @@ def _queue_add_one():
     st.session_state.queue = q
 
 
-def _queue_fill_up_to():
+def _queue_fill_up_to() -> None:
     import streamlit as st
     _ensure_queue()
     raw = getattr(st.session_state, 'queue_size', 6)
@@ -59,7 +60,7 @@ def _queue_fill_up_to():
         _queue_add_one()
 
 
-def _queue_label(idx: int, label: int):
+def _queue_label(idx: int, label: int) -> None:
     import streamlit as st
     from batch_ui import _curation_add, _curation_train_and_next
     _ensure_queue()
@@ -75,7 +76,7 @@ def _queue_label(idx: int, label: int):
         st.session_state.queue = q
 
 
-def _render_queue_ui():
+def _render_queue_ui() -> None:
     import streamlit as st
     st.subheader("Async queue")
     _ensure_queue()

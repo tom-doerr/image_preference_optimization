@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from typing import Callable, Any
 import numpy as np
 
 
-def get_value_scorer(vm_choice: str, lstate, prompt: str, session_state):
+def get_value_scorer(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> Callable[[np.ndarray], float]:
     """Return a callable f(fvec) -> score based on selected value model.
 
     - Ridge: dot(w, fvec)
@@ -69,4 +70,3 @@ def get_value_scorer(vm_choice: str, lstate, prompt: str, session_state):
             return _ridge
 
     return _ridge
-

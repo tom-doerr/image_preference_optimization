@@ -7,12 +7,14 @@ from typing import Any
 import numpy as np
 
 
-def fit_value_model(vm_choice: str,
-                    lstate: Any,
-                    X: np.ndarray,
-                    y: np.ndarray,
-                    lam: float,
-                    session_state: Any) -> None:
+def fit_value_model(
+    vm_choice: str,
+    lstate: Any,
+    X: np.ndarray,
+    y: np.ndarray,
+    lam: float,
+    session_state: Any,
+) -> None:
     """Fit/update the value model artifacts with minimal logic.
 
     - Always fits Ridge to update lstate.w (keeps proposals simple and fast).
@@ -54,4 +56,3 @@ def fit_value_model(vm_choice: str,
         print(f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state['last_train_ms']:.1f} ms")
     except Exception:
         pass
-

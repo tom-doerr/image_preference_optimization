@@ -11,4 +11,3 @@ def run_mode(async_queue_mode: bool) -> None:
     else:
         from batch_ui import run_batch_mode
         run_batch_mode()
-
