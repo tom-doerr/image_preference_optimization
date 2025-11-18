@@ -119,6 +119,14 @@ Scheduler guard (Nov 18, 2025, later):
 - Change: `flux_local._run_pipe` now calls `scheduler.set_timesteps(num_inference_steps, device='cuda')` before invoking the pipeline and sets `_step_index=0` if left `None`.
 - Test: `tests/test_scheduler_prepare.py` uses a dummy pipe/scheduler to assert the guard prevents the crash.
 
+New learnings (Nov 19, 2025):
+- Async decode helper availability varies in tests that stub the `background` module. To keep UI code minimal and tests reliable, `batch_ui` now uses a tiny inline default when `background.result_or_sync_after` is missing. This is a test-only accommodation; production still uses the real helper.
+- Action: added the inline default and re-ran the suite; the e2e low-std debug test now passes locally.
+
+Keep in mind:
+- Prefer one call site for Diffusers: all decode paths go through `flux_local._run_pipe` so scheduler/device guards live in one place.
+- When adding background helpers, keep them in `background.py` and import lazily in UI modules to simplify test stubbing.
+
 UI cleanup (Nov 18, 2025, later):
 - Removed separate “Pair proposer” dropdown; proposer derives from Value model: CosineHill → CosineHill proposer, otherwise DistanceHill.
 - Test updated: `tests/test_pair_proposer_toggle.py` selects CosineHill via the Value model dropdown.
