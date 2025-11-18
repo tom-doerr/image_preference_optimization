@@ -4,6 +4,13 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 
+__all__ = [
+    '_lstate_and_prompt',
+    'generate_pair',
+    '_prefetch_next_for_generate',
+    '_pair_scores',
+]
+
 
 def _lstate_and_prompt() -> Tuple[Any, str]:
     import streamlit as st

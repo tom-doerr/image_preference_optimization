@@ -3,7 +3,6 @@ import numpy as np
 from typing import Optional, Tuple, Any
 import os
 import hashlib
-from concurrent.futures import ThreadPoolExecutor
 from constants import (
     DEFAULT_PROMPT,
     DEFAULT_MODEL,

@@ -628,3 +628,10 @@ Dispatch consolidation (Nov 18, 2025, later):
 
 Proposer options (Nov 18, 2025, later):
 - Moved the UI→ProposerOpts conversion into `proposer.build_proposer_opts(...)`. `app._proposer_opts()` now delegates to this helper, reducing duplication and making intent testable. Test: `tests/test_proposer_opts_build.py`.
+
+Constants pass (Nov 18, 2025, later):
+- Centralized Distance/Cosine scoring literals into `constants.py` as `DISTANCEHILL_GAMMA` and `COSINEHILL_BETA`. Used in `pair_ui.py` and `queue_ui.py`.
+
+Typing (Nov 18, 2025, later):
+- Added lightweight type hints to `value_model.py`, `value_scorer.py`, `pair_ui.py`, `batch_ui.py`, `queue_ui.py`, and `modes.py` to clarify APIs.
+- Added `mypy.ini` with permissive config (`ignore_missing_imports=True`) to allow gradual typing without churn.
