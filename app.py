@@ -105,6 +105,17 @@ height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.
 steps = _sb_sld("Steps", 1, 50, Config.DEFAULT_STEPS)
 guidance = _sb_sld("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
 st.sidebar.header("Settings")
+# Generation mode at top of sidebar (dropdown)
+_gen_opts = ["Pair (A/B)", "Batch curation", "Async queue"]
+_sb_sel = getattr(st.sidebar, 'selectbox', None)
+selected_gen_mode = None
+if callable(_sb_sel):
+    try:
+        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=0)
+        if selected_gen_mode not in _gen_opts:
+            selected_gen_mode = None
+    except Exception:
+        selected_gen_mode = None
 # Simplified: hardcode sd-turbo; no model selector
 selected_model = "stabilityai/sd-turbo"
 alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
@@ -116,10 +127,18 @@ gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
-curation_mode = st.sidebar.checkbox("Batch curation mode", value=False)
+# Legacy checkboxes kept for tests; dropdown selection takes precedence when available
+curation_mode_cb = st.sidebar.checkbox("Batch curation mode", value=False)
 batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
-async_queue_mode = st.sidebar.checkbox("Async queue mode", value=False)
+async_queue_mode_cb = st.sidebar.checkbox("Async queue mode", value=False)
 queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
+# Resolve effective mode
+if selected_gen_mode is not None:
+    curation_mode = (selected_gen_mode == _gen_opts[1])
+    async_queue_mode = (selected_gen_mode == _gen_opts[2])
+else:
+    curation_mode = bool(curation_mode_cb)
+    async_queue_mode = bool(async_queue_mode_cb)
 reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
 iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
