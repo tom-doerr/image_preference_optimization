@@ -611,3 +611,8 @@ Documentation (Nov 18, 2025 – Steps semantics):
   - Decode steps per image: sidebar "Steps" (default 6). Passed to the scheduler via `set_timesteps`; higher = slower decode, usually not needed for sd‑turbo beyond 4–8.
   - Latent optimization steps: sidebar "Optimization steps (latent)" (default 1). When >1 or when "Iterative step (eta)" > 0, DistanceHill uses iterative proposer; otherwise it uses a one‑shot line‑search.
 - The "Hill‑climb μ" button always applies exactly one μ‑update per click using its η/γ/r.
+Further consolidation (Nov 18, 2025, night):
+- Added `persistence.get_dataset_for_prompt_or_session(prompt, session_state)` to unify dataset access; replaced repeated load-or-session blocks in `app.py`.
+- Added `background.result_or_sync_after(...)` to centralize async decode timeout → sync fallback logic used by Batch tiles.
+- Extracted value scoring to `value_scorer.get_value_scorer(...)` (Ridge/XGB/Distance/Cosine) and replaced ad‑hoc branches in `app.py`.
+- Moved the Performance panel into `ui.perf_panel` to keep `app.py` thinner.

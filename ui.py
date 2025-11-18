@@ -86,3 +86,25 @@ def status_panel(images: tuple, mu_image) -> None:
     left_ready = 'ready' if images and images[0] is not None else 'empty'
     right_ready = 'ready' if images and images[1] is not None else 'empty'
     sidebar_metric_rows([("Left", left_ready), ("Right", right_ready)], per_row=2)
+
+
+def perf_panel(last_call: dict, last_train_ms) -> None:
+    """Render a minimal Performance panel (decode_s, train_ms)."""
+    import streamlit as st
+    pairs = []
+    d = last_call.get('dur_s') if isinstance(last_call, dict) else None
+    if d is not None:
+        pairs.append(("decode_s", f"{float(d):.3f}"))
+    if last_train_ms is not None:
+        try:
+            pairs.append(("train_ms", f"{float(last_train_ms):.1f}"))
+        except Exception:
+            pass
+    if not pairs:
+        return
+    exp = getattr(st.sidebar, 'expander', None)
+    if callable(exp):
+        with exp("Performance", expanded=False):
+            sidebar_metric_rows(pairs, per_row=2)
+    else:
+        sidebar_metric_rows(pairs, per_row=2)

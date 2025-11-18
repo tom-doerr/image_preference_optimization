@@ -11,7 +11,7 @@ from constants import (
 )
 from constants import Config
 from env_info import get_env_summary
-from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
+from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel, perf_panel
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
@@ -659,24 +659,8 @@ try:
 except Exception:
     env_panel(get_env_summary())
 
-# Performance panel: show last decode and last training times
 try:
-    perf_exp = getattr(st.sidebar, 'expander', None)
-    last = get_last_call() or {}
-    dur_s = last.get('dur_s')
-    train_ms = st.session_state.get('last_train_ms')
-    pairs = []
-    if dur_s is not None:
-        pairs.append(("decode_s", f"{float(dur_s):.3f}"))
-    if train_ms is not None:
-        pairs.append(("train_ms", f"{float(train_ms):.1f}"))
-    if callable(perf_exp):
-        with perf_exp("Performance", expanded=False):
-            if pairs:
-                sidebar_metric_rows(pairs, per_row=2)
-    else:
-        if pairs:
-            sidebar_metric_rows(pairs, per_row=2)
+    perf_panel(get_last_call() or {}, st.session_state.get('last_train_ms'))
 except Exception:
     pass
 
@@ -736,50 +720,8 @@ status_panel(st.session_state.images, st.session_state.mu_image)
 # Vector info for current pair (render early so tests see it on import)
 try:
         za, zb = st.session_state.lz_pair
-        value_scorer = None
-        if use_xgb:
-            try:
-                from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
-                # Cache model in session; retrain only when sample count changes
-                X = getattr(lstate, 'X', None)
-                y = getattr(lstate, 'y', None)
-                n = 0 if (y is None) else len(y)
-                cache = st.session_state.get('xgb_cache') or {}
-                mdl, last_n = cache.get('model'), cache.get('n')
-                if X is not None and y is not None and n > 0 and len(set(y.tolist())) > 1:
-                    if mdl is None or last_n != n:
-                        mdl = fit_xgb_classifier(X, y)
-                        st.session_state.xgb_cache = {'model': mdl, 'n': n}
-                        try:
-                            from datetime import datetime, timezone
-                            st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
-                        except Exception:
-                            pass
-                    value_scorer = lambda f: score_xgb_proba(mdl, f)
-            except Exception:
-                value_scorer = None
-        if st.session_state.get('vm_choice') == 'DistanceHill':
-            # Build dataset from disk or in-memory for distance scoring
-            from persistence import get_dataset_for_prompt_or_session
-            Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
-            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-                from latent_logic import distancehill_score
-                z_p_here = z_from_prompt(lstate, base_prompt)
-                def _score_distance(fvec):
-                    zc = z_p_here + np.asarray(fvec, dtype=float)
-                    return float(distancehill_score(base_prompt, zc, lstate, Xd, yd, gamma=0.5))
-                value_scorer = _score_distance
-        if st.session_state.get('vm_choice') == 'CosineHill':
-            # Build dataset for cosine scoring
-            from persistence import get_dataset_for_prompt_or_session
-            Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
-            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-                from latent_logic import cosinehill_score
-                z_p_here = z_from_prompt(lstate, base_prompt)
-                def _score_cos(fvec):
-                    zc = z_p_here + np.asarray(fvec, dtype=float)
-                    return float(cosinehill_score(base_prompt, zc, lstate, Xd, yd, beta=5.0))
-                value_scorer = _score_cos
+        from value_scorer import get_value_scorer
+        value_scorer = get_value_scorer(st.session_state.get('vm_choice'), lstate, base_prompt, st.session_state)
         render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui), value_scorer=value_scorer)
 except Exception:
     pass
