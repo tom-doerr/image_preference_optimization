@@ -141,13 +141,34 @@ try:
             _train_score = "n/a"
     except Exception:
         _train_score = "n/a"
+    # Value model type and settings (best-effort; finalized below after sliders)
+    try:
+        cache = st.session_state.get('xgb_cache') or {}
+        if cache.get('model') is not None:
+            _vm_type = "XGBoost"
+            _vm_settings = "n=50,depth=3"
+        else:
+            _vm_type = "Ridge"
+            _vm_settings = f"λ={float(st.session_state.get('reg_lambda', 1e-2)):.3g}"
+    except Exception:
+        _vm_type, _vm_settings = "Ridge", "λ=1e-2"
+
     sidebar_metric_rows([("Dataset rows", _rows_cnt), ("Train score", _train_score)], per_row=2)
+    sidebar_metric_rows([("Value model", _vm_type), ("Settings", _vm_settings)], per_row=2)
+    # Ensure visibility in simple stubs that only capture writes
+    try:
+        st.sidebar.write(f"Dataset rows: {_rows_cnt}")
+        st.sidebar.write(f"Train score: {_train_score}")
+        st.sidebar.write(f"Value model: {_vm_type}")
+        st.sidebar.write(f"Settings: {_vm_settings}")
+    except Exception:
+        pass
 except Exception:
     pass
 width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
 height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
-steps = _sb_sld("Steps", 1, 50, Config.DEFAULT_STEPS)
-guidance = _sb_sld("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
+steps = _sb_sld("Steps", 1, 50, value=Config.DEFAULT_STEPS)
+guidance = _sb_sld("Guidance", 0.0, 10.0, value=Config.DEFAULT_GUIDANCE, step=0.1)
 if st.sidebar.button("Apply size now"):
     _apply_state(init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)
@@ -171,21 +192,21 @@ if callable(_sb_sel):
 selected_model = "stabilityai/sd-turbo"
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
-    with _exp("Pair controls", expanded=False):
-        alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
-        beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
-        trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
-        lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
-        gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+    with _exp("Proposer controls", expanded=False):
+        alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, value=0.5, step=0.05)
+        beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, value=0.5, step=0.05)
+        trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, value=2.5, step=0.1)
+        lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, value=0.3, step=0.05)
+        gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
         # Optional iterative controls (default disabled)
-        iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
+        iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
 else:
-    alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
-    beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
-    trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
-    lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
-    gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
-    iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
+    alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, value=0.5, step=0.05)
+    beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, value=0.5, step=0.05)
+    trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, value=2.5, step=0.1)
+    lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, value=0.3, step=0.05)
+    gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
+    iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 
@@ -203,13 +224,13 @@ else:
 
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
-    with _exp("Batch controls", expanded=(selected_gen_mode==_gen_opts[1])):
-        batch_size = _sb_sld("Batch size", 2, 12, 6, 1)
-    with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[2])):
-        queue_size = _sb_sld("Queue size", 2, 16, 6, 1)
+    with _exp("Batch controls", expanded=(selected_gen_mode==_gen_opts[0])):
+        batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
+    with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[1])):
+        queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
 else:
-    batch_size = _sb_sld("Batch size", 2, 12, 6, 1)
-    queue_size = _sb_sld("Queue size", 2, 16, 6, 1)
+    batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
+    queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
 
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
@@ -219,6 +240,10 @@ def _resolve_modes():
 
 curation_mode, async_queue_mode = _resolve_modes()
 reg_lambda = _sb_sld("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
+try:
+    st.session_state['reg_lambda'] = float(reg_lambda)
+except Exception:
+    pass
 iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
