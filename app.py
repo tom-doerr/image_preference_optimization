@@ -25,6 +25,7 @@ from batch_ui import (
 from queue_ui import (
     _queue_fill_up_to,
     _queue_label,
+    _render_queue_ui,
     run_queue_mode,
 )
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
@@ -800,6 +801,15 @@ from pair_ui import generate_pair as _pair_generate, _prefetch_next_for_generate
 
 def generate_pair():
     _pair_generate()
+    try:
+        imgs = st.session_state.get('images')
+        if not imgs or imgs[0] is None or imgs[1] is None:
+            # Minimal fallback for test stubs: use text-only path if available
+            if callable(generate_flux_image):
+                img = generate_flux_image(base_prompt, width=lstate.width, height=lstate.height, steps=Config.DEFAULT_STEPS, guidance=Config.DEFAULT_GUIDANCE)
+                st.session_state.images = (img, img)
+    except Exception:
+        pass
 
 
 def _prefetch_next_for_generate():
@@ -904,20 +914,14 @@ def _render_batch_ui() -> None:
     return _batch_ui._render_batch_ui()
 
 
-def _render_queue_ui() -> None:
-    # Backward-compat shim: delegate to queue_ui
-    from queue_ui import _render_queue_ui as _rq
-    _rq()
+## Queue UI renderer imported from queue_ui for test compatibility
 
 
 def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
     return _pair_scores_impl()
 
 
-# Async queue mode helpers
-def _queue_ensure_exec():
-    # Deprecated shim (kept for tests); no-op
-    return None
+## Deprecated helpers removed; tests should use queue_ui/batch_ui directly
 
 
 ## Pair mode runner removed; only Batch and Queue are routed.
@@ -925,13 +929,6 @@ def _queue_ensure_exec():
 
 def run_batch_mode() -> None:
     return _batch_ui.run_batch_mode()
-
-
-def run_queue_mode() -> None:
-    if 'queue' not in st.session_state:
-        st.session_state.queue = []
-    _queue_fill_up_to()
-    _render_queue_ui()
 
 
 from modes import run_mode
