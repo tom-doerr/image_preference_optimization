@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple
+from concurrent.futures import Future
+from typing import Tuple, Any
 
 
 _EXECUTOR = None
@@ -18,19 +19,19 @@ def reset_executor() -> None:
     _EXECUTOR = None
 
 
-def schedule_decode_latents(prompt: str, latents, width: int, height: int, steps: int, guidance: float):
+def schedule_decode_latents(prompt: str, latents: Any, width: int, height: int, steps: int, guidance: float) -> Future[Any]:
     from flux_local import generate_flux_image_latents  # lazy import for tests
     ex = get_executor()
     return ex.submit(generate_flux_image_latents, prompt, latents, width, height, steps, guidance)
 
 
 def schedule_decode_pair(prompt: str,
-                         lat_a,
-                         lat_b,
+                         lat_a: Any,
+                         lat_b: Any,
                          width: int,
                          height: int,
                          steps: int,
-                         guidance: float):
+                         guidance: float) -> Future[Tuple[Any, Any]]:
     from flux_local import generate_flux_image_latents  # lazy import
     ex = get_executor()
 
@@ -40,4 +41,3 @@ def schedule_decode_pair(prompt: str,
         return img_a, img_b
 
     return ex.submit(_work)
-

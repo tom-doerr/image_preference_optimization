@@ -1,6 +1,7 @@
 import io
 import hashlib
 from datetime import datetime, timezone
+from typing import Any
 import numpy as np
 from constants import APP_VERSION
 from latent_opt import dumps_state

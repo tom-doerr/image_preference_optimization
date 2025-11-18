@@ -1,5 +1,6 @@
 import streamlit as st
 import numpy as np
+from typing import Optional, Tuple, Any
 import os
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
@@ -55,7 +56,7 @@ if prompt_changed:
 
 st.session_state.state_path = state_path_for_prompt(st.session_state.prompt)
 
-def _apply_state(new_state):
+def _apply_state(new_state) -> None:
     """Apply a freshly loaded/created state to session and reset derived caches."""
     st.session_state.lstate = new_state
     # Initialize pair around the prompt anchor (symmetric)
@@ -356,7 +357,7 @@ if len(st.session_state.recent_prompts) > 1:
 
 # (legacy Debug checkbox block removed; unified Debug expander exists above)
 
-def _decode_one(side: str, latents):
+def _decode_one(side: str, latents: np.ndarray) -> Any:
     """Decode one side and record last-call stats (no UI rendering here)."""
     img = generate_flux_image_latents(base_prompt, latents=latents, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
     try:
@@ -399,14 +400,14 @@ def _prefetch_next_for_generate():
 
 # history helpers removed
 
-def _curation_init_batch():
+def _curation_init_batch() -> None:
     if st.session_state.get('cur_batch') is None:
         st.session_state.cur_batch = []
         st.session_state.cur_labels = []
         _curation_new_batch()
 
 
-def _curation_new_batch():
+def _curation_new_batch() -> None:
     z_list = []
     z_p = z_from_prompt(lstate, base_prompt)
     for i in range(int(batch_size)):
@@ -448,7 +449,7 @@ def _proposer_opts():
     return ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=eta)
 
 
-def _curation_add(label: int, z: np.ndarray):
+def _curation_add(label: int, z: np.ndarray) -> None:
     # Feature is delta to prompt
     z_p = z_from_prompt(lstate, base_prompt)
     X = getattr(st.session_state, 'dataset_X', None)
@@ -465,7 +466,7 @@ def _curation_add(label: int, z: np.ndarray):
         pass
 
 
-def _curation_train_and_next():
+def _curation_train_and_next() -> None:
     # Always train from saved dataset on disk
     try:
         with np.load(dataset_path_for_prompt(base_prompt)) as d:
@@ -514,7 +515,9 @@ def _choose_preference(side: str) -> None:
         st_rerun()
 
 
-def _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right):
+def _render_pair_ui(img_left: Any, img_right: Any,
+                    d_left: Optional[float], d_right: Optional[float],
+                    v_left: Optional[float], v_right: Optional[float]) -> None:
     left, right = st.columns(2)
     with left:
         if img_left is not None:
@@ -540,7 +543,7 @@ def _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right):
             _choose_preference('b')
 
 
-def _render_batch_ui():
+def _render_batch_ui() -> None:
     st.subheader("Curation batch")
     for i, z_i in enumerate(st.session_state.cur_batch or []):
         lat = z_to_latents(lstate, z_i)
@@ -567,7 +570,7 @@ def _render_batch_ui():
             st_rerun()
 
 
-def _render_queue_ui():
+def _render_queue_ui() -> None:
     st.subheader("Async queue")
     q = st.session_state.get('queue') or []
     for i, it in enumerate(list(q)):
@@ -590,7 +593,7 @@ def _render_queue_ui():
     _queue_fill_up_to()
 
 
-def _pair_scores() -> tuple[float | None, float | None, float | None, float | None]:
+def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
     """Compute d_left, d_right, V(left), V(right) for current pair."""
     try:
         z_p = z_from_prompt(st.session_state.lstate, base_prompt)
@@ -659,7 +662,7 @@ def _queue_label(idx: int, label: int):
         st.session_state.queue = q
 
 
-def run_pair_mode():
+def run_pair_mode() -> None:
     generate_pair()
     if st.button("Generate pair", type="primary"):
         set_model(selected_model)
@@ -681,12 +684,12 @@ def run_pair_mode():
     _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right)
 
 
-def run_batch_mode():
+def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
 
 
-def run_queue_mode():
+def run_queue_mode() -> None:
     if 'queue' not in st.session_state:
         st.session_state.queue = []
     _queue_fill_up_to()
