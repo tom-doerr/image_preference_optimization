@@ -96,26 +96,28 @@ if 'lstate' not in st.session_state or prompt_changed:
 
 lstate = st.session_state.lstate
 z_a, z_b = st.session_state.lz_pair
-width = st.number_input("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
-height = st.number_input("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
-steps = st.slider("Steps", 1, 50, Config.DEFAULT_STEPS)
-guidance = st.slider("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
+_sb_num = getattr(st.sidebar, 'number_input', st.number_input)
+_sb_sld = getattr(st.sidebar, 'slider', st.slider)
+width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
+height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
+steps = _sb_sld("Steps", 1, 50, Config.DEFAULT_STEPS)
+guidance = _sb_sld("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
 st.sidebar.header("Settings")
 # Simplified: hardcode sd-turbo; no model selector
 selected_model = "stabilityai/sd-turbo"
-alpha = st.slider("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
-beta = st.slider("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
-trust_r = st.slider("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
-lr_mu_ui = st.slider("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
-gamma_orth = st.slider("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
+beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
+trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
+lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
+gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 # Optional iterative controls (default disabled)
-iter_steps = st.slider("Optimization steps (latent)", 1, 10, 1, 1)
+iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 curation_mode = st.sidebar.checkbox("Batch curation mode", value=False)
 batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
 reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
-iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
+iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
 # 7 GB VRAM recipe: lighter model, smaller size, no CLIP
