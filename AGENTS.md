@@ -104,6 +104,11 @@ Performance + UX (Nov 18, 2025, late):
   - Ridge fit prints time and stores `last_train_ms` in session state.
 - Sidebar “Performance” expander shows `decode_s` and `train_ms`.
 
+UI perf note (Nov 18, 2025, late):
+- Button lag was not caused by `st.fragment` refreshes but by synchronous decodes blocking the render path during reruns.
+- Fix: batch items now schedule decodes to a background executor and display placeholders immediately; buttons render without waiting for images.
+- Stability: switched executor to a single worker to avoid CUDA contention and inconsistent column timing.
+
 Simplify pass (Nov 18, 2025, later):
 - Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
 - Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.
