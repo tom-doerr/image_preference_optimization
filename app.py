@@ -670,11 +670,12 @@ with left:
             st.image(img_i, caption=f"Item {i}", use_container_width=True)
             cols = st.columns(2)
             with cols[0]:
-                if st.button(f"Accept {i}"):
+                # Use explicit label values in button text
+                if st.button(f"Good (+1) {i}"):
                     _curation_add(1, z_i)
                     st.session_state.cur_labels[i] = 1
             with cols[1]:
-                if st.button(f"Reject {i}"):
+                if st.button(f"Bad (-1) {i}"):
                     _curation_add(-1, z_i)
                     st.session_state.cur_labels[i] = -1
         if st.button("Train on dataset and next batch", type="primary"):
