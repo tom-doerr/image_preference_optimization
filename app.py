@@ -590,6 +590,33 @@ def _render_queue_ui():
     _queue_fill_up_to()
 
 
+def _pair_scores() -> tuple[float | None, float | None, float | None, float | None]:
+    """Compute d_left, d_right, V(left), V(right) for current pair."""
+    try:
+        z_p = z_from_prompt(st.session_state.lstate, base_prompt)
+        d_left = float(np.linalg.norm(z_a - z_p))
+        d_right = float(np.linalg.norm(z_b - z_p))
+        try:
+            if use_xgb:
+                cache = st.session_state.get('xgb_cache') or {}
+                mdl = cache.get('model')
+                if mdl is not None:
+                    from xgb_value import score_xgb_proba  # type: ignore
+                    v_left = score_xgb_proba(mdl, (z_a - z_p))
+                    v_right = score_xgb_proba(mdl, (z_b - z_p))
+                else:
+                    v_left = v_right = None
+            else:
+                w_now = st.session_state.lstate.w
+                v_left = float(np.dot(w_now, (z_a - z_p)))
+                v_right = float(np.dot(w_now, (z_b - z_p)))
+        except Exception:
+            v_left = v_right = None
+        return d_left, d_right, v_left, v_right
+    except Exception:
+        return None, None, None, None
+
+
 # Async queue mode helpers
 def _queue_ensure_exec():
     return _bg_executor()
@@ -650,28 +677,7 @@ def run_pair_mode():
         else:
             generate_pair()
     img_left, img_right = st.session_state.images
-    try:
-        z_p_cap = z_from_prompt(st.session_state.lstate, base_prompt)
-        d_left = float(np.linalg.norm(z_a - z_p_cap))
-        d_right = float(np.linalg.norm(z_b - z_p_cap))
-        try:
-            if use_xgb:
-                cache = st.session_state.get('xgb_cache') or {}
-                mdl = cache.get('model')
-                if mdl is not None:
-                    from xgb_value import score_xgb_proba  # type: ignore
-                    v_left = score_xgb_proba(mdl, (z_a - z_p_cap))
-                    v_right = score_xgb_proba(mdl, (z_b - z_p_cap))
-                else:
-                    v_left = v_right = None
-            else:
-                w_now = st.session_state.lstate.w
-                v_left = float(np.dot(w_now, (z_a - z_p_cap)))
-                v_right = float(np.dot(w_now, (z_b - z_p_cap)))
-        except Exception:
-            v_left = v_right = None
-    except Exception:
-        d_left = d_right = v_left = v_right = None
+    d_left, d_right, v_left, v_right = _pair_scores()
     _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right)
 
 
