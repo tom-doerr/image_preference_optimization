@@ -12,6 +12,7 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel, perf_panel
+from concurrent import futures  # exposed for tests to monkey-patch executors
 from batch_ui import (
     _curation_init_batch,
     _curation_new_batch,
@@ -548,7 +549,7 @@ if st.session_state.get('prompt_image') is None or prompt_changed:
 
 
 # Prompt-only generation
-st.subheader("Prompt-only generation")
+(getattr(st, 'subheader', lambda *a, **k: None))("Prompt-only generation")
 if st.button("Generate from Prompt", use_container_width=True):
     set_model(selected_model)
     if callable(generate_flux_image):
@@ -791,69 +792,15 @@ if len(st.session_state.recent_prompts) > 1:
 
 # (legacy Debug checkbox block removed; unified Debug expander exists above)
 
-def _decode_one(side: str, latents: np.ndarray) -> Any:
-    """Decode one side and record last-call stats (no UI rendering here)."""
-    img = generate_flux_image_latents(base_prompt, latents=latents, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-    try:
-        st.session_state.img_stats = st.session_state.get('img_stats') or {}
-        st.session_state.img_stats[side] = get_last_call().copy()
-    except Exception:
-        pass
-    return img
+from pair_ui import generate_pair as _pair_generate, _prefetch_next_for_generate as _pair_prefetch, _pair_scores as _pair_scores_impl
 
 
 def generate_pair():
-    lat_a = z_to_latents(lstate, z_a)
-    lat_b = z_to_latents(lstate, z_b)
-    img_a = _decode_one('left', lat_a)
-    img_b = _decode_one('right', lat_b)
-    st.session_state.images = (img_a, img_b)
-    # Prefetch next pair for the Generate button
-    _prefetch_next_for_generate()
+    _pair_generate()
 
 
 def _prefetch_next_for_generate():
-    try:
-        try:
-            if st.session_state.get('vm_choice') == 'DistanceHill':
-                # Build dataset
-                try:
-                    with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                        Xd = d['X'] if 'X' in d.files else None
-                        yd = d['y'] if 'y' in d.files else None
-                except Exception:
-                    Xd = yd = None
-                if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                    Xd = st.session_state.dataset_X
-                    yd = st.session_state.dataset_y
-                from latent_logic import propose_pair_distancehill
-                za_n, zb_n = propose_pair_distancehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), gamma=0.5, trust_r=None)
-            elif st.session_state.get('vm_choice') == 'CosineHill':
-                try:
-                    with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                        Xd = d['X'] if 'X' in d.files else None
-                        yd = d['y'] if 'y' in d.files else None
-                except Exception:
-                    Xd = yd = None
-                if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                    Xd = st.session_state.dataset_X
-                    yd = st.session_state.dataset_y
-                from latent_logic import propose_pair_cosinehill
-                za_n, zb_n = propose_pair_cosinehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), beta=5.0, trust_r=None)
-            else:
-                za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
-        except Exception:
-            za_n, zb_n = propose_latent_pair_ridge(lstate)
-        la_n = z_to_latents(lstate, za_n)
-        lb_n = z_to_latents(lstate, zb_n)
-        f = bg.schedule_decode_pair(base_prompt, la_n, lb_n, lstate.width, lstate.height, steps, guidance_eff)
-        st.session_state.next_prefetch = {
-            'za': za_n,
-            'zb': zb_n,
-            'f': f,
-        }
-    except Exception:
-        st.session_state.pop('next_prefetch', None)
+    _pair_prefetch()
 
     # μ preview removed
 
@@ -1012,7 +959,7 @@ def _render_pair_ui(img_left: Any, img_right: Any,
 
 
 def _render_batch_ui() -> None:
-    st.subheader("Curation batch")
+    (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
     futs = st.session_state.get('batch_futures') or []
     if not futs or len(futs) != len(st.session_state.cur_batch or []):
         futs = [None] * len(st.session_state.cur_batch or [])
@@ -1089,30 +1036,7 @@ def _render_queue_ui() -> None:
 
 
 def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
-    """Compute d_left, d_right, V(left), V(right) for current pair."""
-    try:
-        z_p = z_from_prompt(st.session_state.lstate, base_prompt)
-        d_left = float(np.linalg.norm(z_a - z_p))
-        d_right = float(np.linalg.norm(z_b - z_p))
-        try:
-            if use_xgb:
-                cache = st.session_state.get('xgb_cache') or {}
-                mdl = cache.get('model')
-                if mdl is not None:
-                    from xgb_value import score_xgb_proba  # type: ignore
-                    v_left = score_xgb_proba(mdl, (z_a - z_p))
-                    v_right = score_xgb_proba(mdl, (z_b - z_p))
-                else:
-                    v_left = v_right = None
-            else:
-                w_now = st.session_state.lstate.w
-                v_left = float(np.dot(w_now, (z_a - z_p)))
-                v_right = float(np.dot(w_now, (z_b - z_p)))
-        except Exception:
-            v_left = v_right = None
-        return d_left, d_right, v_left, v_right
-    except Exception:
-        return None, None, None, None
+    return _pair_scores_impl()
 
 
 # Async queue mode helpers

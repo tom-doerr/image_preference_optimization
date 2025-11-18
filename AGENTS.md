@@ -617,3 +617,8 @@ Further consolidation (Nov 18, 2025, night):
 - Extracted value scoring to `value_scorer.get_value_scorer(...)` (Ridge/XGB/Distance/Cosine) and replaced ad‑hoc branches in `app.py`.
 - Moved the Performance panel into `ui.perf_panel` to keep `app.py` thinner.
 - Centralized training in `value_model.fit_value_model(...)`: always fits Ridge for `w`; optionally refreshes XGBoost cache when selected. Updates `last_train_at`/`last_train_ms`. Replaced duplicate fit/time bookkeeping in `app.py` with this helper.
+
+UI modularization (Nov 18, 2025, late):
+- Extracted Batch UI into `batch_ui.py` and Async Queue UI into `queue_ui.py`. `app.py` delegates to `run_batch_mode()` / `run_queue_mode()` and re-exports batch helpers used in tests.
+- Sidebar control values that other modules need (`queue_size`, `steps`, `guidance`, `guidance_eff`, `alpha`) are written to `st.session_state` to avoid threading values through many function calls.
+- Timeout constant moved to `constants.DECODE_TIMEOUT_S`.
