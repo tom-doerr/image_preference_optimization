@@ -234,6 +234,17 @@ try:
             rows.append(("Train score", "n/a"))
     except Exception:
         rows.append(("Train score", "n/a"))
+    # Dataset rows (from saved NPZ)
+    try:
+        ds_path = dataset_path_for_prompt(base_prompt)
+        n_rows = 0
+        if os.path.exists(ds_path):
+            with np.load(ds_path) as d:
+                Xd = d['X'] if 'X' in d.files else None
+                n_rows = 0 if Xd is None else int(getattr(Xd, 'shape', (0,))[0])
+        rows.append(("Dataset rows", str(n_rows)))
+    except Exception:
+        rows.append(("Dataset rows", "n/a"))
     sidebar_metric_rows(rows, per_row=2)
 except Exception:
     pass
@@ -695,10 +706,14 @@ with left:
                 if st.button(f"Good (+1) {i}"):
                     _curation_add(1, z_i)
                     st.session_state.cur_labels[i] = 1
+                    if callable(st_rerun):
+                        st_rerun()
             with cols[1]:
                 if st.button(f"Bad (-1) {i}"):
                     _curation_add(-1, z_i)
                     st.session_state.cur_labels[i] = -1
+                    if callable(st_rerun):
+                        st_rerun()
         if st.button("Train on dataset and next batch", type="primary"):
             _curation_train_and_next()
             if callable(st_rerun):
