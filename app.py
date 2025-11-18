@@ -317,17 +317,18 @@ _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
     with _exp("Proposer controls", expanded=False):
         # Distance hill climbing settings: use numeric inputs for precision
-        alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
+        from constants import DEFAULT_ALPHA, DEFAULT_BETA, DEFAULT_TRUST_R, DEFAULT_LR_MU, DEFAULT_GAMMA_ORTH, DEFAULT_ITER_STEPS
+        alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=DEFAULT_ALPHA, step=0.01, format="%.2f")
         try:
             st.session_state['alpha'] = float(alpha)
         except Exception:
             pass
-        beta = _sb_num("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
-        trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1, format="%.1f")
-        lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01, format="%.2f")
-        gamma_orth = _sb_num("Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.01, format="%.2f")
+        beta = _sb_num("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=DEFAULT_BETA, step=0.01, format="%.2f")
+        trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=DEFAULT_TRUST_R, step=0.1, format="%.1f")
+        lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=DEFAULT_LR_MU, step=0.01, format="%.2f")
+        gamma_orth = _sb_num("Orth explore (γ)", min_value=0.0, max_value=1.0, value=DEFAULT_GAMMA_ORTH, step=0.01, format="%.2f")
         # Optional iterative controls (default disabled)
-        iter_steps = _sb_num("Optimization steps (latent)", min_value=1, max_value=10, value=1, step=1)
+        iter_steps = _sb_num("Optimization steps (latent)", min_value=1, max_value=10, value=DEFAULT_ITER_STEPS, step=1)
         try:
             # Show concise iteration summary and per-step predicted values
             st.sidebar.write(f"Iter steps: {int(iter_steps)}")
@@ -413,16 +414,19 @@ else:
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
     with _exp("Batch controls", expanded=(selected_gen_mode==_gen_opts[0])):
-        batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
+        from constants import DEFAULT_BATCH_SIZE
+        batch_size = _sb_sld("Batch size", 2, 12, value=DEFAULT_BATCH_SIZE, step=1)
     with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[1])):
-        queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
+        from constants import DEFAULT_QUEUE_SIZE
+        queue_size = _sb_sld("Queue size", 2, 16, value=DEFAULT_QUEUE_SIZE, step=1)
         try:
             st.session_state['queue_size'] = int(queue_size)
         except Exception:
             pass
 else:
-    batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
-    queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
+    from constants import DEFAULT_BATCH_SIZE, DEFAULT_QUEUE_SIZE
+    batch_size = _sb_sld("Batch size", 2, 12, value=DEFAULT_BATCH_SIZE, step=1)
+    queue_size = _sb_sld("Queue size", 2, 16, value=DEFAULT_QUEUE_SIZE, step=1)
     try:
         st.session_state['queue_size'] = int(queue_size)
     except Exception:
