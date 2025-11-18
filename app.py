@@ -440,6 +440,75 @@ st.sidebar.subheader("Persistence")
 _export_state_bytes = export_state_bytes  # back-compat for tests
 render_persistence_controls(lstate, st.session_state.prompt, st.session_state.state_path, _apply_state, st_rerun)
 
+# Show latent optimization score per iterative step in the sidebar
+def _render_iter_step_scores():
+    try:
+        # Load dataset (disk or from in-memory session)
+        Xd = yd = None
+        try:
+            with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                Xd = d['X'] if 'X' in d.files else None
+                yd = d['y'] if 'y' in d.files else None
+        except Exception:
+            Xd = yd = None
+        if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+            Xd = st.session_state.dataset_X
+            yd = st.session_state.dataset_y
+        if Xd is None or yd is None or len(getattr(yd, 'shape', (0,))) == 0:
+            return
+        # Direction along current w
+        w = getattr(lstate, 'w', None)
+        if w is None:
+            return
+        w = w[: lstate.d]
+        n = float(np.linalg.norm(w))
+        if n == 0.0:
+            return
+        d1 = w / n
+        # Step length policy
+        n_steps = max(1, int(iter_steps))
+        if iter_eta and float(iter_eta) > 0.0:
+            step_len = float(iter_eta)
+        elif trust_r and float(trust_r) > 0.0:
+            step_len = float(trust_r) / n_steps
+        else:
+            step_len = float(lstate.sigma) / n_steps
+        from latent_logic import z_from_prompt, distancehill_score, cosinehill_score
+        z_p = z_from_prompt(lstate, base_prompt)
+        scores = []
+        for k in range(1, n_steps + 1):
+            zc = z_p + (k * step_len) * d1
+            if vm_choice == 'CosineHill':
+                s = float(cosinehill_score(base_prompt, zc, lstate, Xd, yd, beta=5.0))
+            elif vm_choice == 'DistanceHill':
+                s = float(distancehill_score(base_prompt, zc, lstate, Xd, yd, gamma=0.5))
+            elif vm_choice == 'XGBoost':
+                try:
+                    from xgb_value import score_xgb_proba
+                    s = float(score_xgb_proba((st.session_state.get('xgb_cache') or {}).get('model'), (zc - z_p)))
+                except Exception:
+                    s = 0.0
+            else:
+                s = float(np.dot(lstate.w[: lstate.d], (zc - z_p)))
+            scores.append(s)
+        try:
+            st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
+        except Exception:
+            pass
+        try:
+            from ui import sidebar_metric_rows
+            pairs = []
+            for i, v in enumerate(scores[:4], 1):
+                pairs.append((f"Step {i}", f"{v:.3f}"))
+            if pairs:
+                sidebar_metric_rows(pairs, per_row=2)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+_render_iter_step_scores()
+
 # Autorun: generate prompt image only when missing or prompt changed; then generate the A/B pair
 set_model(selected_model)
 if st.session_state.get('prompt_image') is None or prompt_changed:

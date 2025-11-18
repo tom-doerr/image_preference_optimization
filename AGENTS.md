@@ -110,6 +110,14 @@ UI cleanup (Nov 18, 2025, later):
 - Removed separate “Pair proposer” dropdown; proposer derives from Value model: CosineHill → CosineHill proposer, otherwise DistanceHill.
 - Test updated: `tests/test_pair_proposer_toggle.py` selects CosineHill via the Value model dropdown.
 
+Algorithm notes (Nov 18, 2025 – Hill‑climb latents):
+- Prompt anchor: `z_p = z_from_prompt(state, prompt)` (sha1‑seeded Gaussian of length `d`).
+- Dataset: we store rows as deltas `X_i = z_i − z_p` with labels `y_i ∈ {+1, −1}`.
+- DistanceHill direction: compute gradient of `∑ y_i σ(γ‖μ − (z_p+X_i)‖²)` w.r.t. μ, then normalize to `d1`.
+- Pair proposal: `z± = z_p ± α·σ·d1` (optionally add orthogonal `γ·d2`), clamp `‖z± − z_p‖ ≤ trust_r`.
+- μ update (button): `μ ← μ + η·grad` with same trust‑radius clamp.
+- Mapping to latents: `z_to_latents` reshapes to `(1,4,H/8,W/8)`, zero‑centers channel means, blends small noise; `flux_local` normalizes to the scheduler’s init sigma before decode.
+
 Working state (Nov 18, 2025, evening):
 - Black-image issue resolved on sd‑turbo with LCMScheduler; prompt + A/B now produce content on the target box.
 - App auto-generates prompt image (text) and pair (latents) on load; Debug panel exposes image/std stats.
@@ -585,3 +593,8 @@ New feature (Nov 18, 2025): Hill‑climb μ (distance)
 - Sidebar‑Aktion „Hill-climb μ (distance)“ führt einen einzigen Gradienten‑Schritt auf μ aus, um zu Positiv‑Beispielen hin und von Negativ‑Beispielen weg zu gehen.
 - Loss: L(μ) = −∑ y_i · σ(γ·‖μ−z_i‖²); Step: μ ← μ − η·∇L, optionaler Trust‑Radius um z_prompt.
 - Controls: η (step), γ (sigmoid), r (0=aus). Test: `tests/test_hill_climb_distance.py` prüft, dass μ näher an positive Samples rückt und weiter weg von negativen.
+Documentation (Nov 18, 2025 – Steps semantics):
+- Two independent “steps” exist in the UI:
+  - Decode steps per image: sidebar "Steps" (default 6). Passed to the scheduler via `set_timesteps`; higher = slower decode, usually not needed for sd‑turbo beyond 4–8.
+  - Latent optimization steps: sidebar "Optimization steps (latent)" (default 1). When >1 or when "Iterative step (eta)" > 0, DistanceHill uses iterative proposer; otherwise it uses a one‑shot line‑search.
+- The "Hill‑climb μ" button always applies exactly one μ‑update per click using its η/γ/r.
