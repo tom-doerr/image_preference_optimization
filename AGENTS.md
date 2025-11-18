@@ -469,3 +469,7 @@ New learnings (Nov 18, 2025):
 
 Decision (123d):
 - Added a one-click "Use Turbo defaults" button in the sidebar. It overrides the active model to `stabilityai/sd-turbo`, re-initializes the latent state at 512×512, and relies on the app’s Turbo-effective guidance (CFG=0.0). Minimal code; no fallbacks.
+Model selection removal (Nov 18, 2025, 128b):
+- Hardcoded model to `stabilityai/sd-turbo`; removed the model selector and custom HF id field from the UI to cut complexity.
+- Kept the “7 GB VRAM mode” override which forces `runwayml/stable-diffusion-v1-5` and clamps size/steps, because it provides tangible stability on low VRAM with minimal code.
+- Updated tests that assumed switchable models; they now assert `set_model('stabilityai/sd-turbo')` is called and that small‑VRAM still overrides to SD‑1.5.

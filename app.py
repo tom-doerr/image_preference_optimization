@@ -4,7 +4,6 @@ import os
 import hashlib
 from constants import (
     DEFAULT_PROMPT,
-    MODEL_CHOICES,
     SMALL_VRAM_MAX_WIDTH,
     SMALL_VRAM_MAX_HEIGHT,
     SMALL_VRAM_MAX_STEPS,
@@ -107,11 +106,8 @@ height = st.number_input("Height", min_value=256, max_value=1024, step=64, value
 steps = st.slider("Steps", 1, 50, Config.DEFAULT_STEPS)
 guidance = st.slider("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
 st.sidebar.header("Settings")
-flux_model = st.sidebar.selectbox("FLUX model", MODEL_CHOICES)
-custom_model = st.sidebar.text_input("Custom HF model id (optional)", value="")
-selected_model = custom_model.strip() or flux_model
-if 'selected_model_override' in st.session_state:
-    selected_model = st.session_state.selected_model_override
+# Simplified: hardcode sd-turbo; no model selector
+selected_model = "stabilityai/sd-turbo"
 alpha = st.slider("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
 beta = st.slider("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
 trust_r = st.slider("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
@@ -131,19 +127,8 @@ if small_vram:
     steps = min(int(steps), SMALL_VRAM_MAX_STEPS) if steps is not None else SMALL_VRAM_MAX_STEPS
     pass
 
-# Effective guidance: Turbo models prefer CFG=0.0
-is_turbo = isinstance(selected_model, str) and ("sd-turbo" in selected_model or "sdxl-turbo" in selected_model)
-guidance_eff = 0.0 if is_turbo else guidance
-
-# Quick recipe: one-click Turbo defaults
-if st.sidebar.button("Use Turbo defaults"):
-    st.session_state.selected_model_override = "stabilityai/sd-turbo"
-    _apply_state(init_latent_state(width=512, height=512))
-    save_state(st.session_state.lstate, st.session_state.state_path)
-    if callable(st_rerun):
-        st_rerun()
-if st.session_state.get('selected_model_override') == "stabilityai/sd-turbo":
-    st.sidebar.caption("Turbo defaults active (sd-turbo • 512×512 • CFG 0.0)")
+is_turbo = True
+guidance_eff = 0.0
 
 # (auto-run added after function definitions below)
 

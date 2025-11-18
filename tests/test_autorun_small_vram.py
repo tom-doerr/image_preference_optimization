@@ -68,8 +68,10 @@ class TestAutorunSmallVram(unittest.TestCase):
                 del sys.modules[m]
         sys.modules['streamlit'] = stub_streamlit_small_vram()
         fl = types.ModuleType('flux_local')
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
         fl.set_model = lambda *a, **kw: None
+        fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         import app

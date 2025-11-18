@@ -33,8 +33,7 @@ def stub_streamlit_switch_model_and_generate():
     class Sidebar:
         @staticmethod
         def selectbox(label, options, *args, **kwargs):
-            # Choose a non-default model to force reload
-            return 'black-forest-labs/FLUX.1-dev' if 'FLUX model' in label else 'ridge'
+            return 'ridge'
         @staticmethod
         def header(*_, **__): return None
         @staticmethod
@@ -69,17 +68,19 @@ class TestE2EModelSwitchReload(unittest.TestCase):
         sys.modules['streamlit'] = stub_streamlit_switch_model_and_generate()
         called = {'mid': None}
         fl = types.ModuleType('flux_local')
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
         def _set_model(mid):
             called['mid'] = mid
         fl.set_model = _set_model
+        fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         import app
-        self.assertEqual(called['mid'], 'black-forest-labs/FLUX.1-dev')
+        # With simplified app, model is hardcoded to sd-turbo
+        self.assertEqual(called['mid'], 'stabilityai/sd-turbo')
         self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
 
 
 if __name__ == '__main__':
     unittest.main()
-
