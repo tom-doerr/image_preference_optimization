@@ -28,12 +28,11 @@ from queue_ui import (
     _render_queue_ui,
     run_queue_mode,
 )
-from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
+from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
 from latent_opt import (
     init_latent_state,
-    propose_latent_pair_ridge,
     propose_next_pair,
     z_to_latents,
     z_from_prompt,
