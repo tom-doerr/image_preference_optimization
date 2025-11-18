@@ -60,16 +60,7 @@ def _apply_state(new_state):
     st.session_state.lstate = new_state
     # Initialize pair around the prompt anchor (symmetric)
     try:
-        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        from latent_opt import ProposerOpts  # local import to avoid test stub issues
-        opts = ProposerOpts(
-            mode=mode,
-            trust_r=trust_r,
-            gamma=gamma_orth,
-            steps=int(iter_steps),
-            eta=(float(iter_eta) if iter_eta > 0.0 else None),
-        )
-        z1, z2 = propose_next_pair(new_state, st.session_state.prompt, opts=opts)
+        z1, z2 = propose_next_pair(new_state, st.session_state.prompt, opts=_proposer_opts())
         st.session_state.lz_pair = (z1, z2)
     except Exception:
         st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
@@ -413,10 +404,7 @@ def generate_pair():
 def _prefetch_next_for_generate():
     try:
         try:
-            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-            from latent_opt import ProposerOpts
-            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-            za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=opts)
+            za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
         except Exception:
             za_n, zb_n = propose_latent_pair_ridge(lstate)
         la_n = z_to_latents(lstate, za_n)
@@ -456,10 +444,14 @@ def _curation_new_batch():
 
 
 def _curation_sample_one() -> np.ndarray:
+    return _sample_around_prompt(0.8)
+
+
+def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     z_p = z_from_prompt(lstate, base_prompt)
     r = lstate.rng.standard_normal(lstate.d)
     r = r / (np.linalg.norm(r) + 1e-12)
-    return z_p + lstate.sigma * 0.8 * r
+    return z_p + lstate.sigma * float(scale) * r
 
 
 def _curation_replace_at(idx: int) -> None:
@@ -470,6 +462,14 @@ def _curation_replace_at(idx: int) -> None:
         _toast(f"Replaced item {idx}")
     except Exception:
         pass
+
+
+def _proposer_opts():
+    """Return a ProposerOpts built from current sidebar settings."""
+    from latent_opt import ProposerOpts  # local import keeps tests light
+    mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+    eta = float(iter_eta) if iter_eta > 0.0 else None
+    return ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=eta)
 
 
 def _curation_add(label: int, z: np.ndarray):
@@ -536,16 +536,9 @@ def _queue_ensure_exec():
 def _queue_add_one():
     # propose single z (use ridge first vector or random around prompt)
     try:
-        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        from latent_opt import ProposerOpts
-        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-        za, _ = propose_next_pair(lstate, base_prompt, opts=opts)
+        za, _ = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
     except Exception:
-        # random around prompt
-        z_p = z_from_prompt(lstate, base_prompt)
-        r = lstate.rng.standard_normal(lstate.d)
-        r = r / (np.linalg.norm(r) + 1e-12)
-        za = z_p + lstate.sigma * 0.8 * r
+        za = _sample_around_prompt(0.8)
     lat = z_to_latents(lstate, za)
     fut = bg.schedule_decode_latents(base_prompt, lat, lstate.width, lstate.height, steps, guidance_eff)
     item = {'z': za, 'future': fut, 'label': None}
@@ -659,10 +652,7 @@ with left:
                 _label_and_persist(z_b, -1)
             except Exception:
                 pass
-            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-            from latent_opt import ProposerOpts
-            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
+            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
             save_state(lstate, st.session_state.state_path)
             if callable(st_rerun):
                 st_rerun()
@@ -742,10 +732,7 @@ with right:
                 _label_and_persist(z_b, +1)
             except Exception:
                 pass
-            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-            from latent_opt import ProposerOpts
-            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
+            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
             save_state(lstate, st.session_state.state_path)
             if callable(st_rerun):
                 st_rerun()
