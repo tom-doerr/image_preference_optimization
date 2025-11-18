@@ -478,6 +478,9 @@ Model selection removal (Nov 18, 2025, 128b):
 
 Train score (Nov 18, 2025):
 - The “Data” block now includes a simple training score computed on logged pairs using the current ridge weights `w` (accuracy of `sign(Xw)` vs labels). Shown as “Train score”. If no data yet, displays “n/a”. Test: `tests/test_sidebar_train_score.py`.
+
+Prompt encode caching (Nov 18, 2025):
+- For sd‑turbo we cache prompt embeddings per (model, prompt, CFG>0) and pass `prompt_embeds`/`negative_prompt_embeds` to Diffusers. Cuts CPU by avoiding re-tokenization each rerun. Test: `tests/test_prompt_encode_cache.py`.
 CPU load notes (Nov 18, 2025):
 - Reduced unnecessary work on rerun: prompt image is now regenerated only when missing or the prompt changes (previously it regenerated every rerun). This lowers CPU/GPU churn from Streamlit’s reactive reruns.
 - XGBoost value function retrains only when the sample count increases; cached in `session_state` to avoid per-render training.

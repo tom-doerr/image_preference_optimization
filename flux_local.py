@@ -8,6 +8,7 @@ PIPE = None  # lazily initialized Diffusers pipeline
 CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.Lock()
 LAST_CALL: dict = {}
+PROMPT_CACHE: dict = {}
 
 import logging
 LOGGER = logging.getLogger("ipo")
@@ -100,6 +101,11 @@ def _ensure_pipe(model_id: Optional[str] = None):
     except Exception:
         pass
     CURRENT_MODEL_ID = mid
+    # clear prompt cache on model switch
+    try:
+        PROMPT_CACHE.clear()
+    except Exception:
+        pass
     try:
         LAST_CALL.update({"event": "load_model", "model_id": mid})
         LOGGER.info("loaded model %s", mid)
@@ -195,6 +201,34 @@ def _run_pipe(**kwargs):
     raise RuntimeError("Local FLUX pipeline returned no images")
 
 
+def _get_prompt_embeds(prompt: str, guidance: float):
+    """Encode prompt once per model/prompt/guidance-mode and cache embeddings.
+
+    For sd‑turbo we use the pipeline's encode_prompt to avoid re‑tokenizing
+    and re‑encoding on every rerun. If encode_prompt isn't available, return
+    (None, None) and fall back to string prompts in the caller.
+    """
+    key = (CURRENT_MODEL_ID, prompt, bool(guidance and guidance > 1e-6))
+    try:
+        if key in PROMPT_CACHE:
+            return PROMPT_CACHE[key]
+        enc = getattr(PIPE, 'encode_prompt', None)
+        if enc is None:
+            return (None, None)
+        # num_images_per_prompt=1, classifier-free guidance as requested
+        prompt_embeds, neg_embeds = enc(
+            prompt=prompt,
+            device='cuda',
+            num_images_per_prompt=1,
+            do_classifier_free_guidance=bool(key[2]),
+            negative_prompt=None,
+        )
+        PROMPT_CACHE[key] = (prompt_embeds, neg_embeds)
+        return PROMPT_CACHE[key]
+    except Exception:
+        return (None, None)
+
+
 def generate_flux_image(prompt: str,
                         seed: Optional[int] = None,
                         width: int = 768,
@@ -225,14 +259,26 @@ def generate_flux_image(prompt: str,
         "steps": int(steps),
         "guidance": float(guidance),
     })
-    return _run_pipe(
-        prompt=prompt,
-        num_inference_steps=int(steps),
-        guidance_scale=float(guidance),
-        width=int(width),
-        height=int(height),
-        generator=gen,
-    )
+    pe, ne = _get_prompt_embeds(prompt, guidance)
+    if pe is not None:
+        return _run_pipe(
+            prompt_embeds=pe,
+            negative_prompt_embeds=ne,
+            num_inference_steps=int(steps),
+            guidance_scale=float(guidance),
+            width=int(width),
+            height=int(height),
+            generator=gen,
+        )
+    else:
+        return _run_pipe(
+            prompt=prompt,
+            num_inference_steps=int(steps),
+            guidance_scale=float(guidance),
+            width=int(width),
+            height=int(height),
+            generator=gen,
+        )
     # unreachable; keep signature symmetry
 
 
@@ -298,14 +344,26 @@ def generate_flux_image_latents(prompt: str,
         )
     except Exception:
         pass
-    return _run_pipe(
-        prompt=prompt,
-        num_inference_steps=int(steps),
-        guidance_scale=float(guidance),
-        width=int(width),
-        height=int(height),
-        latents=latents,
-    )
+    pe, ne = _get_prompt_embeds(prompt, guidance)
+    if pe is not None:
+        return _run_pipe(
+            prompt_embeds=pe,
+            negative_prompt_embeds=ne,
+            num_inference_steps=int(steps),
+            guidance_scale=float(guidance),
+            width=int(width),
+            height=int(height),
+            latents=latents,
+        )
+    else:
+        return _run_pipe(
+            prompt=prompt,
+            num_inference_steps=int(steps),
+            guidance_scale=float(guidance),
+            width=int(width),
+            height=int(height),
+            latents=latents,
+        )
 def set_model(model_id: str):
     """Load or switch the local FLUX/SD/SDXL model. CUDA only; no fallbacks."""
     pipe = _ensure_pipe(model_id)
