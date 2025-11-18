@@ -317,42 +317,50 @@ if st.sidebar.checkbox("Debug", value=False):
         except Exception as e:
             st.sidebar.write(f"random latents failed: {e}")
 
+def _decode_one(side: str, latents, slot=None):
+    """Decode one side and record last-call stats and optional streaming render."""
+    img = generate_flux_image_latents(
+        base_prompt,
+        latents=latents,
+        width=lstate.width,
+        height=lstate.height,
+        steps=steps,
+        guidance=guidance_eff,
+    )
+    try:
+        st.session_state.img_stats = st.session_state.get('img_stats') or {}
+        st.session_state.img_stats[side] = get_last_call().copy()
+    except Exception:
+        pass
+    if hasattr(slot, 'image'):
+        slot.image(img, caption=side.capitalize(), use_container_width=True)
+    return img
+
+
 def generate_pair():
     lat_a = z_to_latents(lstate, z_a)
     lat_b = z_to_latents(lstate, z_b)
-    # Create best-effort placeholders if available (tests may stub them out)
+    # Best-effort placeholders if available (tests may stub them out)
     make_slot = getattr(st, 'empty', None)
     left_slot = make_slot() if callable(make_slot) else None
     right_slot = make_slot() if callable(make_slot) else None
 
-    # Generate A
-    # When injecting latents, use the state's width/height to avoid mismatches
-    img_a = generate_flux_image_latents(base_prompt, latents=lat_a, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-    try:
-        st.session_state.img_stats = st.session_state.get('img_stats') or {}
-        st.session_state.img_stats['left'] = get_last_call().copy()
-    except Exception:
-        pass
-    if hasattr(left_slot, 'image'):
-        left_slot.image(img_a, caption="Left", use_container_width=True)
+    # Decode sequentially with shared helper
+    img_a = _decode_one('left', lat_a, left_slot)
     st.session_state.images = (img_a, None)
-    # Brief latent vector summary above the image (minimal; aids debugging)
     try:
-        st.caption(f"z_left: first8={np.array2string(z_a[:8], precision=2, separator=', ')} | ‖z_l‖={float(np.linalg.norm(z_a)):.3f}")
+        st.caption(
+            f"z_left: first8={np.array2string(z_a[:8], precision=2, separator=', ')} | ‖z_l‖={float(np.linalg.norm(z_a)):.3f}"
+        )
     except Exception:
         pass
 
-    # Generate B
-    img_b = generate_flux_image_latents(base_prompt, latents=lat_b, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-    try:
-        st.session_state.img_stats['right'] = get_last_call().copy()
-    except Exception:
-        pass
-    if hasattr(right_slot, 'image'):
-        right_slot.image(img_b, caption="Right", use_container_width=True)
+    img_b = _decode_one('right', lat_b, right_slot)
     st.session_state.images = (img_a, img_b)
     try:
-        st.caption(f"z_right: first8={np.array2string(z_b[:8], precision=2, separator=', ')} | ‖z_r‖={float(np.linalg.norm(z_b)):.3f}")
+        st.caption(
+            f"z_right: first8={np.array2string(z_b[:8], precision=2, separator=', ')} | ‖z_r‖={float(np.linalg.norm(z_b)):.3f}"
+        )
     except Exception:
         pass
 
