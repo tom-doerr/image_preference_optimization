@@ -169,7 +169,7 @@ _gen_opts = ["Batch curation", "Async queue"]
 selected_gen_mode = None
 if callable(_sb_sel):
     try:
-        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=1)
+        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=0)
         if selected_gen_mode not in _gen_opts:
             selected_gen_mode = None
     except Exception:

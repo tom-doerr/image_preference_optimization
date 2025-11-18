@@ -87,6 +87,10 @@ Simplification & stability (Nov 18, 2025):
 - Keep guidance at the UI level; no hidden fallbacks. Text‑only path already produced non‑black images; the latents path should now be stable with LCM.
 - If black frames persist on a specific box, the most opinionated next step is to restrict pair decoding to SD‑1.5 and keep Turbo for prompt‑only preview. We’ll only do this if explicitly requested since it changes behavior.
 
+UX tweak (Nov 18, 2025, late):
+- Default “Generation mode” is now Batch curation (index=0 in the dropdown). Previously defaulted to Async queue.
+- Rationale: Batch is the most stable, predictable path and matches the user’s preferred workflow.
+
 Simplify pass (Nov 18, 2025, later):
 - Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
 - Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.
