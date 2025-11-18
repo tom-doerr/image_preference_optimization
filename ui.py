@@ -32,7 +32,7 @@ def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
             sidebar_metric(label, value)
 
 
-def render_pair_sidebar(lstate, prompt: str, z_a: np.ndarray, z_b: np.ndarray, lr_mu_val: float) -> None:
+def render_pair_sidebar(lstate, prompt: str, z_a: np.ndarray, z_b: np.ndarray, lr_mu_val: float, value_scorer=None) -> None:
     import streamlit as st  # ensure we use the currently stubbed module in tests
     w = lstate.w
     m = pair_metrics(w, z_a, z_b)
@@ -55,8 +55,12 @@ def render_pair_sidebar(lstate, prompt: str, z_a: np.ndarray, z_b: np.ndarray, l
         ],
         per_row=2,
     )
-    v_left = float(np.dot(w, (z_a - z_p)))
-    v_right = float(np.dot(w, (z_b - z_p)))
+    if value_scorer is not None:
+        v_left = float(value_scorer(z_a - z_p))
+        v_right = float(value_scorer(z_b - z_p))
+    else:
+        v_left = float(np.dot(w, (z_a - z_p)))
+        v_right = float(np.dot(w, (z_b - z_p)))
     sidebar_metric_rows([("V(left)", f"{v_left:.3f}"), ("V(right)", f"{v_right:.3f}")], per_row=2)
     mu = lstate.mu
     sidebar_metric_rows(

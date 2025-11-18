@@ -106,6 +106,8 @@ lr_mu_ui = st.slider("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
 gamma_orth = st.slider("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 # Optional iterative controls (default disabled)
 iter_steps = st.slider("Optimization steps (latent)", 1, 10, 1, 1)
+# Value function option: Ridge (linear) vs XGBoost
+use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
@@ -232,7 +234,18 @@ status_panel(st.session_state.images, st.session_state.mu_image)
 # Vector info for current pair (render early so tests see it on import)
 try:
     za, zb = st.session_state.lz_pair
-    render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui))
+    value_scorer = None
+    if use_xgb:
+        try:
+            from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+            X = getattr(lstate, 'X', None)
+            y = getattr(lstate, 'y', None)
+            if X is not None and y is not None and len(y) > 0 and len(set(y.tolist())) > 1:
+                _xgb_model = fit_xgb_classifier(X, y)
+                value_scorer = lambda f: score_xgb_proba(_xgb_model, f)
+        except Exception:
+            value_scorer = None
+    render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui), value_scorer=value_scorer)
 except Exception:
     pass
 
@@ -365,9 +378,20 @@ try:
     d_left = float(np.linalg.norm(z_a - z_p_cap))
     d_right = float(np.linalg.norm(z_b - z_p_cap))
     try:
-        w_now = st.session_state.lstate.w
-        v_left = float(np.dot(w_now, (z_a - z_p_cap)))
-        v_right = float(np.dot(w_now, (z_b - z_p_cap)))
+        if use_xgb:
+            from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+            X = getattr(lstate, 'X', None)
+            y = getattr(lstate, 'y', None)
+            if X is not None and y is not None and len(y) > 0 and len(set(y.tolist())) > 1:
+                _xgb_model2 = fit_xgb_classifier(X, y)
+                v_left = score_xgb_proba(_xgb_model2, (z_a - z_p_cap))
+                v_right = score_xgb_proba(_xgb_model2, (z_b - z_p_cap))
+            else:
+                v_left = v_right = None
+        else:
+            w_now = st.session_state.lstate.w
+            v_left = float(np.dot(w_now, (z_a - z_p_cap)))
+            v_right = float(np.dot(w_now, (z_b - z_p_cap)))
     except Exception:
         v_left = v_right = None
 except Exception:
