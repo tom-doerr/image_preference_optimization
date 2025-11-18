@@ -481,6 +481,9 @@ Train score (Nov 18, 2025):
 
 Prompt encode caching (Nov 18, 2025):
 - For sd‑turbo we cache prompt embeddings per (model, prompt, CFG>0) and pass `prompt_embeds`/`negative_prompt_embeds` to Diffusers. Cuts CPU by avoiding re-tokenization each rerun. Test: `tests/test_prompt_encode_cache.py`.
+
+UI tweak (Nov 18, 2025):
+- Sidebar Environment panel is wrapped in a collapsed expander by default (click to open). This keeps the sidebar compact.
 CPU load notes (Nov 18, 2025):
 - Reduced unnecessary work on rerun: prompt image is now regenerated only when missing or the prompt changes (previously it regenerated every rerun). This lowers CPU/GPU churn from Streamlit’s reactive reruns.
 - XGBoost value function retrains only when the sample count increases; cached in `session_state` to avoid per-render training.
