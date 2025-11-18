@@ -12,7 +12,7 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
-from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt
+from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
@@ -334,51 +334,7 @@ if len(st.session_state.recent_prompts) > 1:
         if callable(st_rerun):
             st_rerun()
 
-# Debug panel
-if st.sidebar.checkbox("Debug", value=False):
-    st.sidebar.subheader("Debug info")
-    # Size alignment
-    size_note = f"state_size={lstate.width}x{lstate.height} • slider_size={int(width)}x{int(height)} (latents decode uses state_size)"
-    sidebar_metric_rows([("sizes", size_note)], per_row=1)
-    # Last pipeline call info
-    try:
-        last = get_last_call()
-        pairs = []
-        if last.get('model_id'):
-            pairs.append(("model_id", str(last['model_id'])))
-        if last.get('event'):
-            pairs.append(("event", str(last['event'])))
-        if last.get('latents_std') is not None:
-            pairs.append(("latents_std", f"{last['latents_std']:.3f}"))
-        if last.get('latents_mean') is not None:
-            pairs.append(("latents_mean", f"{last['latents_mean']:.3f}"))
-        if last.get('width') and last.get('height'):
-            pairs.append(("pipe_size", f"{last['width']}x{last['height']}"))
-        if last.get('latents_shape'):
-            pairs.append(("latents_shape", str(last['latents_shape'])))
-        if pairs:
-            sidebar_metric_rows(pairs, per_row=2)
-    except Exception:
-        pass
-    # Heuristic warning if std looks degenerate
-    try:
-        ls = last.get('latents_std', None)
-        if isinstance(ls, float) and ls < 1e-3:
-            st.sidebar.write("warn: latents std≈0; try Reset or different prompt.")
-    except Exception:
-        pass
-    # Sanity buttons
-    if st.sidebar.button("Sanity: text-only decode"):
-        img = generate_flux_image(base_prompt, width=256, height=256, steps=6, guidance=2.5)
-        st.image(img, caption="Sanity text-only (256x256)", use_container_width=True)
-    if st.sidebar.button("Sanity: random latents (256)"):
-        try:
-            h8, w8 = (256 // 8), (256 // 8)
-            rnd = np.random.default_rng(0).standard_normal((1,4,h8,w8)).astype(np.float32)
-            img = generate_flux_image_latents(base_prompt, latents=rnd, width=256, height=256, steps=6, guidance=2.5)
-            st.image(img, caption="Sanity random latents (256x256)", use_container_width=True)
-        except Exception as e:
-            st.sidebar.write(f"random latents failed: {e}")
+# (legacy Debug checkbox block removed; unified Debug expander exists above)
 
 def _decode_one(side: str, latents):
     """Decode one side and record last-call stats (no UI rendering here)."""
@@ -483,16 +439,7 @@ def _curation_add(label: int, z: np.ndarray):
     st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
     # Persist to on-disk dataset immediately (always train from saved dataset)
     try:
-        path = dataset_path_for_prompt(base_prompt)
-        try:
-            with np.load(path) as d:
-                Xd = d['X'] if 'X' in d.files else np.zeros((0, feat.shape[1]))
-                yd = d['y'] if 'y' in d.files else np.zeros((0,))
-        except FileNotFoundError:
-            Xd, yd = np.zeros((0, feat.shape[1])), np.zeros((0,))
-        X_new = np.vstack([Xd, feat]) if Xd.size else feat
-        y_new = np.concatenate([yd, lab]) if yd.size else lab
-        np.savez_compressed(path, X=X_new, y=y_new)
+        append_dataset_row(base_prompt, feat, float(label))
         _toast(f"Saved label {int(label):+d} to dataset")
     except Exception:
         pass

@@ -29,6 +29,26 @@ def dataset_rows_for_prompt(prompt: str) -> int:
         return int(getattr(X, 'shape', (0,))[0])
 
 
+def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
+    """Append one (feat, label) to the dataset NPZ for this prompt.
+
+    Returns the new number of rows.
+    """
+    import os
+    p = dataset_path_for_prompt(prompt)
+    if os.path.exists(p):
+        with np.load(p) as d:
+            Xd = d['X'] if 'X' in d.files else np.zeros((0, feat.shape[1]))
+            yd = d['y'] if 'y' in d.files else np.zeros((0,))
+    else:
+        Xd = np.zeros((0, feat.shape[1]))
+        yd = np.zeros((0,))
+    X_new = np.vstack([Xd, feat]) if Xd.size else feat
+    y_new = np.concatenate([yd, np.array([label], dtype=float)]) if yd.size else np.array([label], dtype=float)
+    np.savez_compressed(p, X=X_new, y=y_new)
+    return int(X_new.shape[0])
+
+
 def export_state_bytes(state, prompt: str) -> bytes:
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:
