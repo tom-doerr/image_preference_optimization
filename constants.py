@@ -24,3 +24,6 @@ class Config:
     DEFAULT_HEIGHT: int = 512
     DEFAULT_STEPS: int = 6
     DEFAULT_GUIDANCE: float = 3.5
+
+# UI/generation tuning
+DECODE_TIMEOUT_S = 3.0

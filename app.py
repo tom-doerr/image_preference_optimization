@@ -994,7 +994,8 @@ def _render_batch_ui() -> None:
         def _sync_decode():
             la2 = z_to_latents(lstate, z_i)
             return generate_flux_image_latents(base_prompt, latents=la2, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-        img_i, futs[i] = bg.result_or_sync_after(futs[i], starts[i], 3.0, _sync_decode)
+        from constants import DECODE_TIMEOUT_S
+        img_i, futs[i] = bg.result_or_sync_after(futs[i], starts[i], DECODE_TIMEOUT_S, _sync_decode)
         st.session_state.batch_futures = futs
         if img_i is not None:
             _image_fragment(img_i, caption=f"Item {i}")
