@@ -131,15 +131,16 @@ st.sidebar.subheader("Persistence")
 _export_state_bytes = export_state_bytes  # back-compat for tests
 render_persistence_controls(lstate, st.session_state.prompt, st.session_state.state_path, _apply_state, st_rerun)
 
-# Autorun: always generate prompt image (text path), then generate the A/B pair if missing
+# Autorun: generate prompt image only when missing or prompt changed; then generate the A/B pair
 set_model(selected_model)
-st.session_state.prompt_image = generate_flux_image(
-    base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
-)
-try:
-    st.session_state.prompt_stats = get_last_call().copy()
-except Exception:
-    st.session_state.prompt_stats = {}
+if st.session_state.get('prompt_image') is None or prompt_changed:
+    st.session_state.prompt_image = generate_flux_image(
+        base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
+    )
+    try:
+        st.session_state.prompt_stats = get_last_call().copy()
+    except Exception:
+        st.session_state.prompt_stats = {}
 
 
 # Prompt-only generation
@@ -238,11 +239,17 @@ try:
     if use_xgb:
         try:
             from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+            # Cache model in session; retrain only when sample count changes
             X = getattr(lstate, 'X', None)
             y = getattr(lstate, 'y', None)
-            if X is not None and y is not None and len(y) > 0 and len(set(y.tolist())) > 1:
-                _xgb_model = fit_xgb_classifier(X, y)
-                value_scorer = lambda f: score_xgb_proba(_xgb_model, f)
+            n = 0 if (y is None) else len(y)
+            cache = st.session_state.get('xgb_cache') or {}
+            mdl, last_n = cache.get('model'), cache.get('n')
+            if X is not None and y is not None and n > 0 and len(set(y.tolist())) > 1:
+                if mdl is None or last_n != n:
+                    mdl = fit_xgb_classifier(X, y)
+                    st.session_state.xgb_cache = {'model': mdl, 'n': n}
+                value_scorer = lambda f: score_xgb_proba(mdl, f)
         except Exception:
             value_scorer = None
     render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui), value_scorer=value_scorer)
@@ -387,13 +394,12 @@ try:
     d_right = float(np.linalg.norm(z_b - z_p_cap))
     try:
         if use_xgb:
-            from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
-            X = getattr(lstate, 'X', None)
-            y = getattr(lstate, 'y', None)
-            if X is not None and y is not None and len(y) > 0 and len(set(y.tolist())) > 1:
-                _xgb_model2 = fit_xgb_classifier(X, y)
-                v_left = score_xgb_proba(_xgb_model2, (z_a - z_p_cap))
-                v_right = score_xgb_proba(_xgb_model2, (z_b - z_p_cap))
+            cache = st.session_state.get('xgb_cache') or {}
+            mdl = cache.get('model')
+            if mdl is not None:
+                from xgb_value import score_xgb_proba  # type: ignore
+                v_left = score_xgb_proba(mdl, (z_a - z_p_cap))
+                v_right = score_xgb_proba(mdl, (z_b - z_p_cap))
             else:
                 v_left = v_right = None
         else:
