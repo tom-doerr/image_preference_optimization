@@ -935,6 +935,8 @@ def _curation_new_batch() -> None:
         z_list.append(z)
     st.session_state.cur_batch = z_list
     st.session_state.cur_labels = [None] * len(z_list)
+    # Reset per-item decode futures for async rendering
+    st.session_state.batch_futures = [None] * len(z_list)
 
 
 def _curation_sample_one() -> np.ndarray:
@@ -1093,10 +1095,21 @@ def _render_pair_ui(img_left: Any, img_right: Any,
 
 def _render_batch_ui() -> None:
     st.subheader("Curation batch")
+    futs = st.session_state.get('batch_futures') or []
+    if not futs or len(futs) != len(st.session_state.cur_batch or []):
+        futs = [None] * len(st.session_state.cur_batch or [])
+        st.session_state.batch_futures = futs
     for i, z_i in enumerate(st.session_state.cur_batch or []):
-        lat = z_to_latents(lstate, z_i)
-        img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-        _image_fragment(img_i, caption=f"Item {i}")
+        # Schedule decode if needed
+        if futs[i] is None:
+            la = z_to_latents(lstate, z_i)
+            futs[i] = bg.schedule_decode_latents(base_prompt, la, lstate.width, lstate.height, steps, guidance_eff)
+            st.session_state.batch_futures = futs
+        img_i = futs[i].result() if futs[i].done() else None
+        if img_i is not None:
+            _image_fragment(img_i, caption=f"Item {i}")
+        else:
+            st.write(f"Item {i}: loading…")
         if st.button(f"Good (+1) {i}", use_container_width=True):
             import time as _time
             t0 = _time.perf_counter()
