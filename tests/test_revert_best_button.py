@@ -73,10 +73,9 @@ class TestRevertBestButton(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app
-        # After import, our click should have set a μ preview
-        self.assertEqual(app.st.session_state.mu_image, 'ok-image')
+        # Revert UI removed; ensure μ preview not set
+        self.assertTrue('mu_image' in app.st.session_state and app.st.session_state.mu_image is None)
 
 
 if __name__ == '__main__':
     unittest.main()
-

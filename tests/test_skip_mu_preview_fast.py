@@ -52,9 +52,9 @@ class TestSkipMuPreviewFast(unittest.TestCase):
         fl.set_model = lambda *a, **kw: None
         sys.modules['flux_local'] = fl
         import app
-        # After autorun, μ image should be skipped when preview is off
-        self.assertIsNone(app.st.session_state.mu_image)
+        # μ preview UI removed; ensure we still generate A/B
         self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
+        self.assertTrue('mu_image' in app.st.session_state and app.st.session_state.mu_image is None)
 
 
 if __name__ == '__main__':

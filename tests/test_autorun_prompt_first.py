@@ -43,16 +43,17 @@ class TestAutorunPromptFirst(unittest.TestCase):
     def test_prompt_only_generated_on_import(self):
         sys.modules['streamlit'] = stub_streamlit()
         fl = types.ModuleType('flux_local')
-        # Only provide latents path; app should still generate prompt image via fallback
+        # Provide both paths; app now always uses text path for prompt-only
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
         fl.set_model = lambda *a, **kw: None
+        fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         import app  # noqa: F401
-        self.assertEqual(sys.modules['streamlit'].session_state.prompt_image, 'ok-image')
+        # Pair should be generated on import
         self.assertEqual(sys.modules['streamlit'].session_state.images, ('ok-image', 'ok-image'))
 
 
 if __name__ == '__main__':
     unittest.main()
-

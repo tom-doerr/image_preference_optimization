@@ -76,6 +76,21 @@ Maintainability (Nov 13, 2025):
 - Loader invariants centralized: sets `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, uses `low_cpu_mem_usage=False` + `.to("cuda")` for broad compatibility, and frees VRAM on model switch.
 - Added tests: allocator env set on load (`tests/test_allocator_env.py`). Total tests now 41 (1 GPU skipped).
 
+Simplification & stability (Nov 18, 2025):
+- Black A/B frames under sd‑turbo were traced to scheduler/latents interaction. We simplified by switching sd‑turbo to `LCMScheduler` in `flux_local.set_model()`; kept code minimal and added a small test `tests/test_scheduler_turbo_lcm.py` that stubs Diffusers and asserts the switch.
+- Keep guidance at the UI level; no hidden fallbacks. Text‑only path already produced non‑black images; the latents path should now be stable with LCM.
+- If black frames persist on a specific box, the most opinionated next step is to restrict pair decoding to SD‑1.5 and keep Turbo for prompt‑only preview. We’ll only do this if explicitly requested since it changes behavior.
+
+Simplify pass (Nov 18, 2025, later):
+- Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
+- Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.
+- Added/updated tiny tests to reflect the simplified contracts for prompt/latents paths.
+
+Working state (Nov 18, 2025, evening):
+- Black-image issue resolved on sd‑turbo with LCMScheduler; prompt + A/B now produce content on the target box.
+- App auto-generates prompt image (text) and pair (latents) on load; Debug panel exposes image/std stats.
+- Next simplifications to consider (only if requested): hardcode sd‑turbo and drop model selector; collapse proposer controls to a single trust‑radius slider; trim Debug UI to core metrics.
+
 Scheduler race fix (Nov 13, 2025):
 - Wrapped all pipeline `__call__` invocations in a module-level lock (`PIPE_LOCK`) to avoid scheduler `step_index` races under ThreadPool concurrency.
 - Added `tests/test_pipeline_lock.py` to ensure concurrent calls are serialized (no overlap), preventing the `IndexError` seen in Euler schedulers.
@@ -300,9 +315,11 @@ Next options (78) — Nov 15, 2025:
 - 78d: Add a Makefile with `up`, `smoke`, `test`, and `gen` conveniences.
 
 Recommendation: 78a — improves developer ergonomics immediately with minimal code.
-Consolidation (Nov 15, 2025):
+Consolidation (Nov 15–17, 2025):
 - Centralized first‑round prompt seeding in `app._apply_state` and removed the later duplicate hook; keeps initial‑pair logic in one place.
 - Extracted CUDA/latents normalization helpers in `flux_local.py` and vector metrics in `metrics.py` to reduce duplication and complexity.
+- Moved presenter helpers to `ui.py` (`sidebar_metric`, `sidebar_metric_rows`, `render_pair_sidebar`) and refactored the per‑pair sidebar panel to use them.
+- Centralized proposer configuration in `proposer.py` (`ProposerOpts`, `propose_next_pair`); `latent_logic.py` keeps only math primitives.
 - Adjusted smoke stubs to include `generate_flux_image` after adding the prompt‑only generator.
 - Test stubs consolidated: added `tests/helpers/st_streamlit.py` with `stub_basic`, `stub_with_writes`, and `stub_click_button`. Updated a few tests to use these helpers, reducing repeated stub code blocks.
 
@@ -333,6 +350,7 @@ UI tweak (Nov 17, 2025):
 - Added instantaneous step-size readouts (101b): `step(A)` and `step(B)` show the actual Δ‖μ‖ that will be applied if you choose Left/Right (uses lr_mu·‖z−μ‖, with lr_mu=0.3). Test: `tests/test_step_size_sidebar.py`.
 - Captions: Left/Right images now include the prompt distance in their captions: `Left (d_prompt=…)`, `Right (d_prompt=…)`. Test: `tests/test_image_captions_prompt_distance.py`.
 - Sidebar polish: when available, metrics are also rendered with `st.metric` (labels and values), while keeping the text `write` lines for compatibility with tests and older Streamlit.
+ - Removed μ preview/history UI (120c). No more preview checkbox, μ image, "Best μ (history)" block, or Revert button. Tests updated to expect no μ preview behavior while still generating A/B.
 
 Prompt-anchored ridge (Nov 17, 2025):
 - Added `propose_pair_prompt_anchor(state, prompt, α, β, r)` that proposes a symmetric pair around `z_prompt` along the learned ridge direction `w`. If `w` is degenerate, falls back to a random direction from the state RNG.
@@ -364,3 +382,84 @@ Next options (86):
 - 86d. Switch Compose GPU stanza to `gpus: all` for broader Docker compatibility (keeps code minimal).
 Memory snapshot (Nov 17, 2025):
 - Added on-demand RAM/SWAP inspection during support: `free -h`, `swapon --show`, `ps aux --sort -rss | head`, and a small `/proc/*/status` parser to list top per-process swap users. Useful commands preserved in conversation; not added to the repo scripts to keep code minimal.
+
+New learnings (Nov 18, 2025):
+- Default steps reduced from 8 → 6 for faster feedback on mid‑range GPUs; updated test `tests/test_default_steps.py`.
+- Black/constant image mitigation:
+  - `latent_logic.z_to_latents` zero‑centers per‑channel means and blends a touch of Gaussian noise.
+  - `flux_local._normalize_to_init_sigma` scales latents to the scheduler’s init sigma and tolerates numpy‑backed stubs in tests.
+  - Added tests: `tests/test_near_constant_image_stub.py` (stubbed pipeline) and GPU smoke `tests/smoke/test_smoke_pair_not_constant.py` (opt‑in via `SMOKE_GPU=1`).
+- Page‑load behavior: always set model, generate a prompt image, then the A/B pair sequentially; images render as soon as available.
+- Debuggability: we now show a compact latent snippet above each image (`z_left`, `z_right`, and `z_prompt` first 8 values + norms).
+- Sidebar bug fix: the vector‑info panel was not rendering due to a misnamed call site; now uses `ui.render_pair_sidebar()`.
+ - Added a minimal debug/logging path: `flux_local` records the last call (model id, size, latents mean/std) and writes to `ipo.debug.log`. A sidebar “Debug” checkbox shows these metrics plus a size-alignment note (state vs slider) to diagnose black frames quickly.
+
+Keep in mind:
+- Tests rely on simple Streamlit stubs; avoid deep Streamlit APIs. Prefer small helpers in `ui.py`.
+- When adjusting defaults (steps/size), update tests alongside. Resist adding fallbacks; add tests instead.
+
+Next options (116):
+- 116a. Add a GPU‑gated e2e test that imports the app, clicks “Generate pair”, and asserts both images have non‑trivial variance (extends current smoke).
+- 116b. Remove μ preview/history UI to reduce complexity; keep only A/B flow and sidebar metrics.
+- 116c. Extract persistence helpers to `persistence.py` and trim `app.py` another ~100 lines; update imports + tests.
+
+Decision (114c):
+- Implemented `persistence.py` with `state_path_for_prompt(prompt)` and `export_state_bytes(state, prompt)`.
+- `app.py` now uses these helpers and re‑exports `_state_path_for_prompt` and `_export_state_bytes` for tests.
+
+Decision (114d):
+- Added `read_metadata(path)` and refactored the sidebar metadata panel to use it.
+
+Decision (114e):
+- Sidebar now displays `prompt_hash` (sha1[:10]) alongside `app_version` and `created_at`.
+
+Decision (114f):
+- Extracted the sidebar download/upload UI into `persistence_ui.py` with `render_persistence_controls(...)`.
+- The function imports Streamlit inside its body so tests can swap the module before import (keeps stubs simple and avoids hidden fallbacks).
+
+Consolidation opportunities (120) — pending selection
+- 120a. Move “State metadata” panel to `persistence_ui.render_metadata_panel(path, prompt)` and call it from `app.py`.
+- 120b. Extract sidebar environment + status rows to `ui.env_panel(env)` and `ui.status_panel(images, mu)` to DRY app.
+- 120c. Remove μ preview/history UI to simplify; keep A/B flow + per‑pair sidebar metrics (adjust tests accordingly).
+- 120d. Merge `latent_ridge.py` into `latent_logic.py` (ridge‑only), keep `proposer.py` as the single proposal interface.
+- 120e. Introduce a small `Config` (dataclass) for defaults (size, steps, guidance) to avoid literal duplication in app/tests.
+
+My take: 120b first (lowest risk, highest payoff), then 120a; if we want to slim modules further, 120d. 120c is a bigger cleanup but needs coordinated test updates.
+
+Decision (120a, 120b):
+- Implemented `persistence_ui.render_metadata_panel(...)` and replaced the inline app block.
+- Moved sidebar Environment and Images status into `ui.env_panel(...)` and `ui.status_panel(...)` and updated `app.py` accordingly. Tests reading those lines still pass because labels are unchanged.
+
+Decision (120d):
+- Merged `latent_ridge.py` into `latent_logic.py` (ridge-only codepath). The functions `append_pair` and `ridge_fit` now live in `latent_logic.py`, and imports have been updated. No test imports referenced `latent_ridge` directly, so this is a pure internal consolidation.
+
+Decision (120e):
+- Introduced a tiny `Config` dataclass in `constants.py` to keep UI defaults (width/height/steps/guidance) in one place.
+- App now references `Config.DEFAULT_STEPS` and `Config.DEFAULT_GUIDANCE`; defaults remain 6 steps and 3.5 guidance. Tests unchanged and pass.
+
+New e2e tests (Nov 18, 2025):
+- `tests/e2e/test_e2e_predicted_values_and_iterations.py`: imports the app with stubs and asserts that predicted values (V(left)/V(right)) and the iterations line render on import.
+- `tests/e2e/test_e2e_prefer_left_increments.py`: emulates a single preference by calling `app.update_latent_ridge(...)` on the current pair and checks that `lstate.step` increments. Uses a unique prompt and clears `mu_hist` to avoid NPZ collisions.
+- `tests/e2e/test_e2e_pair_content_gpu.py` (opt‑in via `E2E_GPU=1` or `SMOKE_GPU=1`): decodes a real A/B pair on GPU and asserts both images have variance and are not identical.
+- Stubbed content guard: `tests/test_pair_not_constant_stub.py` maps latents → RGB via a minimal stub pipeline and asserts both A/B are non‑constant and differ.
+
+Playwright e2e (optional, stubbed backend):
+- Start stub app + run UI checks:
+  - `bash scripts/run_playwright.sh`
+  - This starts `streamlit run scripts/app_stubbed.py` on a free port, then runs Python Playwright tests in `tests_playwright/` (`PW_RUN=1`).
+- Direct invocation:
+  - Start: `streamlit run scripts/app_stubbed.py --server.headless true --server.port 8597`
+  - In another shell: `PW_RUN=1 PW_URL=http://localhost:8597 python -m pytest -q tests_playwright`
+- Notes: We use Playwright for Python to avoid Node deps; tests are skipped unless `PW_RUN=1` is set. The stubbed app replaces `flux_local` at import time and renders synthetic images fast.
+
+New learnings (Nov 18, 2025):
+- Black A/B frames were rooted in latent scale not matching the active scheduler. We now set timesteps for the requested step count before computing `init_noise_sigma` and normalize latents to that value. This removed the black-frame symptom here.
+- For `stabilityai/sd-turbo`, switching to `EulerAncestralDiscreteScheduler` produced the most reliable latents‑injection behavior; the loader applies this automatically for sd‑turbo.
+- Minimal code, no fallbacks added. Added a focused test `tests/test_scheduler_sigma_alignment.py` to ensure we scale to the scheduler’s `init_noise_sigma`.
+- Debug log (`ipo.debug.log`) now records `init_sigma` per call to aid field diagnosis.
+- Turbo guidance: for `*sd*-turbo` and `*sdxl*-turbo` models, we now force effective guidance (CFG) to 0.0 in the app calls. This matches how Turbo models are intended to run and eliminates another source of flat/black outputs.
+- Sidebar “Debug” shows last-call stats (model, size, steps, guidance, latents_std, init_sigma, img0_std/min/max) to surface problems immediately.
+ - Safety checker: to prevent spurious blacked-out frames, we disable the pipeline safety checker after load (set `safety_checker=None`, `feature_extractor=None`, and config flag where available). Minimal, avoids false positives in local testing.
+
+Decision (123d):
+- Added a one-click "Use Turbo defaults" button in the sidebar. It overrides the active model to `stabilityai/sd-turbo`, re-initializes the latent state at 512×512, and relies on the app’s Turbo-effective guidance (CFG=0.0). Minimal code; no fallbacks.

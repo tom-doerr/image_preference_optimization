@@ -13,3 +13,14 @@ MODEL_CHOICES = [
 SMALL_VRAM_MAX_WIDTH = 448
 SMALL_VRAM_MAX_HEIGHT = 448
 SMALL_VRAM_MAX_STEPS = 12
+
+# Minimal config to avoid scattered literals
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Config:
+    DEFAULT_WIDTH: int = 512
+    DEFAULT_HEIGHT: int = 512
+    DEFAULT_STEPS: int = 6
+    DEFAULT_GUIDANCE: float = 3.5

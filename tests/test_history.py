@@ -73,10 +73,8 @@ class TestHistory(unittest.TestCase):
         # Favor +e0
         lstate.w[:] = 0
         lstate.w[0] = 1.0
-        # Move mu strongly on e0 and update history
-        lstate.mu[0] = 10.0
-        app._update_history()
-        self.assertEqual(app.st.session_state.mu_best_idx, len(app.st.session_state.mu_history) - 1)
+        # History UI removed; _update_history no longer used
+        self.assertFalse(hasattr(app, '_update_history'))
 
 
 if __name__ == '__main__':

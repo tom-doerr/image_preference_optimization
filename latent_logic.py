@@ -1,8 +1,20 @@
 from typing import Optional
 import numpy as np
 from latent_state import LatentState
-from dataclasses import dataclass
-from latent_ridge import append_pair, ridge_fit
+import numpy as np
+
+
+def append_pair(state: LatentState, z_a: np.ndarray, z_b: np.ndarray, label: float) -> None:
+    pair = np.stack([z_a.astype(float), z_b.astype(float)], axis=0).reshape(1, 2, state.d)
+    zp = getattr(state, 'z_pairs', None)
+    ch = getattr(state, 'choices', None)
+    state.z_pairs = pair if zp is None else np.vstack([zp, pair])
+    state.choices = np.array([label]) if ch is None else np.concatenate([ch, [label]])
+
+
+def ridge_fit(X: np.ndarray, y: np.ndarray, lam: float) -> np.ndarray:
+    dfeat = X.shape[1]
+    return np.linalg.solve(X.T @ X + lam * np.eye(dfeat), X.T @ y)
 import hashlib
 
 
@@ -251,41 +263,4 @@ def propose_pair_prompt_anchor_linesearch(
     return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
 
 
-@dataclass
-class ProposerOpts:
-    mode: str = "line"          # 'line' or 'iter'
-    trust_r: Optional[float] = None
-    gamma: float = 0.0
-    steps: int = 3
-    eta: Optional[float] = None
-
-
-def propose_next_pair(
-    state: LatentState,
-    prompt: str,
-    *,
-    mode: str = "line",
-    trust_r: Optional[float] = None,
-    gamma: float = 0.0,
-    steps: int = 3,
-    eta: Optional[float] = None,
-    opts: Optional[ProposerOpts] = None,
-):
-    """Unified proposer API.
-
-    - mode='line' → line-search along w (default).
-    - mode='iter' → small projected steps along w; honors `steps` and `eta`.
-    Falls back to line-search if mode is unrecognized.
-    """
-    if opts is not None:
-        # opts (if provided) overrides individual kwargs
-        mode = opts.mode
-        trust_r = opts.trust_r
-        gamma = opts.gamma
-        steps = opts.steps
-        eta = opts.eta
-    if str(mode).lower() == "iter":
-        return propose_pair_prompt_anchor_iterative(
-            state, prompt, steps=int(max(1, steps)), eta=eta, trust_r=trust_r, gamma=gamma
-        )
-    return propose_pair_prompt_anchor_linesearch(state, prompt, trust_r=trust_r, gamma=gamma)
+# propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration

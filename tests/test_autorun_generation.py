@@ -69,9 +69,9 @@ class TestAutorunGeneration(unittest.TestCase):
 
         import app
         self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
-        self.assertEqual(app.st.session_state.mu_image, 'ok-image')
+        # μ preview removed
+        self.assertTrue('mu_image' in app.st.session_state and app.st.session_state.mu_image is None)
 
 
 if __name__ == '__main__':
     unittest.main()
-

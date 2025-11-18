@@ -16,12 +16,16 @@ class TestSidebarStatus(unittest.TestCase):
         fl.set_model = lambda *a, **kw: None
         sys.modules['flux_local'] = fl
 
-        # Check that the three status lines were written
+        # Ensure UI module sees our fresh streamlit stub
+        if 'ui' in sys.modules:
+            del sys.modules['ui']
+        # Import app to initialize
+        import app  # noqa: F401
+        # Check that the status lines were written
         joined = '\n'.join(writes)
         # Since prompt-aware reload can reset caches on import, accept either ready or empty here
         self.assertIn('Left:', joined)
         self.assertIn('Right:', joined)
-        self.assertIn('μ preview:', joined)
 
 
 if __name__ == '__main__':

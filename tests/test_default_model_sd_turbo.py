@@ -67,7 +67,9 @@ class TestDefaultModelSdTurbo(unittest.TestCase):
         sys.modules['streamlit'] = stub_streamlit_return_default()
         fl = types.ModuleType('flux_local')
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.set_model = lambda *a, **kw: None
+        fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         # Act

@@ -69,9 +69,11 @@ class TestE2EGenerateButton(unittest.TestCase):
         calls = {'set_model': 0}
         fl = types.ModuleType('flux_local')
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         def _set_model(mid):
             calls['set_model'] += 1
         fl.set_model = _set_model
+        fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         import app
@@ -82,4 +84,3 @@ class TestE2EGenerateButton(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

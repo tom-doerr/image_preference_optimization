@@ -151,6 +151,7 @@ class TestExportImportPromptMeta(unittest.TestCase):
         del sys.modules['app']
         sys.modules['streamlit'] = stub_streamlit_import_with_mismatch('prompt A', data, warnings)
         sys.modules['flux_local'] = fl
+        import app  # trigger import-time upload handling and warning
         self.assertTrue(any('different prompt' in w for w in warnings))
 
     def test_import_mismatch_switch_button_loads(self):

@@ -6,6 +6,8 @@ from tests.helpers.st_streamlit import stub_click_button
 
 class TestGenerateFromPromptButton(unittest.TestCase):
     def test_button_generates_prompt_image(self):
+        if 'app' in sys.modules:
+            del sys.modules['app']
         sys.modules['streamlit'] = stub_click_button('Generate from Prompt')
         # Stub flux_local functions
         fl = types.ModuleType('flux_local')

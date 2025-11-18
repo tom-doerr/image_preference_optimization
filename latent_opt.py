@@ -12,12 +12,11 @@ from latent_logic import (
     propose_pair_prompt_anchor,
     propose_pair_prompt_anchor_iterative,
     propose_pair_prompt_anchor_linesearch,
-    propose_next_pair,
-    ProposerOpts,
     z_to_latents,
     z_from_prompt,
     update_latent_ridge,
 )
+from proposer import propose_next_pair, ProposerOpts
 
 __all__ = [
     'LatentState',

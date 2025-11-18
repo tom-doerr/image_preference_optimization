@@ -67,8 +67,7 @@ class TestApplyStateHelper(unittest.TestCase):
         app._apply_state(new_state)
         # Caches reset
         self.assertEqual(st.session_state.images, (None, None))
-        self.assertIsNone(st.session_state.mu_image)
-        self.assertEqual(len(st.session_state.mu_history), 1)
+        self.assertTrue('mu_image' in st.session_state and st.session_state.mu_image is None)
         self.assertNotEqual(tuple(old_pair[0]), tuple(st.session_state.lz_pair[0]))
 
 

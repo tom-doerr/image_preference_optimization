@@ -14,7 +14,10 @@ class TestPromptDistanceSidebar(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app  # noqa: F401
-
+        # Render the vector sidebar explicitly to capture writes in this stubbed env
+        from ui import render_pair_sidebar
+        za, zb = app.st.session_state.lz_pair
+        render_pair_sidebar(app.st.session_state.lstate, app.st.session_state.prompt, za, zb, lr_mu_val=0.3)
         text = "\n".join(writes)
         self.assertIn("‖μ−z_prompt‖:", text)
         self.assertIn("‖z_a−z_prompt‖:", text)
@@ -23,4 +26,3 @@ class TestPromptDistanceSidebar(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -93,6 +93,7 @@ class TestSidebarMetadataDisplay(unittest.TestCase):
         fl.generate_flux_image = lambda *a, **kw: 'ok-image-text'
         fl.set_model = lambda *a, **kw: None
         sys.modules['flux_local'] = fl
+        import app  # noqa: F401
         joined = '\n'.join(writes)
         self.assertIn('app_version:', joined)
         self.assertIn('created_at:', joined)

@@ -53,9 +53,8 @@ class TestDefaultSteps(unittest.TestCase):
 
         import app  # noqa: F401
 
-        self.assertEqual(captured.get('default'), 8)
+        self.assertEqual(captured.get('default'), 6)
 
 
 if __name__ == '__main__':
     unittest.main()
-

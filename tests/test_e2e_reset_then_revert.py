@@ -112,14 +112,15 @@ class TestResetThenRevert(unittest.TestCase):
         sys.modules['flux_local'] = fl
         import app
         self.assertEqual(app.st.session_state.lstate.step, 0)
-        self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
+        # After Reset we re-init state; images caches are cleared
+        self.assertEqual(app.st.session_state.images, (None, None))
 
-        # Pass 2: click Revert to Best μ; should set μ preview without error
+        # Revert UI removed; ensure no crash and μ preview not set
         del sys.modules['app']
         sys.modules['streamlit'] = stub_streamlit_revert_only()
         sys.modules['flux_local'] = fl
         import app as app2
-        self.assertEqual(app2.st.session_state.mu_image, 'ok-image')
+        self.assertTrue('mu_image' in app2.st.session_state and app2.st.session_state.mu_image is None)
 
 
 if __name__ == '__main__':

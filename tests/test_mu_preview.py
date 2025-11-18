@@ -63,7 +63,8 @@ class TestMuPreview(unittest.TestCase):
         import app
         app.generate_flux_image = lambda *a, **kw: 'ok-image'
         app.generate_pair()
-        self.assertEqual(app.st.session_state.mu_image, 'ok-image')
+        # μ preview removed; should not set a μ image
+        self.assertTrue('mu_image' in app.st.session_state and app.st.session_state.mu_image is None)
 
 
 if __name__ == '__main__':
