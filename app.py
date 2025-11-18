@@ -489,6 +489,7 @@ def _curation_add(label: int, z: np.ndarray):
         X_new = np.vstack([Xd, feat]) if Xd.size else feat
         y_new = np.concatenate([yd, lab]) if yd.size else lab
         np.savez_compressed(path, X=X_new, y=y_new)
+        _toast(f"Saved label {int(label):+d} to dataset")
     except Exception:
         pass
 
@@ -759,3 +760,17 @@ if recent:
 ## First-round prompt seeding is handled in _apply_state; no duplicate logic here
 
     # μ preview UI removed
+def _toast(msg: str) -> None:
+    """Lightweight toast; falls back to sidebar write in test stubs."""
+    t = getattr(st, 'toast', None)
+    if callable(t):
+        try:
+            t(str(msg))
+            return
+        except Exception:
+            pass
+    # fallback for stubs
+    try:
+        st.sidebar.write(str(msg))
+    except Exception:
+        pass
