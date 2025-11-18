@@ -91,29 +91,13 @@ def _apply_state(new_state) -> None:
         vmc = st.session_state.get('vm_choice', 'DistanceHill')
         pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
         if pp == 'DistanceHill':
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(st.session_state.prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
+            from persistence import get_dataset_for_prompt_or_session
+            Xd, yd = get_dataset_for_prompt_or_session(st.session_state.prompt, st.session_state)
             from latent_logic import propose_pair_distancehill
             z1, z2 = propose_pair_distancehill(new_state, st.session_state.prompt, Xd, yd, alpha=0.5, gamma=0.5, trust_r=None)
         elif pp == 'CosineHill':
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(st.session_state.prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
+            from persistence import get_dataset_for_prompt_or_session
+            Xd, yd = get_dataset_for_prompt_or_session(st.session_state.prompt, st.session_state)
             from latent_logic import propose_pair_cosinehill
             z1, z2 = propose_pair_cosinehill(new_state, st.session_state.prompt, Xd, yd, alpha=0.5, beta=5.0, trust_r=None)
         else:
@@ -445,16 +429,8 @@ render_persistence_controls(lstate, st.session_state.prompt, st.session_state.st
 def _render_iter_step_scores():
     try:
         # Load dataset (disk or from in-memory session)
-        Xd = yd = None
-        try:
-            with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                Xd = d['X'] if 'X' in d.files else None
-                yd = d['y'] if 'y' in d.files else None
-        except Exception:
-            Xd = yd = None
-        if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-            Xd = st.session_state.dataset_X
-            yd = st.session_state.dataset_y
+        from persistence import get_dataset_for_prompt_or_session
+        Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
         if Xd is None or yd is None or len(getattr(yd, 'shape', (0,))) == 0:
             return
         # Direction along current w
@@ -784,16 +760,8 @@ try:
                 value_scorer = None
         if st.session_state.get('vm_choice') == 'DistanceHill':
             # Build dataset from disk or in-memory for distance scoring
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
+            from persistence import get_dataset_for_prompt_or_session
+            Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
             if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
                 from latent_logic import distancehill_score
                 z_p_here = z_from_prompt(lstate, base_prompt)
@@ -803,16 +771,8 @@ try:
                 value_scorer = _score_distance
         if st.session_state.get('vm_choice') == 'CosineHill':
             # Build dataset for cosine scoring
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
+            from persistence import get_dataset_for_prompt_or_session
+            Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
             if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
                 from latent_logic import cosinehill_score
                 z_p_here = z_from_prompt(lstate, base_prompt)
@@ -990,16 +950,8 @@ def _curation_train_and_next() -> None:
     # Always train from saved dataset on disk; measure performance
     import streamlit as _st
     import time as _time
-    try:
-        with np.load(dataset_path_for_prompt(base_prompt)) as d:
-            X = d['X'] if 'X' in d.files else None
-            y = d['y'] if 'y' in d.files else None
-    except Exception:
-        X = y = None
-    # Prefer saved dataset; if missing, fall back to in-memory (keeps tests/light runs simple)
-    if (X is None or y is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-        X = st.session_state.dataset_X
-        y = st.session_state.dataset_y
+    from persistence import get_dataset_for_prompt_or_session
+    X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
@@ -1021,15 +973,8 @@ def _curation_train_and_next() -> None:
 def _refit_from_dataset_keep_batch() -> None:
     """Refit ridge from saved dataset (or in-memory) without regenerating the batch."""
     import streamlit as _st
-    try:
-        with np.load(dataset_path_for_prompt(base_prompt)) as d:
-            X = d['X'] if 'X' in d.files else None
-            y = d['y'] if 'y' in d.files else None
-    except Exception:
-        X = y = None
-    if (X is None or y is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-        X = st.session_state.dataset_X
-        y = st.session_state.dataset_y
+    from persistence import get_dataset_for_prompt_or_session
+    X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
@@ -1114,24 +1059,11 @@ def _render_batch_ui() -> None:
             starts[i] = _time.time()
             st.session_state.batch_started = starts
         # If pending too long, synchronously decode to avoid indefinite loading
-        img_i = None
-        if futs[i] is not None and futs[i].done():
-            img_i = futs[i].result()
-        else:
-            try:
-                import time as _time
-                t0 = starts[i] or _time.time()
-                if (_time.time() - t0) > 3.0:
-                    la = z_to_latents(lstate, z_i)
-                    img_i = generate_flux_image_latents(base_prompt, latents=la, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-                    from concurrent.futures import Future as _Future
-                    f = _Future(); f.set_result(img_i)
-                    futs[i] = f
-                    st.session_state.batch_futures = futs
-                    starts[i] = None
-                    st.session_state.batch_started = starts
-            except Exception:
-                img_i = None
+        def _sync_decode():
+            la2 = z_to_latents(lstate, z_i)
+            return generate_flux_image_latents(base_prompt, latents=la2, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
+        img_i, futs[i] = bg.result_or_sync_after(futs[i], starts[i], 3.0, _sync_decode)
+        st.session_state.batch_futures = futs
         if img_i is not None:
             _image_fragment(img_i, caption=f"Item {i}")
         else:

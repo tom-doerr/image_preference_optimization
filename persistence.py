@@ -33,6 +33,30 @@ def dataset_rows_for_prompt(prompt: str) -> int:
         return int(getattr(X, 'shape', (0,))[0])
 
 
+def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[object | None, object | None]:
+    """Return (X, y) from the saved dataset for this prompt, or from session_state.
+
+    Prefers the persisted NPZ; if missing, uses `session_state.dataset_X`/`dataset_y` when present.
+    Keeps code minimal and avoids repeating the same load-or-session pattern.
+    """
+    X = y = None
+    p = dataset_path_for_prompt(prompt)
+    try:
+        if os.path.exists(p):
+            with np.load(p) as d:
+                X = d['X'] if 'X' in d.files else None
+                y = d['y'] if 'y' in d.files else None
+    except Exception:
+        X = y = None
+    if (X is None or y is None) and getattr(session_state, 'dataset_X', None) is not None:
+        try:
+            X = session_state.dataset_X
+            y = session_state.dataset_y
+        except Exception:
+            pass
+    return X, y
+
+
 def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     """Append one (feat, label) to the dataset NPZ for this prompt.
 

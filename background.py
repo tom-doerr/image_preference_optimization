@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import Future
 from typing import Tuple, Any
+import time as _time
 
 
 _EXECUTOR = None
@@ -41,3 +42,29 @@ def schedule_decode_pair(prompt: str,
         return img_a, img_b
 
     return ex.submit(_work)
+
+
+def result_or_sync_after(fut: Any,
+                         started_at: float | None,
+                         timeout_s: float,
+                         sync_callable) -> tuple[Any | None, Any]:
+    """Return future.result() if done; otherwise, if elapsed > timeout_s,
+    run sync_callable() and return its result, wrapping it in a resolved Future.
+
+    Returns (result_or_none, future_out). Minimal helper to avoid duplicated
+    timeout logic in the UI code.
+    """
+    try:
+        if fut is not None and fut.done():
+            return fut.result(), fut
+    except Exception:
+        pass
+    try:
+        if started_at is not None and (_time.time() - float(started_at)) > float(timeout_s):
+            res = sync_callable()
+            from concurrent.futures import Future  # lazy import
+            nf = Future(); nf.set_result(res)
+            return res, nf
+    except Exception:
+        pass
+    return None, fut
