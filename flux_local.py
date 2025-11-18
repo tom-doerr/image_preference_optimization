@@ -196,8 +196,16 @@ def _run_pipe(**kwargs):
                     pass
     except Exception:
         pass
+    import time as _time
+    t0 = _time.perf_counter()
     with PIPE_LOCK:
         out = PIPE(**kwargs)
+    dur_s = _time.perf_counter() - t0
+    try:
+        LAST_CALL["dur_s"] = float(dur_s)
+        print(f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})")
+    except Exception:
+        pass
     if hasattr(out, "images") and getattr(out, "images"):
         img0 = out.images[0]
         try:

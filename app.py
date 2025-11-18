@@ -335,12 +335,13 @@ if callable(_exp):
         except Exception:
             pass
 else:
-    alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, value=0.5, step=0.05)
-    beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, value=0.5, step=0.05)
-    trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, value=2.5, step=0.1)
-    lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, value=0.3, step=0.05)
-    gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
-    iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
+    # Fallback path for minimal stubs: number inputs without hard caps
+    alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, value=0.5, step=0.01)
+    beta = _sb_num("Beta (ridge d2)", min_value=0.0, value=0.5, step=0.01)
+    trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, value=2.5, step=0.1)
+    lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, value=0.3, step=0.01)
+    gamma_orth = _sb_num("Orth explore (γ)", min_value=0.0, value=0.2, step=0.01)
+    iter_steps = _sb_num("Optimization steps (latent)", min_value=1, value=10, step=1)
     try:
         st.sidebar.write(f"Iter steps: {int(iter_steps)}")
         def _iter_vals2(n_steps: int, trust_r_v, sigma_v, eta_v, w_now) -> list[str]:
@@ -682,6 +683,27 @@ try:
 except Exception:
     env_panel(get_env_summary())
 
+# Performance panel: show last decode and last training times
+try:
+    perf_exp = getattr(st.sidebar, 'expander', None)
+    last = get_last_call() or {}
+    dur_s = last.get('dur_s')
+    train_ms = st.session_state.get('last_train_ms')
+    pairs = []
+    if dur_s is not None:
+        pairs.append(("decode_s", f"{float(dur_s):.3f}"))
+    if train_ms is not None:
+        pairs.append(("train_ms", f"{float(train_ms):.1f}"))
+    if callable(perf_exp):
+        with perf_exp("Performance", expanded=False):
+            if pairs:
+                sidebar_metric_rows(pairs, per_row=2)
+    else:
+        if pairs:
+            sidebar_metric_rows(pairs, per_row=2)
+except Exception:
+    pass
+
 info = state_summary(lstate)
 pairs_state = [("Latent dim", f"{info['d']}")]
 pairs_state += [(k, f"{info[k]}") for k in ('width','height','step','sigma','mu_norm','w_norm','pairs_logged','choices_logged')]
@@ -962,8 +984,9 @@ def _curation_add(label: int, z: np.ndarray) -> None:
 
 
 def _curation_train_and_next() -> None:
-    # Always train from saved dataset on disk
+    # Always train from saved dataset on disk; measure performance
     import streamlit as _st
+    import time as _time
     try:
         with np.load(dataset_path_for_prompt(base_prompt)) as d:
             X = d['X'] if 'X' in d.files else None
@@ -977,9 +1000,16 @@ def _curation_train_and_next() -> None:
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
+            t0 = _time.perf_counter()
             lstate.w = ll.ridge_fit(X, y, lam=lam_now)
             from datetime import datetime, timezone
             _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+            dt_ms = (_time.perf_counter() - t0) * 1000.0
+            _st.session_state['last_train_ms'] = float(dt_ms)
+            try:
+                print(f"[perf] ridge fit: rows={X.shape[0]} d={X.shape[1]} took {dt_ms:.1f} ms")
+            except Exception:
+                pass
         except Exception:
             pass
     _curation_new_batch()
@@ -1068,19 +1098,31 @@ def _render_batch_ui() -> None:
         img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
         _image_fragment(img_i, caption=f"Item {i}")
         if st.button(f"Good (+1) {i}", use_container_width=True):
+            import time as _time
+            t0 = _time.perf_counter()
             _curation_add(1, z_i)
             st.session_state.cur_labels[i] = 1
             _refit_from_dataset_keep_batch()
             # Regenerate the entire batch for a clean refresh
             _curation_new_batch()
+            try:
+                print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
+            except Exception:
+                pass
             if callable(st_rerun):
                 st_rerun()
         if st.button(f"Bad (-1) {i}", use_container_width=True):
+            import time as _time
+            t0 = _time.perf_counter()
             _curation_add(-1, z_i)
             st.session_state.cur_labels[i] = -1
             _refit_from_dataset_keep_batch()
             # Regenerate the entire batch for a clean refresh
             _curation_new_batch()
+            try:
+                print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
+            except Exception:
+                pass
             if callable(st_rerun):
                 st_rerun()
     if st.button("Train on dataset and next batch", type="primary"):

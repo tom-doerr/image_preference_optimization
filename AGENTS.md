@@ -96,6 +96,14 @@ DistanceHill controls (Nov 18, 2025, later):
   - Alpha, Beta, Trust radius, Step size (lr_μ), Orth explore (γ), Optimization steps, and Iterative step (eta).
 - Keeps UI minimal while allowing exact values; tests rely on session state rather than widget type, so no changes needed there.
 
+Performance + UX (Nov 18, 2025, late):
+- Optimization steps (latent): default set to 10; no hard maximum (number_input without max).
+- Added lightweight performance telemetry:
+  - flux_local._run_pipe prints "[perf] PIPE call took X.XXX s …" and records `dur_s` in `get_last_call()`.
+  - Batch labeling logs per-click durations (good/bad) in the Streamlit CLI.
+  - Ridge fit prints time and stores `last_train_ms` in session state.
+- Sidebar “Performance” expander shows `decode_s` and `train_ms`.
+
 Simplify pass (Nov 18, 2025, later):
 - Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
 - Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.
