@@ -499,6 +499,23 @@ def _curation_new_batch():
     st.session_state.cur_labels = [None] * len(z_list)
 
 
+def _curation_sample_one() -> np.ndarray:
+    z_p = z_from_prompt(lstate, base_prompt)
+    r = lstate.rng.standard_normal(lstate.d)
+    r = r / (np.linalg.norm(r) + 1e-12)
+    return z_p + lstate.sigma * 0.8 * r
+
+
+def _curation_replace_at(idx: int) -> None:
+    try:
+        z_new = _curation_sample_one()
+        st.session_state.cur_batch[idx] = z_new
+        st.session_state.cur_labels[idx] = None
+        _toast(f"Replaced item {idx}")
+    except Exception:
+        pass
+
+
 def _curation_add(label: int, z: np.ndarray):
     # Feature is delta to prompt
     z_p = z_from_prompt(lstate, base_prompt)
@@ -706,12 +723,14 @@ with left:
                 if st.button(f"Good (+1) {i}"):
                     _curation_add(1, z_i)
                     st.session_state.cur_labels[i] = 1
+                    _curation_replace_at(i)
                     if callable(st_rerun):
                         st_rerun()
             with cols[1]:
                 if st.button(f"Bad (-1) {i}"):
                     _curation_add(-1, z_i)
                     st.session_state.cur_labels[i] = -1
+                    _curation_replace_at(i)
                     if callable(st_rerun):
                         st_rerun()
         if st.button("Train on dataset and next batch", type="primary"):
