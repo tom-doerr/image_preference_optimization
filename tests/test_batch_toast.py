@@ -19,6 +19,15 @@ class TestBatchToast(unittest.TestCase):
                 if 'Batch size' in label:
                     return 2
                 return k.get('value', 1)
+            @staticmethod
+            def selectbox(label, options, *a, **k):
+                return 'Batch curation'
+            @staticmethod
+            def expander(*a, **k):
+                class _E:
+                    def __enter__(self): return self
+                    def __exit__(self, *e): return False
+                return _E()
         st.sidebar = SB()
         # keep write capture
         st.sidebar.write = lambda *a, **k: writes.append(str(a[0]) if a else "")

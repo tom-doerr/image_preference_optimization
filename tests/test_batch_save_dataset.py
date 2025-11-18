@@ -25,6 +25,15 @@ class TestBatchSaveDataset(unittest.TestCase):
                 if 'Ridge' in label:
                     return 0.01
                 return k.get('value', 1)
+            @staticmethod
+            def selectbox(label, options, *a, **k):
+                return 'Batch curation'
+            @staticmethod
+            def expander(*a, **k):
+                class _E:
+                    def __enter__(self): return self
+                    def __exit__(self, *e): return False
+                return _E()
         st.sidebar = SB()
         sys.modules['streamlit'] = st
 

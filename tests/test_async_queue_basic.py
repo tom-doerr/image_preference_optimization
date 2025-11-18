@@ -17,6 +17,15 @@ class TestAsyncQueueBasic(unittest.TestCase):
                 if 'Queue size' in label:
                     return 3
                 return k.get('value', 1)
+            @staticmethod
+            def selectbox(label, options, *a, **k):
+                return 'Async queue'
+            @staticmethod
+            def expander(*a, **k):
+                class _E:
+                    def __enter__(self): return self
+                    def __exit__(self, *e): return False
+                return _E()
         st.sidebar = SB()
         sys.modules['streamlit'] = st
 

@@ -12,6 +12,15 @@ class TestPrefetchNextPair(unittest.TestCase):
             @staticmethod
             def slider(label, *a, **k):
                 return k.get('value', a[2] if len(a) >= 3 else 1)
+            @staticmethod
+            def selectbox(label, options, *a, **k):
+                return 'Pair (A/B)'
+            @staticmethod
+            def expander(*a, **k):
+                class _E:
+                    def __enter__(self): return self
+                    def __exit__(self, *e): return False
+                return _E()
         st.sidebar = SB()
         sys.modules['streamlit'] = st
         # Stub flux_local to be fast

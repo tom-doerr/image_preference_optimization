@@ -100,6 +100,12 @@ width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.wi
 height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
 steps = _sb_sld("Steps", 1, 50, Config.DEFAULT_STEPS)
 guidance = _sb_sld("Guidance", 0.0, 10.0, Config.DEFAULT_GUIDANCE, 0.1)
+if st.sidebar.button("Apply size now"):
+    _apply_state(init_latent_state(width=int(width), height=int(height)))
+    save_state(st.session_state.lstate, st.session_state.state_path)
+    _toast(f"Applied size {int(width)}x{int(height)}")
+    if callable(st_rerun):
+        st_rerun()
 st.sidebar.header("Settings")
 # Generation mode at top of sidebar (dropdown)
 _gen_opts = ["Pair (A/B)", "Batch curation", "Async queue"]
@@ -115,13 +121,14 @@ if callable(_sb_sel):
         selected_gen_mode = None
 # Simplified: hardcode sd-turbo; no model selector
 selected_model = "stabilityai/sd-turbo"
-alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
-beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
-trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
-lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
-gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
-# Optional iterative controls (default disabled)
-iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
+with st.sidebar.expander("Pair controls", expanded=False):
+    alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
+    beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
+    trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
+    lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
+    gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+    # Optional iterative controls (default disabled)
+    iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
 
@@ -137,8 +144,10 @@ if selected_gen_mode is not None and callable(getattr(st.sidebar, 'expander', No
 else:
     curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
 
-batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
-queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
+with st.sidebar.expander("Batch controls", expanded=(selected_gen_mode==_gen_opts[1])):
+    batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
+with st.sidebar.expander("Queue controls", expanded=(selected_gen_mode==_gen_opts[2])):
+    queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
 
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
