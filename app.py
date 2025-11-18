@@ -1110,14 +1110,16 @@ def _render_batch_ui() -> None:
             _image_fragment(img_i, caption=f"Item {i}")
         else:
             st.write(f"Item {i}: loading…")
+            # Do not render action buttons until the image is ready
+            continue
         if st.button(f"Good (+1) {i}", use_container_width=True):
             import time as _time
             t0 = _time.perf_counter()
             _curation_add(1, z_i)
             st.session_state.cur_labels[i] = 1
             _refit_from_dataset_keep_batch()
-            # Regenerate the entire batch for a clean refresh
-            _curation_new_batch()
+            # Replace only this position to avoid full-batch stalls
+            _curation_replace_at(i)
             try:
                 print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
             except Exception:
@@ -1130,8 +1132,8 @@ def _render_batch_ui() -> None:
             _curation_add(-1, z_i)
             st.session_state.cur_labels[i] = -1
             _refit_from_dataset_keep_batch()
-            # Regenerate the entire batch for a clean refresh
-            _curation_new_batch()
+            # Replace only this position to avoid full-batch stalls
+            _curation_replace_at(i)
             try:
                 print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
             except Exception:

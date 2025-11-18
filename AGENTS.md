@@ -106,7 +106,7 @@ Performance + UX (Nov 18, 2025, late):
 
 UI perf note (Nov 18, 2025, late):
 - Button lag was not caused by `st.fragment` refreshes but by synchronous decodes blocking the render path during reruns.
-- Fix: batch items now schedule decodes to a background executor and display placeholders immediately; buttons render without waiting for images.
+- Fix: batch items now schedule decodes to a background executor and display placeholders immediately; buttons render only once the image is available (prevents premature actions on missing content).
 - Stability: switched executor to a single worker to avoid CUDA contention and inconsistent column timing.
 
 Simplify pass (Nov 18, 2025, later):
