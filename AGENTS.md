@@ -470,6 +470,11 @@ New learnings (Nov 18, 2025):
 UI fragments (Nov 18, 2025, late):
 - Wrapped each displayed image (Prompt, Left, Right, Batch/Queue items) in `st.fragment` to scope reruns and reduce unnecessary re-execution. Kept buttons outside the fragments to preserve interaction semantics. Minimal change; improves responsiveness.
 
+Explain latents (Nov 18, 2025, late):
+- Added a concise “Latent creation” explainer in the sidebar:
+  - Shows prompt hash, the deterministic `z_from_prompt` recipe, batch sampling formula `z = z_prompt + σ·0.8·r`, and the `z_to_latents` mapping details (shape, per‑channel zero‑mean, noise_gamma=0.35).
+- Test `tests/test_latent_creation_panel.py` asserts the key lines render.
+
 Decision (123d):
 - Added a one-click "Use Turbo defaults" button in the sidebar. It overrides the active model to `stabilityai/sd-turbo`, re-initializes the latent state at 512×512, and relies on the app’s Turbo-effective guidance (CFG=0.0). Minimal code; no fallbacks.
 Model selection removal (Nov 18, 2025, 128b):

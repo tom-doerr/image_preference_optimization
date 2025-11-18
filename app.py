@@ -368,6 +368,27 @@ except Exception:
 
 # Training data details (collapsed)
 try:
+    # Explain how we build z and latents
+    _exp2 = getattr(st.sidebar, 'expander', None)
+    def _latent_creation_writes():
+        import hashlib as _hl
+        z_p = z_from_prompt(lstate, base_prompt)
+        h = _hl.sha1(base_prompt.encode('utf-8')).hexdigest()[:10]
+        st.sidebar.subheader("How latents are created")
+        st.sidebar.write(f"Prompt hash: {h}")
+        st.sidebar.write("z_prompt = RNG(prompt_sha1) → N(0,1)^d · σ")
+        st.sidebar.write("Batch sample: z = z_prompt + σ · 0.8 · r, r=unit Gaussian")
+        st.sidebar.write(f"‖z_prompt‖ = {float(np.linalg.norm(z_p)):.3f}, σ = {float(lstate.sigma):.3f}")
+        st.sidebar.write(f"Latents shape: (1,4,{lstate.height//8},{lstate.width//8}), noise_gamma=0.35, per‑channel zero‑mean")
+    if callable(_exp2):
+        with _exp2("Latent creation", expanded=False):
+            _latent_creation_writes()
+    else:
+        _latent_creation_writes()
+except Exception:
+    pass
+
+try:
     exp = getattr(st.sidebar, 'expander', None)
     stats = dataset_stats_for_prompt(base_prompt)
     if callable(exp):
