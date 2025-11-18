@@ -26,6 +26,7 @@ from latent_opt import (
     load_state,
     state_summary,
 )
+from value_model import fit_value_model
 import latent_logic as ll  # module alias for patchable ridge_fit in tests
 from flux_local import (
     generate_flux_image_latents,
@@ -897,16 +898,7 @@ def _curation_train_and_next() -> None:
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-            t0 = _time.perf_counter()
-            lstate.w = ll.ridge_fit(X, y, lam=lam_now)
-            from datetime import datetime, timezone
-            _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
-            dt_ms = (_time.perf_counter() - t0) * 1000.0
-            _st.session_state['last_train_ms'] = float(dt_ms)
-            try:
-                print(f"[perf] ridge fit: rows={X.shape[0]} d={X.shape[1]} took {dt_ms:.1f} ms")
-            except Exception:
-                pass
+            fit_value_model(st.session_state.get('vm_choice'), lstate, X, y, lam_now, _st.session_state)
         except Exception:
             pass
     _curation_new_batch()
@@ -920,9 +912,7 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-            lstate.w = ll.ridge_fit(X, y, lam=lam_now)
-            from datetime import datetime, timezone
-            _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+            fit_value_model(st.session_state.get('vm_choice'), lstate, X, y, lam_now, _st.session_state)
     except Exception:
         pass
 

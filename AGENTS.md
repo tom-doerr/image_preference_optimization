@@ -616,3 +616,4 @@ Further consolidation (Nov 18, 2025, night):
 - Added `background.result_or_sync_after(...)` to centralize async decode timeout → sync fallback logic used by Batch tiles.
 - Extracted value scoring to `value_scorer.get_value_scorer(...)` (Ridge/XGB/Distance/Cosine) and replaced ad‑hoc branches in `app.py`.
 - Moved the Performance panel into `ui.perf_panel` to keep `app.py` thinner.
+- Centralized training in `value_model.fit_value_model(...)`: always fits Ridge for `w`; optionally refreshes XGBoost cache when selected. Updates `last_train_at`/`last_train_ms`. Replaced duplicate fit/time bookkeeping in `app.py` with this helper.
