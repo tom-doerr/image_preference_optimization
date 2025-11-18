@@ -485,3 +485,5 @@ CPU load notes (Nov 18, 2025):
 - Reduced unnecessary work on rerun: prompt image is now regenerated only when missing or the prompt changes (previously it regenerated every rerun). This lowers CPU/GPU churn from Streamlit’s reactive reruns.
 - XGBoost value function retrains only when the sample count increases; cached in `session_state` to avoid per-render training.
 - Generation loop refactor (_decode_one) reduces duplicate work and centralizes metrics/streaming.
+Batch save tests (Nov 18, 2025):
+- Added tests to ensure batch curation Accept/Reject persists to `dataset_<hash>.npz` and appends correctly. Files: `tests/test_batch_save_dataset.py`, plus existing `tests/test_train_from_saved_dataset.py` covers refitting from the saved dataset.
