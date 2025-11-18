@@ -47,15 +47,16 @@ def _prefetch_next_for_generate() -> None:
     from persistence import get_dataset_for_prompt_or_session
 
     lstate, prompt = _lstate_and_prompt()
+    from constants import DISTANCEHILL_GAMMA, COSINEHILL_BETA
     vmc = st.session_state.get('vm_choice')
     try:
         if vmc == 'DistanceHill' or vmc == 'CosineHill':
             Xd, yd = get_dataset_for_prompt_or_session(prompt, st.session_state)
             a = float(st.session_state.get('alpha', 0.5))
             if vmc == 'DistanceHill':
-                za_n, zb_n = propose_pair_distancehill(lstate, prompt, Xd, yd, alpha=a, gamma=0.5, trust_r=None)
+                za_n, zb_n = propose_pair_distancehill(lstate, prompt, Xd, yd, alpha=a, gamma=DISTANCEHILL_GAMMA, trust_r=None)
             else:
-                za_n, zb_n = propose_pair_cosinehill(lstate, prompt, Xd, yd, alpha=a, beta=5.0, trust_r=None)
+                za_n, zb_n = propose_pair_cosinehill(lstate, prompt, Xd, yd, alpha=a, beta=COSINEHILL_BETA, trust_r=None)
         else:
             # Fallback to generic proposer
             from app import _proposer_opts  # reuse current opts

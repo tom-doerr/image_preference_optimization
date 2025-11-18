@@ -1032,8 +1032,8 @@ def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], O
 
 # Async queue mode helpers
 def _queue_ensure_exec():
-    # Deprecated shim
-    return _bg_executor()
+    # Deprecated shim (kept for tests); no-op
+    return None
 
 
 ## Pair mode runner removed; only Batch and Queue are routed.

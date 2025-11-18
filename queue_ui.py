@@ -21,6 +21,7 @@ def _queue_add_one():
     steps = int(getattr(st.session_state, 'steps', 6))
     guidance_eff = float(getattr(st.session_state, 'guidance_eff', 0.0))
 
+    from constants import DISTANCEHILL_GAMMA, COSINEHILL_BETA
     try:
         vmc = st.session_state.get('vm_choice', 'DistanceHill')
         pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
@@ -28,10 +29,10 @@ def _queue_add_one():
         a = float(getattr(st.session_state, 'alpha', 0.5))
         if pp == 'DistanceHill':
             from latent_logic import propose_pair_distancehill
-            za, _ = propose_pair_distancehill(lstate, prompt, Xd, yd, alpha=a, gamma=0.5, trust_r=None)
+            za, _ = propose_pair_distancehill(lstate, prompt, Xd, yd, alpha=a, gamma=DISTANCEHILL_GAMMA, trust_r=None)
         elif pp == 'CosineHill':
             from latent_logic import propose_pair_cosinehill
-            za, _ = propose_pair_cosinehill(lstate, prompt, Xd, yd, alpha=a, beta=5.0, trust_r=None)
+            za, _ = propose_pair_cosinehill(lstate, prompt, Xd, yd, alpha=a, beta=COSINEHILL_BETA, trust_r=None)
         else:
             from app import _proposer_opts  # reuse app's opts builder
             za, _ = propose_next_pair(lstate, prompt, opts=_proposer_opts())
