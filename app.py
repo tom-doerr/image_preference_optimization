@@ -124,18 +124,29 @@ gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
-# Legacy checkboxes kept for tests; dropdown selection takes precedence when available
-curation_mode_cb = st.sidebar.checkbox("Batch curation mode", value=False)
-batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
-async_queue_mode_cb = st.sidebar.checkbox("Async queue mode", value=False)
-queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
-# Resolve effective mode
-if selected_gen_mode is not None:
-    curation_mode = (selected_gen_mode == _gen_opts[1])
-    async_queue_mode = (selected_gen_mode == _gen_opts[2])
+
+# Legacy toggles (collapsed when dropdown exists) — kept to preserve tests
+def _legacy_mode_controls():
+    cm = st.sidebar.checkbox("Batch curation mode", value=False)
+    aq = st.sidebar.checkbox("Async queue mode", value=False)
+    return cm, aq
+
+if selected_gen_mode is not None and callable(getattr(st.sidebar, 'expander', None)):
+    with st.sidebar.expander("Advanced (legacy mode toggles)"):
+        curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
 else:
-    curation_mode = bool(curation_mode_cb)
-    async_queue_mode = bool(async_queue_mode_cb)
+    curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
+
+batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
+queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
+
+def _resolve_modes():
+    """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
+    if selected_gen_mode is not None:
+        return (selected_gen_mode == _gen_opts[1], selected_gen_mode == _gen_opts[2])
+    return (bool(curation_mode_cb), bool(async_queue_mode_cb))
+
+curation_mode, async_queue_mode = _resolve_modes()
 reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
 iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
