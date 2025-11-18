@@ -181,6 +181,14 @@ if not hasattr(st.sidebar, 'write'):
 if not hasattr(st.sidebar, 'metric'):
     st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
 
+# Data counters at the very top of the sidebar
+try:
+    _info_top = state_summary(lstate)
+    st.sidebar.subheader("Data")
+    sidebar_metric_rows([("Pairs", f"{_info_top['pairs_logged']}"), ("Choices", f"{_info_top['choices_logged']}")], per_row=2)
+except Exception:
+    pass
+
 env_panel(get_env_summary())
 
 info = state_summary(lstate)

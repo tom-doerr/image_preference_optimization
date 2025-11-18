@@ -473,3 +473,5 @@ Model selection removal (Nov 18, 2025, 128b):
 - Hardcoded model to `stabilityai/sd-turbo`; removed the model selector and custom HF id field from the UI to cut complexity.
 - Kept the “7 GB VRAM mode” override which forces `runwayml/stable-diffusion-v1-5` and clamps size/steps, because it provides tangible stability on low VRAM with minimal code.
 - Updated tests that assumed switchable models; they now assert `set_model('stabilityai/sd-turbo')` is called and that small‑VRAM still overrides to SD‑1.5.
+- Sidebar data counters (Nov 18, 2025):
+- Added a compact “Data” block at the very top of the sidebar showing the number of logged pairs and choices. Minimal code, uses existing `state_summary`. Test: `tests/test_sidebar_samples_top.py`.
