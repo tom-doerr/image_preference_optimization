@@ -58,7 +58,7 @@ def update_latent_ridge(state: LatentState,
                         z_b: np.ndarray,
                         choice: str,
                         lr_mu: float = 0.3,
-                        lam: float = 1e-2,
+                        lam: float = 1e-3,
                         feats_a: Optional[np.ndarray] = None,
                         feats_b: Optional[np.ndarray] = None):
     if choice not in ('a', 'b'):
@@ -264,3 +264,250 @@ def propose_pair_prompt_anchor_linesearch(
 
 
 # propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration
+
+
+def _sigmoid(x: np.ndarray) -> np.ndarray:
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def hill_climb_mu_distance(state: LatentState,
+                           prompt: str,
+                           X: np.ndarray,
+                           y: np.ndarray,
+                           eta: float = 0.2,
+                           gamma: float = 0.5,
+                           trust_r: Optional[float] = None) -> None:
+    """One gradient step on μ to move toward positives and away from negatives.
+
+    L(μ) = - Σ_i y_i · σ(γ · ||μ − z_i||^2), where z_i = z_prompt + X_i
+    Step: μ ← μ − η · ∇L(μ) with optional trust‑radius clamp around z_prompt.
+    """
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        return
+    z_p = z_from_prompt(state, prompt)
+    mu = state.mu.astype(float)
+    Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
+    diffs = mu.reshape(1, -1) - Z  # shape (n, d)
+    d2 = np.sum(diffs * diffs, axis=1)  # (n,)
+    yy = np.asarray(y, dtype=float).reshape(-1)
+    sig = _sigmoid(gamma * d2)
+    # scalers per sample
+    scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)  # (n,)
+    grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
+    mu_new = mu - float(eta) * grad
+    if trust_r is not None and float(trust_r) > 0.0:
+        delta = mu_new - z_p
+        n = float(np.linalg.norm(delta))
+        if n > float(trust_r) and n > 0.0:
+            mu_new = z_p + delta * (float(trust_r) / n)
+    state.mu = mu_new
+    # record history
+    mh = getattr(state, 'mu_hist', None)
+    mu_now = state.mu.reshape(1, -1)
+    state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
+
+
+def propose_pair_distancehill(state: LatentState,
+                              prompt: str,
+                              X: np.ndarray,
+                              y: np.ndarray,
+                              alpha: float = 0.5,
+                              gamma: float = 0.5,
+                              trust_r: Optional[float] = None):
+    """Propose a symmetric pair around z_prompt along the negative gradient of L.
+
+    Returns (z_plus, z_minus) = (z_p + σ·α·d1, z_p − σ·α·d1).
+    """
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        # fallback: small random directions
+        r = state.rng.standard_normal(state.d)
+        r = r / (float(np.linalg.norm(r)) + 1e-12)
+        z_p = z_from_prompt(state, prompt)
+        delta = state.sigma * float(alpha) * r
+        return (z_p + delta, z_p - delta)
+    z_p = z_from_prompt(state, prompt)
+    mu = state.mu.astype(float)
+    Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
+    diffs = mu.reshape(1, -1) - Z
+    d2 = np.sum(diffs * diffs, axis=1)
+    yy = np.asarray(y, dtype=float).reshape(-1)
+    sig = _sigmoid(gamma * d2)
+    scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)
+    grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
+    n = float(np.linalg.norm(grad))
+    if n == 0.0:
+        r = state.rng.standard_normal(state.d)
+        grad = r
+        n = float(np.linalg.norm(grad)) + 1e-12
+    d1 = grad / n
+    delta = state.sigma * float(alpha) * d1
+    def _clamp(z):
+        if trust_r is None or float(trust_r) <= 0.0:
+            return z
+        d = z - z_p
+        nn = float(np.linalg.norm(d))
+        return z if (nn <= float(trust_r) or nn == 0.0) else (z_p + d * (float(trust_r) / nn))
+    return _clamp(z_p + delta), _clamp(z_p - delta)
+
+
+def distancehill_score(prompt: str,
+                       z_candidate: np.ndarray,
+                       state: LatentState,
+                       X: np.ndarray,
+                       y: np.ndarray,
+                       gamma: float = 0.5) -> float:
+    """Return negative-activated distance objective for a single candidate.
+
+    Smaller is better for a positive, larger for a negative; we return
+    the signed sum as a scalar score (higher is better), so we negate L.
+    """
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        return 0.0
+    z_p = z_from_prompt(state, prompt)
+    Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
+    diffs = np.asarray(z_candidate, dtype=float).reshape(1, -1) - Z
+    d2 = np.sum(diffs * diffs, axis=1)
+    yy = np.asarray(y, dtype=float).reshape(-1)
+    sig = _sigmoid(gamma * d2)
+    # Score = -L = +∑ y_i σ(γ d^2)
+    return float(np.sum(yy * sig))
+
+
+def _cosine(u: np.ndarray, v: np.ndarray, eps: float = 1e-8) -> float:
+    nu = float(np.linalg.norm(u))
+    nv = float(np.linalg.norm(v))
+    if nu < eps or nv < eps:
+        return 0.0
+    return float(np.dot(u, v) / (nu * nv))
+
+
+def hill_climb_mu_cosine(state: LatentState,
+                         prompt: str,
+                         X: np.ndarray,
+                         y: np.ndarray,
+                         eta: float = 0.2,
+                         beta: float = 5.0,
+                         trust_r: Optional[float] = None) -> None:
+    """One gradient-ascent step on μ using logistic on cosine similarities.
+
+    Maximize ∑ log σ(β y cos(μ−z_p, X_i)); step on μ with trust clamp.
+    """
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        return
+    z_p = z_from_prompt(state, prompt)
+    mu = state.mu.astype(float)
+    mu_d = mu - z_p
+    mu_n = float(np.linalg.norm(mu_d))
+    eps = 1e-8
+    if mu_n < eps:
+        # kick a small random direction to avoid zero grad at origin
+        r = state.rng.standard_normal(state.d)
+        mu_d = r / (float(np.linalg.norm(r)) + eps) * 1e-3
+        mu = z_p + mu_d
+    grad = np.zeros_like(mu, dtype=float)
+    mu_d = mu - z_p
+    mu_n = float(np.linalg.norm(mu_d)) + eps
+    mu_hat = mu_d / mu_n
+    Y = np.asarray(y, dtype=float).reshape(-1)
+    Xn = np.asarray(X, dtype=float)
+    for xi, yi in zip(Xn, Y):
+        xn = float(np.linalg.norm(xi))
+        if xn < eps:
+            continue
+        x_hat = xi / xn
+        s = float(np.dot(mu_hat, x_hat))  # cosine
+        p = 1.0 / (1.0 + np.exp(-beta * yi * s))  # σ(β y s)
+        # ∂s/∂μ = (x_hat - s μ_hat) / ||μ_d||
+        ds = (x_hat - s * mu_hat) / mu_n
+        g = (1.0 - p) * beta * yi * ds  # ascent grad on log σ
+        grad += g
+    mu_new = mu + float(eta) * grad
+    if trust_r is not None and float(trust_r) > 0.0:
+        d = mu_new - z_p
+        n = float(np.linalg.norm(d))
+        if n > float(trust_r) and n > 0.0:
+            mu_new = z_p + d * (float(trust_r) / n)
+    state.mu = mu_new
+    mh = getattr(state, 'mu_hist', None)
+    mu_now = state.mu.reshape(1, -1)
+    state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
+
+
+def propose_pair_cosinehill(state: LatentState,
+                            prompt: str,
+                            X: np.ndarray,
+                            y: np.ndarray,
+                            alpha: float = 0.5,
+                            beta: float = 5.0,
+                            trust_r: Optional[float] = None):
+    """Propose symmetric pair around z_prompt along ascent direction of cosine logistic."""
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        # random direction if no data
+        r = state.rng.standard_normal(state.d)
+        r = r / (float(np.linalg.norm(r)) + 1e-12)
+        z_p = z_from_prompt(state, prompt)
+        delta = state.sigma * float(alpha) * r
+        return (z_p + delta, z_p - delta)
+    # compute gradient at current μ and step direction
+    z_p = z_from_prompt(state, prompt)
+    mu = state.mu.astype(float)
+    mu_d = mu - z_p
+    mu_n = float(np.linalg.norm(mu_d))
+    eps = 1e-8
+    if mu_n < eps:
+        mu_d = state.rng.standard_normal(state.d)
+        mu_n = float(np.linalg.norm(mu_d)) + eps
+    mu_hat = mu_d / mu_n
+    grad = np.zeros_like(mu_d, dtype=float)
+    Y = np.asarray(y, dtype=float).reshape(-1)
+    Xn = np.asarray(X, dtype=float)
+    for xi, yi in zip(Xn, Y):
+        xn = float(np.linalg.norm(xi))
+        if xn < eps:
+            continue
+        x_hat = xi / xn
+        s = float(np.dot(mu_hat, x_hat))
+        p = 1.0 / (1.0 + np.exp(-beta * yi * s))
+        ds = (x_hat - s * mu_hat) / (mu_n + eps)
+        grad += (1.0 - p) * beta * yi * ds
+    n = float(np.linalg.norm(grad))
+    if n < eps:
+        r = state.rng.standard_normal(state.d)
+        grad = r
+        n = float(np.linalg.norm(grad)) + eps
+    d1 = grad / n
+    delta = state.sigma * float(alpha) * d1
+    def _clamp(z):
+        if trust_r is None or float(trust_r) <= 0.0:
+            return z
+        d = z - z_p
+        nn = float(np.linalg.norm(d))
+        return z if (nn <= float(trust_r) or nn == 0.0) else (z_p + d * (float(trust_r) / nn))
+    return _clamp(z_p + delta), _clamp(z_p - delta)
+
+
+def cosinehill_score(prompt: str,
+                     z_candidate: np.ndarray,
+                     state: LatentState,
+                     X: np.ndarray,
+                     y: np.ndarray,
+                     beta: float = 5.0) -> float:
+    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+        return 0.0
+    z_p = z_from_prompt(state, prompt)
+    mu_d = np.asarray(z_candidate, dtype=float) - z_p
+    mu_n = float(np.linalg.norm(mu_d))
+    if mu_n < 1e-8:
+        return 0.0
+    mu_hat = mu_d / mu_n
+    Y = np.asarray(y, dtype=float).reshape(-1)
+    Xn = np.asarray(X, dtype=float)
+    out = 0.0
+    for xi, yi in zip(Xn, Y):
+        xn = float(np.linalg.norm(xi))
+        if xn < 1e-8:
+            continue
+        x_hat = xi / xn
+        s = float(np.dot(mu_hat, x_hat))
+        out += yi * (1.0 / (1.0 + np.exp(-beta * s)))
+    return float(out)

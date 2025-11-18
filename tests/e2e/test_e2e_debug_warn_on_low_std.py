@@ -37,6 +37,8 @@ class TestE2EDebugWarnOnLowStd(unittest.TestCase):
         fl.get_last_call = get_last_call
         sys.modules['flux_local'] = fl
 
+        if 'app' in sys.modules:
+            del sys.modules['app']
         import app  # noqa: F401
         text = "\n".join(writes)
         self.assertIn('warn: latents std', text)

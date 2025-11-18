@@ -71,6 +71,12 @@ New learnings (Nov 12, 2025):
 - Direct latent optimization enables greedy improvement on a fixed prompt with minimal code; we use an NES-like mean update + ridge ranking over pairwise diffs.
 - For e2e in CI without network/UI, stub `streamlit` and mock generation. Avoid production fallbacks; keep mocks in tests only.
 
+New learnings (Nov 18, 2025 - UI cleanup):
+- Removed the separate “Pair proposer” dropdown. The proposer is now derived from the Value model selection to reduce duplicate controls:
+  - Value model = CosineHill → proposer = CosineHill
+  - Any other Value model → proposer = DistanceHill
+- Updated tests: `tests/test_pair_proposer_toggle.py` now drives CosineHill by selecting it in the Value model dropdown.
+
 Maintainability (Nov 13, 2025):
 - Consolidated pipeline loading into `flux_local._ensure_pipe()` and `_free_pipe()` to remove duplicated code across generate/set_model.
 - Loader invariants centralized: sets `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, uses `low_cpu_mem_usage=False` + `.to("cuda")` for broad compatibility, and frees VRAM on model switch.
@@ -85,6 +91,15 @@ Simplify pass (Nov 18, 2025, later):
 - Prompt-only generation always uses the text path; pair images always use latents. Removed internal fallbacks/aliases to make control flow obvious.
 - Kept “7 GB VRAM mode” and default model selection for test coverage; further UI trimming is pending user confirmation.
 - Added/updated tiny tests to reflect the simplified contracts for prompt/latents paths.
+
+Scheduler guard (Nov 18, 2025, later):
+- Fixed `TypeError: unsupported operand type(s) for +=: 'NoneType' and 'int'` from `LCMScheduler.step` when `_step_index` wasn’t initialized.
+- Change: `flux_local._run_pipe` now calls `scheduler.set_timesteps(num_inference_steps, device='cuda')` before invoking the pipeline and sets `_step_index=0` if left `None`.
+- Test: `tests/test_scheduler_prepare.py` uses a dummy pipe/scheduler to assert the guard prevents the crash.
+
+UI cleanup (Nov 18, 2025, later):
+- Removed separate “Pair proposer” dropdown; proposer derives from Value model: CosineHill → CosineHill proposer, otherwise DistanceHill.
+- Test updated: `tests/test_pair_proposer_toggle.py` selects CosineHill via the Value model dropdown.
 
 Working state (Nov 18, 2025, evening):
 - Black-image issue resolved on sd‑turbo with LCMScheduler; prompt + A/B now produce content on the target box.
@@ -447,6 +462,8 @@ New e2e tests (Nov 18, 2025):
 - `tests/e2e/test_e2e_predicted_values_and_iterations.py`: imports the app with stubs and asserts that predicted values (V(left)/V(right)) and the iterations line render on import.
 - `tests/e2e/test_e2e_prefer_left_increments.py`: emulates a single preference by calling `app.update_latent_ridge(...)` on the current pair and checks that `lstate.step` increments. Uses a unique prompt and clears `mu_hist` to avoid NPZ collisions.
 - `tests/e2e/test_e2e_pair_content_gpu.py` (opt‑in via `E2E_GPU=1` or `SMOKE_GPU=1`): decodes a real A/B pair on GPU and asserts both images have variance and are not identical.
+- `tests/e2e/test_e2e_async_queue_single_visible.py`: ensures only one queue item is rendered in Async mode while background prefill runs.
+- `tests/e2e/test_e2e_value_model_dropdown.py`: switches the Value model dropdown to XGBoost and asserts the mode flips and the UI reflects it.
 - Stubbed content guard: `tests/test_pair_not_constant_stub.py` maps latents → RGB via a minimal stub pipeline and asserts both A/B are non‑constant and differ.
 
 Playwright e2e (optional, stubbed backend):
@@ -510,3 +527,52 @@ UI micro‑update (Nov 18, 2025, later):
 
 Persistence UI change (Nov 18, 2025, final):
 - Removed state upload and download controls from the sidebar to simplify UX and avoid cross‑prompt confusion. Export/import still exists programmatically via `persistence.export_state_bytes` and `latent_opt.dumps_state/loads_state`; tests adjusted accordingly.
+Clarification (Nov 18, 2025, de):
+- "Train score" = Trainingsgenauigkeit auf gesehenen Paaren. Wir berechnen für jedes gelabelte Paar, ob das aktuelle Ridge‑Gewicht `w` dieselbe Präferenz vorhersagt wie der Nutzer; der Score ist der Anteil richtiger Vorhersagen in Prozent. Formel: `score = mean(sign(X @ w) == y)`. Wenn es noch keine Daten gibt, zeigen wir "n/a".
+- Kein "Strain score" und nichts mit "Actress" zu tun; reine Modellmetrik zur schnellen Plausibilitätsprüfung, keine Aussage über Generalisierung/Qualität neuer Paare.
+
+UI tweak (Nov 18, 2025, late):
+- λ-Regulärisierung ist jetzt editierbar: zusätzlich zum Slider gibt es `st.number_input` ("Ridge λ (edit)") im Sidebar‑Block. Der Zahleneingabewert überschreibt den Slider präzise (min 1e‑6, max 1e‑1, Schritt 1e‑3). Minimaler Code; keine versteckten Fallbacks.
+- Tests: `tests/test_reg_lambda_number_input.py` stellt sicher, dass der eingegebene Wert bis zu `ridge_fit(..., lam=...)` durchgereicht wird. Bestehender Slider‑Test bleibt grün.
+- Bugfix: versehentliche Einrückung nach `_resolve_modes()` behoben (führte dazu, dass `reg_lambda` nicht gesetzt wurde). Eine kleine Guard für `async_queue_mode` verhindert NameErrors in Test‑Stubs.
+
+UI tweak (Nov 18, 2025, late‑late):
+- Sidebar „Mode“ ganz oben: enthält jetzt `Generation mode` (Dropdown) und `Value model` (Dropdown Ridge/XGBoost). Der bisherige XGBoost‑Checkbox‑Schalter bleibt erhalten (Testkompatibilität) und wird mit dem Dropdown verodert.
+- Proposer‑Infos: Zeigen nun die Anzahl Iterationsschritte (`Iter steps`) und die vorhergesagten Schritt‑Werte (linearer Wert `w·Δ_k`) als kurze Liste („Step values (pred.) …“) an. Berechnung folgt der iterativen Schrittgröße (`eta` bzw. `trust_r/steps` bzw. `σ/steps`).
+- Tests laufen weiter grün für die betroffenen Teile; Komplettsuite kann länger dauern und wurde deshalb selektiv ausgeführt.
+
+Paths panel (Nov 18, 2025):
+- Neue Sidebar‑Sektion „Paths” zeigt die genutzten Dateien inkl. Existenzstatus:
+  - `State path: latent_state_<hash>.npz`
+  - `Dataset path: dataset_<hash>.npz`
+- Kleiner Test: `tests/test_sidebar_paths_panel.py` prüft, dass beide Pfade angezeigt werden.
+
+Dataset Viewer (Nov 18, 2025):
+- Sidebar „Datasets” mit Dropdown über alle `dataset_*.npz` und Kurzüberblick (Rows/Dim/Pos/Neg, Labels‑Head). Test: `tests/test_dataset_viewer_panel.py`.
+- Async Queue stabilisiert: füllt bis `queue_size`; Executor auf 2 Worker. Test: `tests/test_async_queue_multiple_items.py`.
+- Only-one-visible (Nov 18, 2025): In Async Queue wird nur noch das erste Warteschlangen‑Element angezeigt; Accept/Reject arbeiten auf Index 0. Test: `tests/test_async_queue_single_visible.py`.
+- Batch: „Train on dataset (keep batch)“ refittet ohne Batch neu zu laden. Test: `tests/test_batch_keep_train.py`.
+- Data panel update (Nov 18, 2025):
+- Zeigt jetzt „Last train“ (UTC‑ISO, Sekundengenauigkeit) in der Sidebar an, sobald das Value‑Modell trainiert wurde (Ridge‑Refit, Online‑Update oder XGB‑Fit). Test: `tests/test_sidebar_last_train.py`.
+- UI‑Ordnung: Das editierbare „Ridge λ (edit)“ steht jetzt über den Model‑Metriken („Value model“/„Settings“) im Data‑Block.
+
+Dataset versioning (Nov 18, 2025):
+- Bei jedem Append schreiben wir Backups: `backups/minutely/`, `backups/hourly/`, `backups/daily/` mit Zeitstempel im Dateinamen. Minimal, überschreibt im selben Bucket. Test: `tests/test_dataset_backups.py`.
+
+Batch labeling (Nov 18, 2025):
+- Bei „Good/Bad“ im Batch wird jetzt der gesamte Batch neu erzeugt (statt nur das angeklickte Item zu ersetzen). Das hält den Flow konsistent und vermeidet halb‑alten Batch‑Zustand. Test: `tests/test_batch_label_refreshes_full_batch.py` (mind. zwei Items ändern sich).
+ - Zusätzlich: Nach jedem neuen Sample wird das Value‑Modell unmittelbar neu trainiert (Refit aus Dataset) – sowohl im Batch‑Klickpfad als auch in Queue/Pair (dort ohnehin vorhanden). Timestamp „Last train“ wird aktualisiert. Test: `tests/test_batch_click_trains_sets_timestamp.py`.
+
+Ridge‑λ Bedienung (Nov 18, 2025):
+- Neben dem bisherigen Slider gibt es zwei numerische Eingaben (oben im Value‑Block und bei den Regler‑Controls). Beide schreiben nach `st.session_state['reg_lambda']`; Slider bleibt für Testkompatibilität.
+- Numeric‑Input erlaubt jetzt `λ=0.0` (OLS). Achtung: Bei singulärem `X^T X` kann `ridge_fit` mit `np.linalg.solve` fehlschlagen. Keine Fallbacks by design.
+- Maximaler λ‑Bereich erhöht: Slider/Inputs erlauben bis `1e5`. Kleiner Test `tests/test_reg_lambda_max.py` prüft, dass die Max‑Grenzen ≥1e5 sind.
+- Value‑Model Auswahl (Nov 18, 2025):
+  - Die Dropdown‑Auswahl „Value model: Ridge/XGBoost“ steuert den Modus und setzt `use_xgb` global. Test: `tests/test_value_model_dropdown.py`.
+  - Die frühere Checkbox „Use XGBoost value function“ wurde entfernt (redundant); der entsprechende Test wurde gelöscht.
+  - Default geändert: „DistanceHill“ ist jetzt der Standard‑Value‑Modus (kein Fallback auf Ridge). Test: `tests/test_default_value_model_is_distancehill.py`.
+
+New feature (Nov 18, 2025): Hill‑climb μ (distance)
+- Sidebar‑Aktion „Hill-climb μ (distance)“ führt einen einzigen Gradienten‑Schritt auf μ aus, um zu Positiv‑Beispielen hin und von Negativ‑Beispielen weg zu gehen.
+- Loss: L(μ) = −∑ y_i · σ(γ·‖μ−z_i‖²); Step: μ ← μ − η·∇L, optionaler Trust‑Radius um z_prompt.
+- Controls: η (step), γ (sigmoid), r (0=aus). Test: `tests/test_hill_climb_distance.py` prüft, dass μ näher an positive Samples rückt und weiter weg von negativen.

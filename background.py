@@ -9,8 +9,8 @@ _EXECUTOR = None
 def get_executor() -> ThreadPoolExecutor:
     global _EXECUTOR
     if _EXECUTOR is None:
-        # Single worker by policy: generate only one image at a time.
-        _EXECUTOR = ThreadPoolExecutor(max_workers=1)
+        # Keep minimal but allow modest parallelism to avoid UI stalls in async queue.
+        _EXECUTOR = ThreadPoolExecutor(max_workers=2)
     return _EXECUTOR
 
 

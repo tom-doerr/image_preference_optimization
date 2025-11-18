@@ -14,7 +14,7 @@ from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
 import background as bg
-from persistence_ui import render_persistence_controls, render_metadata_panel
+from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
 from latent_opt import (
     init_latent_state,
     propose_latent_pair_ridge,
@@ -26,7 +26,7 @@ from latent_opt import (
     load_state,
     state_summary,
 )
-from latent_logic import ridge_fit  # for full-dataset training
+import latent_logic as ll  # module alias for patchable ridge_fit in tests
 from flux_local import (
     generate_flux_image_latents,
     set_model,
@@ -86,8 +86,47 @@ def _apply_state(new_state) -> None:
     st.session_state.lstate = new_state
     # Initialize pair around the prompt anchor (symmetric)
     try:
-        z1, z2 = propose_next_pair(new_state, st.session_state.prompt, opts=_proposer_opts())
+        # Proposer is tied to the Value model to simplify UI:
+        # CosineHill when selected, otherwise DistanceHill.
+        vmc = st.session_state.get('vm_choice', 'DistanceHill')
+        pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
+        if pp == 'DistanceHill':
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(st.session_state.prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            from latent_logic import propose_pair_distancehill
+            z1, z2 = propose_pair_distancehill(new_state, st.session_state.prompt, Xd, yd, alpha=0.5, gamma=0.5, trust_r=None)
+        elif pp == 'CosineHill':
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(st.session_state.prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            from latent_logic import propose_pair_cosinehill
+            z1, z2 = propose_pair_cosinehill(new_state, st.session_state.prompt, Xd, yd, alpha=0.5, beta=5.0, trust_r=None)
+        else:
+            z1, z2 = propose_next_pair(new_state, st.session_state.prompt, opts=_proposer_opts())
         st.session_state.lz_pair = (z1, z2)
+        # Log proposer used
+        try:
+            from datetime import datetime, timezone
+            log = st.session_state.get('pair_log') or []
+            log.append({'when': datetime.now(timezone.utc).isoformat(timespec='seconds'), 'proposer': str(pp)})
+            st.session_state.pair_log = log
+        except Exception:
+            pass
     except Exception:
         st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
     st.session_state.images = (None, None)
@@ -123,7 +162,35 @@ z_a, z_b = st.session_state.lz_pair
 _sb_num = getattr(st.sidebar, 'number_input', st.number_input)
 _sb_sld = getattr(st.sidebar, 'slider', st.slider)
 
-# Quick data strip at the very top of the sidebar
+# Top-of-sidebar: Generation mode and Value model
+_sb_sel = getattr(st.sidebar, 'selectbox', None)
+st.sidebar.subheader("Mode")
+_gen_opts = ["Batch curation", "Async queue"]
+selected_gen_mode = None
+if callable(_sb_sel):
+    try:
+        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=1)
+        if selected_gen_mode not in _gen_opts:
+            selected_gen_mode = None
+    except Exception:
+        selected_gen_mode = None
+
+_vm_opts = ["DistanceHill", "Ridge", "XGBoost", "CosineHill"]
+vm_choice = None
+if callable(_sb_sel):
+    try:
+        vm_choice = _sb_sel("Value model", _vm_opts, index=0)
+        if vm_choice not in _vm_opts:
+            vm_choice = "DistanceHill"
+    except Exception:
+        vm_choice = "DistanceHill"
+else:
+    vm_choice = "DistanceHill"
+st.session_state['vm_choice'] = vm_choice
+
+# Pair proposer dropdown removed; proposer is derived from Value model.
+
+# Quick data strip
 try:
     st.sidebar.subheader("Data")
     # Dataset rows from persisted NPZ
@@ -131,32 +198,82 @@ try:
         _rows_cnt = int(dataset_rows_for_prompt(base_prompt))
     except Exception:
         _rows_cnt = 0
-    # Simple train score using current ridge weights over any in-memory X/y
+    # Train score using selected value model (Ridge or XGBoost)
     try:
         X_ = getattr(lstate, 'X', None)
         y_ = getattr(lstate, 'y', None)
+        _train_score = "n/a"
         if X_ is not None and y_ is not None and len(y_) > 0:
-            _pred = X_ @ lstate.w
-            _acc = float(np.mean(( _pred >= 0) == (y_ > 0)))
-            _train_score = f"{_acc*100:.0f}%"
-        else:
-            _train_score = "n/a"
+            # Prefer XGB when selected and a model is cached
+            _use_xgb_now = (vm_choice == "XGBoost")
+            try:
+                cache = st.session_state.get('xgb_cache') or {}
+                mdl = cache.get('model')
+            except Exception:
+                mdl = None
+            if _use_xgb_now and mdl is not None:
+                try:
+                    from xgb_value import score_xgb_proba  # type: ignore
+                    import numpy as _np
+                    probs = _np.array([score_xgb_proba(mdl, fv) for fv in X_], dtype=float)
+                    preds = probs >= 0.5
+                    _acc = float(_np.mean(preds == (y_ > 0)))
+                    _train_score = f"{_acc*100:.0f}%"
+                except Exception:
+                    pass
+            if _train_score == "n/a":
+                # Ridge fallback
+                _pred = X_ @ lstate.w
+                _acc = float(( (_pred >= 0) == (y_ > 0)).mean())
+                _train_score = f"{_acc*100:.0f}%"
     except Exception:
         _train_score = "n/a"
-    # Value model type and settings (best-effort; finalized below after sliders)
+    # Last train time (ISO) if available
+    try:
+        _last_train = str(st.session_state.get('last_train_at')) if st.session_state.get('last_train_at') else 'n/a'
+    except Exception:
+        _last_train = 'n/a'
+    # Minimal K-fold CV over in-memory X/y or n/a
+    try:
+        from metrics import ridge_cv_accuracy as _rcv
+        if X_ is not None and y_ is not None and len(y_) >= 4:
+            _k = min(5, int(len(y_)))
+            _cv = float(_rcv(X_, y_, lam=float(st.session_state.get('reg_lambda', 1e-3)), k=_k))
+            _cv_score = f"{_cv*100:.0f}% (k={_k})"
+        else:
+            _cv_score = "n/a"
+    except Exception:
+        _cv_score = "n/a"
+    # Value model type and settings (use dropdown choice if present)
     try:
         cache = st.session_state.get('xgb_cache') or {}
-        if cache.get('model') is not None:
+        if vm_choice == "XGBoost" or (cache.get('model') is not None and vm_choice not in ("DistanceHill","CosineHill")):
             _vm_type = "XGBoost"
             _vm_settings = "n=50,depth=3"
+        elif vm_choice == "DistanceHill":
+            _vm_type = "DistanceHill"
+            _vm_settings = "γ=0.5"
+        elif vm_choice == "CosineHill":
+            _vm_type = "CosineHill"
+            _vm_settings = "β=5.0"
         else:
             _vm_type = "Ridge"
-            _vm_settings = f"λ={float(st.session_state.get('reg_lambda', 1e-2)):.3g}"
+            _vm_settings = f"λ={float(st.session_state.get('reg_lambda', 1e-3)):.3g}"
     except Exception:
-        _vm_type, _vm_settings = "Ridge", "λ=1e-2"
+        _vm_type, _vm_settings = "Ridge", "λ=1e-3"
 
     sidebar_metric_rows([("Dataset rows", _rows_cnt), ("Train score", _train_score)], per_row=2)
-    sidebar_metric_rows([("Value model", _vm_type), ("Settings", _vm_settings)], per_row=2)
+    sidebar_metric_rows([("CV score", _cv_score), ("Last train", _last_train)], per_row=2)
+    # Place editable λ above the model metrics
+    try:
+        if _vm_type == "Ridge":
+            lam_top = _sb_num("Ridge λ (edit)", min_value=0.0, max_value=1e5,
+                              value=float(st.session_state.get('reg_lambda', 0.0)),
+                              step=1e-3, format="%.6f")
+            st.session_state['reg_lambda'] = float(lam_top)
+    except Exception:
+        pass
+    sidebar_metric_rows([( "Value model", _vm_type), ("Settings", _vm_settings)], per_row=2)
     # Ensure visibility in simple stubs that only capture writes
     try:
         st.sidebar.write(f"Dataset rows: {_rows_cnt}")
@@ -188,18 +305,7 @@ if callable(_model_sel):
 else:
     selected_model = DEFAULT_MODEL
 
-# Generation mode at top of sidebar (dropdown) — Pair mode removed
-_gen_opts = ["Batch curation", "Async queue"]
-_sb_sel = getattr(st.sidebar, 'selectbox', None)
-selected_gen_mode = None
-if callable(_sb_sel):
-    try:
-        # Default to Batch curation
-        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=1)
-        if selected_gen_mode not in _gen_opts:
-            selected_gen_mode = None
-    except Exception:
-        selected_gen_mode = None
+## Generation mode moved to top-of-sidebar (see "Mode" section above)
 # Simplified: hardcode sd-turbo; no model selector
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
@@ -211,6 +317,22 @@ if callable(_exp):
         gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
         # Optional iterative controls (default disabled)
         iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
+        try:
+            # Show concise iteration summary and per-step predicted values
+            st.sidebar.write(f"Iter steps: {int(iter_steps)}")
+            def _iter_vals(n_steps: int, trust_r_v, sigma_v, eta_v, w_now) -> list[str]:
+                wn = float(np.linalg.norm(w_now))
+                n_steps = max(1, int(n_steps))
+                if eta_v is not None and float(eta_v) > 0.0:
+                    step_sz = float(eta_v)
+                elif trust_r_v is not None and float(trust_r_v) > 0.0:
+                    step_sz = float(trust_r_v) / n_steps
+                else:
+                    step_sz = float(sigma_v) / n_steps
+                return [f"{(k * step_sz * wn):.3f}" for k in range(1, n_steps + 1)]
+            st.sidebar.write("Step values (pred.): " + ", ".join(_iter_vals(iter_steps, trust_r, lstate.sigma, None, lstate.w)[:6]))
+        except Exception:
+            pass
 else:
     alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, value=0.5, step=0.05)
     beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, value=0.5, step=0.05)
@@ -218,8 +340,47 @@ else:
     lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, value=0.3, step=0.05)
     gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, value=0.2, step=0.05)
     iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, value=1, step=1)
-# Value function option: Ridge (linear) vs XGBoost
-use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
+    try:
+        st.sidebar.write(f"Iter steps: {int(iter_steps)}")
+        def _iter_vals2(n_steps: int, trust_r_v, sigma_v, eta_v, w_now) -> list[str]:
+            wn = float(np.linalg.norm(w_now))
+            n_steps = max(1, int(n_steps))
+            if eta_v is not None and float(eta_v) > 0.0:
+                step_sz = float(eta_v)
+            elif trust_r_v is not None and float(trust_r_v) > 0.0:
+                step_sz = float(trust_r_v) / n_steps
+            else:
+                step_sz = float(sigma_v) / n_steps
+            return [f"{(k * step_sz * wn):.3f}" for k in range(1, n_steps + 1)]
+        st.sidebar.write("Step values (pred.): " + ", ".join(_iter_vals2(iter_steps, trust_r, lstate.sigma, None, lstate.w)[:6]))
+    except Exception:
+        pass
+    # Minimal hill-climb μ (distance) controls
+    st.sidebar.subheader("Hill-climb μ")
+    eta_mu = _sb_num("η (step)", min_value=0.01, max_value=1.0, value=0.2, step=0.01, format="%.2f")
+    gamma_mu = _sb_num("γ (sigmoid)", min_value=0.1, max_value=5.0, value=0.5, step=0.1, format="%.1f")
+    trust_mu = _sb_num("Trust radius r (0=off)", min_value=0.0, max_value=1e3, value=0.0, step=1.0, format="%.1f")
+    if st.sidebar.button("Hill-climb μ (distance)"):
+        try:
+            with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                Xd = d['X'] if 'X' in d.files else None
+                yd = d['y'] if 'y' in d.files else None
+        except Exception:
+            Xd = yd = None
+        if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+            Xd = st.session_state.dataset_X
+            yd = st.session_state.dataset_y
+        try:
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                r_val = None if float(trust_mu) <= 0.0 else float(trust_mu)
+                ll.hill_climb_mu_distance(lstate, base_prompt, Xd, yd, eta=float(eta_mu), gamma=float(gamma_mu), trust_r=r_val)
+                save_state(lstate, st.session_state.state_path)
+        except Exception:
+            pass
+        if callable(st_rerun):
+            st_rerun()
+# Value function option: controlled solely by the dropdown above
+use_xgb = (vm_choice == "XGBoost")
 
 # Legacy toggles (collapsed when dropdown exists) — kept to preserve tests
 def _legacy_mode_controls():
@@ -250,7 +411,13 @@ def _resolve_modes():
     return (bool(curation_mode_cb), bool(async_queue_mode_cb))
 
 curation_mode, async_queue_mode = _resolve_modes()
-reg_lambda = _sb_sld("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
+# Regularization λ: slider plus direct input for precise edits
+reg_lambda = _sb_sld("Ridge λ (regularization)", 0.0, 1e5, value=1e-3)
+# Allow precise manual entry; overrides slider when edited; default to 0.0 when unset
+try:
+    reg_lambda = float(_sb_num("Ridge λ (edit)", min_value=0.0, max_value=1e5, value=float(reg_lambda), step=1e-3, format="%.6f"))
+except Exception:
+    reg_lambda = float(reg_lambda)
 try:
     st.session_state['reg_lambda'] = float(reg_lambda)
 except Exception:
@@ -464,6 +631,12 @@ try:
                 dbg_pairs.append(("guidance_eff", str(guidance_eff)))
             if dbg_pairs:
                 sidebar_metric_rows(dbg_pairs, per_row=2)
+            try:
+                ls = last.get('latents_std')
+                if ls is not None and float(ls) <= 1e-6:
+                    st.sidebar.write('warn: latents std ~0')
+            except Exception:
+                pass
     else:
         # Fallback when expander not available (e.g., test stubs)
         st.sidebar.subheader("Debug")
@@ -476,35 +649,86 @@ try:
             dbg_pairs.append(("guidance_eff", str(guidance_eff)))
         if dbg_pairs:
             sidebar_metric_rows(dbg_pairs, per_row=2)
+        try:
+            ls = last.get('latents_std')
+            if ls is not None and float(ls) <= 1e-6:
+                st.sidebar.write('warn: latents std ~0')
+        except Exception:
+            pass
 except Exception:
     pass
 
-# State metadata panel
+# State metadata panel and file paths
 render_metadata_panel(st.session_state.state_path, st.session_state.prompt)
+render_paths_panel(st.session_state.state_path, st.session_state.prompt)
+render_dataset_viewer()
 
 status_panel(st.session_state.images, st.session_state.mu_image)
 
 # Vector info for current pair (render early so tests see it on import)
 try:
-    za, zb = st.session_state.lz_pair
-    value_scorer = None
-    if use_xgb:
-        try:
-            from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
-            # Cache model in session; retrain only when sample count changes
-            X = getattr(lstate, 'X', None)
-            y = getattr(lstate, 'y', None)
-            n = 0 if (y is None) else len(y)
-            cache = st.session_state.get('xgb_cache') or {}
-            mdl, last_n = cache.get('model'), cache.get('n')
-            if X is not None and y is not None and n > 0 and len(set(y.tolist())) > 1:
-                if mdl is None or last_n != n:
-                    mdl = fit_xgb_classifier(X, y)
-                    st.session_state.xgb_cache = {'model': mdl, 'n': n}
-                value_scorer = lambda f: score_xgb_proba(mdl, f)
-        except Exception:
-            value_scorer = None
-    render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui), value_scorer=value_scorer)
+        za, zb = st.session_state.lz_pair
+        value_scorer = None
+        if use_xgb:
+            try:
+                from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+                # Cache model in session; retrain only when sample count changes
+                X = getattr(lstate, 'X', None)
+                y = getattr(lstate, 'y', None)
+                n = 0 if (y is None) else len(y)
+                cache = st.session_state.get('xgb_cache') or {}
+                mdl, last_n = cache.get('model'), cache.get('n')
+                if X is not None and y is not None and n > 0 and len(set(y.tolist())) > 1:
+                    if mdl is None or last_n != n:
+                        mdl = fit_xgb_classifier(X, y)
+                        st.session_state.xgb_cache = {'model': mdl, 'n': n}
+                        try:
+                            from datetime import datetime, timezone
+                            st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                        except Exception:
+                            pass
+                    value_scorer = lambda f: score_xgb_proba(mdl, f)
+            except Exception:
+                value_scorer = None
+        if st.session_state.get('vm_choice') == 'DistanceHill':
+            # Build dataset from disk or in-memory for distance scoring
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                from latent_logic import distancehill_score
+                z_p_here = z_from_prompt(lstate, base_prompt)
+                def _score_distance(fvec):
+                    zc = z_p_here + np.asarray(fvec, dtype=float)
+                    return float(distancehill_score(base_prompt, zc, lstate, Xd, yd, gamma=0.5))
+                value_scorer = _score_distance
+        if st.session_state.get('vm_choice') == 'CosineHill':
+            # Build dataset for cosine scoring
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                from latent_logic import cosinehill_score
+                z_p_here = z_from_prompt(lstate, base_prompt)
+                def _score_cos(fvec):
+                    zc = z_p_here + np.asarray(fvec, dtype=float)
+                    return float(cosinehill_score(base_prompt, zc, lstate, Xd, yd, beta=5.0))
+                value_scorer = _score_cos
+        render_pair_sidebar(st.session_state.lstate, st.session_state.prompt, za, zb, lr_mu_val=float(lr_mu_ui), value_scorer=value_scorer)
 except Exception:
     pass
 
@@ -556,7 +780,33 @@ def generate_pair():
 def _prefetch_next_for_generate():
     try:
         try:
-            za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
+            if st.session_state.get('vm_choice') == 'DistanceHill':
+                # Build dataset
+                try:
+                    with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                        Xd = d['X'] if 'X' in d.files else None
+                        yd = d['y'] if 'y' in d.files else None
+                except Exception:
+                    Xd = yd = None
+                if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                    Xd = st.session_state.dataset_X
+                    yd = st.session_state.dataset_y
+                from latent_logic import propose_pair_distancehill
+                za_n, zb_n = propose_pair_distancehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), gamma=0.5, trust_r=None)
+            elif st.session_state.get('vm_choice') == 'CosineHill':
+                try:
+                    with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                        Xd = d['X'] if 'X' in d.files else None
+                        yd = d['y'] if 'y' in d.files else None
+                except Exception:
+                    Xd = yd = None
+                if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                    Xd = st.session_state.dataset_X
+                    yd = st.session_state.dataset_y
+                from latent_logic import propose_pair_cosinehill
+                za_n, zb_n = propose_pair_cosinehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), beta=5.0, trust_r=None)
+            else:
+                za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
         except Exception:
             za_n, zb_n = propose_latent_pair_ridge(lstate)
         la_n = z_to_latents(lstate, za_n)
@@ -643,6 +893,7 @@ def _curation_add(label: int, z: np.ndarray) -> None:
 
 def _curation_train_and_next() -> None:
     # Always train from saved dataset on disk
+    import streamlit as _st
     try:
         with np.load(dataset_path_for_prompt(base_prompt)) as d:
             X = d['X'] if 'X' in d.files else None
@@ -655,10 +906,35 @@ def _curation_train_and_next() -> None:
         y = st.session_state.dataset_y
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
-            lstate.w = ridge_fit(X, y, lam=float(reg_lambda))
+            lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
+            lstate.w = ll.ridge_fit(X, y, lam=lam_now)
+            from datetime import datetime, timezone
+            _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
         except Exception:
             pass
     _curation_new_batch()
+
+
+def _refit_from_dataset_keep_batch() -> None:
+    """Refit ridge from saved dataset (or in-memory) without regenerating the batch."""
+    import streamlit as _st
+    try:
+        with np.load(dataset_path_for_prompt(base_prompt)) as d:
+            X = d['X'] if 'X' in d.files else None
+            y = d['y'] if 'y' in d.files else None
+    except Exception:
+        X = y = None
+    if (X is None or y is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+        X = st.session_state.dataset_X
+        y = st.session_state.dataset_y
+    try:
+        if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
+            lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
+            lstate.w = ll.ridge_fit(X, y, lam=lam_now)
+            from datetime import datetime, timezone
+            _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    except Exception:
+        pass
 
 
 def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
@@ -673,12 +949,19 @@ def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
 
 def _choose_preference(side: str) -> None:
     """Handle pair preference: update state, persist both labels, propose next pair."""
+    import streamlit as _st
     set_model(selected_model)
     z_p = z_from_prompt(lstate, base_prompt)
     feats_a = z_a - z_p
     feats_b = z_b - z_p
     winner = 'a' if side == 'a' else 'b'
-    update_latent_ridge(lstate, z_a, z_b, winner, lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
+    lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
+    update_latent_ridge(lstate, z_a, z_b, winner, lr_mu=float(lr_mu_ui), lam=lam_now, feats_a=feats_a, feats_b=feats_b)
+    try:
+        from datetime import datetime, timezone
+        _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    except Exception:
+        pass
     try:
         _label_and_persist(z_a, +1 if winner == 'a' else -1)
         _label_and_persist(z_b, +1 if winner == 'b' else -1)
@@ -717,17 +1000,26 @@ def _render_batch_ui() -> None:
         if st.button(f"Good (+1) {i}", use_container_width=True):
             _curation_add(1, z_i)
             st.session_state.cur_labels[i] = 1
-            _curation_replace_at(i)
+            _refit_from_dataset_keep_batch()
+            # Regenerate the entire batch for a clean refresh
+            _curation_new_batch()
             if callable(st_rerun):
                 st_rerun()
         if st.button(f"Bad (-1) {i}", use_container_width=True):
             _curation_add(-1, z_i)
             st.session_state.cur_labels[i] = -1
-            _curation_replace_at(i)
+            _refit_from_dataset_keep_batch()
+            # Regenerate the entire batch for a clean refresh
+            _curation_new_batch()
             if callable(st_rerun):
                 st_rerun()
     if st.button("Train on dataset and next batch", type="primary"):
         _curation_train_and_next()
+        if callable(st_rerun):
+            st_rerun()
+    if st.button("Train on dataset (keep batch)"):
+        # Refit w from saved dataset without regenerating the batch
+        _refit_from_dataset_keep_batch()
         if callable(st_rerun):
             st_rerun()
 
@@ -735,7 +1027,12 @@ def _render_batch_ui() -> None:
 def _render_queue_ui() -> None:
     st.subheader("Async queue")
     q = st.session_state.get('queue') or []
-    for i, it in enumerate(list(q)):
+    # Only show a single head-of-queue item in the UI
+    if not q:
+        st.write("Queue empty…")
+    else:
+        i = 0
+        it = q[0]
         img = it['future'].result() if it['future'].done() else None
         if img is not None:
             _image_fragment(img, caption=f"Item {i}")
@@ -785,9 +1082,38 @@ def _queue_ensure_exec():
 
 
 def _queue_add_one():
-    # propose single z (use ridge first vector or random around prompt)
+    # propose single z based on pair proposer (use first vector)
     try:
-        za, _ = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
+        vmc = st.session_state.get('vm_choice', 'DistanceHill')
+        pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
+        if pp == 'DistanceHill':
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            from latent_logic import propose_pair_distancehill
+            za, _ = propose_pair_distancehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), gamma=0.5, trust_r=None)
+        elif pp == 'CosineHill':
+            Xd = yd = None
+            try:
+                with np.load(dataset_path_for_prompt(base_prompt)) as d:
+                    Xd = d['X'] if 'X' in d.files else None
+                    yd = d['y'] if 'y' in d.files else None
+            except Exception:
+                Xd = yd = None
+            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+                Xd = st.session_state.dataset_X
+                yd = st.session_state.dataset_y
+            from latent_logic import propose_pair_cosinehill
+            za, _ = propose_pair_cosinehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), beta=5.0, trust_r=None)
+        else:
+            za, _ = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
     except Exception:
         za = _sample_around_prompt(0.8)
     lat = z_to_latents(lstate, za)
@@ -801,9 +1127,8 @@ def _queue_add_one():
 def _queue_fill_up_to():
     q = st.session_state.get('queue') or []
     st.session_state.queue = q
-    # Generate only one image at a time: add a new one only if no pending futures
-    pending = any((it.get('future') and not it['future'].done()) for it in q)
-    if (not pending) and len(st.session_state.queue) < int(queue_size):
+    # Fill up to desired size; allow multiple pending items to avoid stalls
+    while len(st.session_state.queue) < int(queue_size):
         _queue_add_one()
 
 
@@ -857,6 +1182,10 @@ def run_queue_mode() -> None:
 
 # Run selected mode
 # Without Pair mode: choose between Batch (default) and Async queue
+try:
+    async_queue_mode
+except NameError:  # minimal guard for test stubs/import order
+    async_queue_mode = False
 if async_queue_mode:
     run_queue_mode()
 else:

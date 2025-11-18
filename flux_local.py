@@ -175,6 +175,27 @@ def _run_pipe(**kwargs):
 
     Also logs basic image statistics for debugging when possible.
     """
+    # Best-effort: ensure scheduler has valid timesteps and step index
+    try:
+        steps = int(kwargs.get("num_inference_steps", 20))
+    except Exception:
+        steps = 20
+    try:
+        sched = getattr(PIPE, "scheduler", None)
+        if sched is not None and hasattr(sched, "set_timesteps"):
+            try:
+                # LCM requires _step_index to be initialized; set_timesteps should do it.
+                sched.set_timesteps(int(steps), device="cuda")
+            except TypeError:
+                sched.set_timesteps(int(steps))  # older signatures
+            # Guard against buggy schedulers leaving _step_index=None
+            if getattr(sched, "_step_index", None) is None:
+                try:
+                    sched._step_index = 0  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+    except Exception:
+        pass
     with PIPE_LOCK:
         out = PIPE(**kwargs)
     if hasattr(out, "images") and getattr(out, "images"):
