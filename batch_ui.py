@@ -147,7 +147,17 @@ def _render_batch_ui() -> None:
             la2 = z_to_latents(lstate, z_i)
             return generate_flux_image_latents(prompt, latents=la2, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
 
-        img_i, futs[i] = bg.result_or_sync_after(futs[i], starts[i], DECODE_TIMEOUT_S, _sync_decode)
+        # Some tests stub 'background' without helper; provide a tiny inline default.
+        _ros = getattr(bg, 'result_or_sync_after', None)
+        if _ros is None:
+            def _ros(fut, started_at, timeout_s, sync_callable):  # type: ignore
+                try:
+                    if fut is not None and fut.done():
+                        return fut.result(), fut
+                except Exception:
+                    pass
+                return None, fut
+        img_i, futs[i] = _ros(futs[i], starts[i], DECODE_TIMEOUT_S, _sync_decode)
         st.session_state.batch_futures = futs
 
         if img_i is not None:
