@@ -57,9 +57,9 @@ if prompt_changed:
 st.session_state.state_path = state_path_for_prompt(st.session_state.prompt)
 
 
-@st.fragment
+# Fragmented image renderer with a no-op fallback when st.fragment is unavailable (e.g., in tests)
 def _image_fragment(img, caption: str, v_label: str | None = None, v_val: float | None = None) -> None:
-    """Render a single image (and optional metric) in its own fragment."""
+    """Render a single image (and optional metric) in its own fragment when supported."""
     if img is None:
         st.empty()
         return
@@ -69,6 +69,11 @@ def _image_fragment(img, caption: str, v_label: str | None = None, v_val: float 
             st.metric(v_label or "V", f"{v_val:.3f}")
         except Exception:
             st.write(f"{v_label or 'V'}: {v_val:.3f}")
+
+# Apply fragment decorator dynamically if available
+_frag = getattr(st, 'fragment', None)
+if callable(_frag):
+    _image_fragment = _frag(_image_fragment)
 
 def _apply_state(new_state) -> None:
     """Apply a freshly loaded/created state to session and reset derived caches."""
@@ -625,21 +630,18 @@ def _render_batch_ui() -> None:
         lat = z_to_latents(lstate, z_i)
         img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
         _image_fragment(img_i, caption=f"Item {i}")
-        cols = st.columns(2)
-        with cols[0]:
-            if st.button(f"Good (+1) {i}"):
-                _curation_add(1, z_i)
-                st.session_state.cur_labels[i] = 1
-                _curation_replace_at(i)
-                if callable(st_rerun):
-                    st_rerun()
-        with cols[1]:
-            if st.button(f"Bad (-1) {i}"):
-                _curation_add(-1, z_i)
-                st.session_state.cur_labels[i] = -1
-                _curation_replace_at(i)
-                if callable(st_rerun):
-                    st_rerun()
+        if st.button(f"Good (+1) {i}", use_container_width=True):
+            _curation_add(1, z_i)
+            st.session_state.cur_labels[i] = 1
+            _curation_replace_at(i)
+            if callable(st_rerun):
+                st_rerun()
+        if st.button(f"Bad (-1) {i}", use_container_width=True):
+            _curation_add(-1, z_i)
+            st.session_state.cur_labels[i] = -1
+            _curation_replace_at(i)
+            if callable(st_rerun):
+                st_rerun()
     if st.button("Train on dataset and next batch", type="primary"):
         _curation_train_and_next()
         if callable(st_rerun):
@@ -655,17 +657,14 @@ def _render_queue_ui() -> None:
             _image_fragment(img, caption=f"Item {i}")
         else:
             st.write(f"Item {i}: loading…")
-        cols = st.columns(2)
-        with cols[0]:
-            if st.button(f"Accept {i}"):
-                _queue_label(i, 1)
-                if callable(st_rerun):
-                    st_rerun()
-        with cols[1]:
-            if st.button(f"Reject {i}"):
-                _queue_label(i, -1)
-                if callable(st_rerun):
-                    st_rerun()
+        if st.button(f"Accept {i}", use_container_width=True):
+            _queue_label(i, 1)
+            if callable(st_rerun):
+                st_rerun()
+        if st.button(f"Reject {i}", use_container_width=True):
+            _queue_label(i, -1)
+            if callable(st_rerun):
+                st_rerun()
     _queue_fill_up_to()
 
 
