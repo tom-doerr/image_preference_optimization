@@ -6,6 +6,8 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from constants import (
     DEFAULT_PROMPT,
+    DEFAULT_MODEL,
+    MODEL_CHOICES,
 )
 from constants import Config
 from env_info import get_env_summary
@@ -176,6 +178,16 @@ if st.sidebar.button("Apply size now"):
     if callable(st_rerun):
         st_rerun()
 st.sidebar.header("Settings")
+"""Model selection"""
+_model_sel = getattr(st.sidebar, 'selectbox', None)
+if callable(_model_sel):
+    try:
+        selected_model = _model_sel("Model", MODEL_CHOICES, index=0)
+    except Exception:
+        selected_model = DEFAULT_MODEL
+else:
+    selected_model = DEFAULT_MODEL
+
 # Generation mode at top of sidebar (dropdown) — Pair mode removed
 _gen_opts = ["Batch curation", "Async queue"]
 _sb_sel = getattr(st.sidebar, 'selectbox', None)
@@ -189,7 +201,6 @@ if callable(_sb_sel):
     except Exception:
         selected_gen_mode = None
 # Simplified: hardcode sd-turbo; no model selector
-selected_model = "stabilityai/sd-turbo"
 _exp = getattr(st.sidebar, 'expander', None)
 if callable(_exp):
     with _exp("Proposer controls", expanded=False):
