@@ -496,3 +496,6 @@ Pair/Queue save tests (Nov 18, 2025):
 - Async queue: `tests/test_queue_mode_save_dataset.py` asserts `_queue_label(i, 1)` grows the dataset.
 - Dataset isolation: `tests/test_dataset_isolation_by_prompt.py` verifies separate files per prompt.
 - Persistence helper: `tests/test_append_dataset_row_helper.py` checks `append_dataset_row` returns the new row count.
+
+UI micro‑update (Nov 18, 2025, later):
+- Added a compact top‑of‑sidebar “Data” strip showing `Dataset rows` and `Train score` so progress is visible without scrolling. The detailed “Data” section remains for compatibility.

@@ -97,6 +97,30 @@ lstate = st.session_state.lstate
 z_a, z_b = st.session_state.lz_pair
 _sb_num = getattr(st.sidebar, 'number_input', st.number_input)
 _sb_sld = getattr(st.sidebar, 'slider', st.slider)
+
+# Quick data strip at the very top of the sidebar
+try:
+    st.sidebar.subheader("Data")
+    # Dataset rows from persisted NPZ
+    try:
+        _rows_cnt = int(dataset_rows_for_prompt(base_prompt))
+    except Exception:
+        _rows_cnt = 0
+    # Simple train score using current ridge weights over any in-memory X/y
+    try:
+        X_ = getattr(lstate, 'X', None)
+        y_ = getattr(lstate, 'y', None)
+        if X_ is not None and y_ is not None and len(y_) > 0:
+            _pred = X_ @ lstate.w
+            _acc = float(np.mean(( _pred >= 0) == (y_ > 0)))
+            _train_score = f"{_acc*100:.0f}%"
+        else:
+            _train_score = "n/a"
+    except Exception:
+        _train_score = "n/a"
+    sidebar_metric_rows([("Dataset rows", _rows_cnt), ("Train score", _train_score)], per_row=2)
+except Exception:
+    pass
 width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
 height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
 steps = _sb_sld("Steps", 1, 50, Config.DEFAULT_STEPS)
@@ -274,6 +298,37 @@ try:
     else:
         # Fallback simple line
         st.sidebar.write("Training data: pos={} neg={} d={}".format(stats.get("pos",0), stats.get("neg",0), stats.get("d",0)))
+except Exception:
+    pass
+
+# Value model details (collapsed)
+try:
+    exp = getattr(st.sidebar, 'expander', None)
+    if callable(exp):
+        with exp("Value model", expanded=False):
+            # Model type
+            vm = "Ridge"
+            cache = st.session_state.get('xgb_cache') or {}
+            if use_xgb and cache.get('model') is not None:
+                vm = "XGBoost"
+            st.sidebar.write(f"Value model: {vm}")
+            if vm == "Ridge":
+                try:
+                    w_norm = float(np.linalg.norm(lstate.w))
+                except Exception:
+                    w_norm = 0.0
+                rows = 0
+                try:
+                    rows = int(dataset_rows_for_prompt(base_prompt))
+                except Exception:
+                    rows = 0
+                st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
+            else:
+                # Show cached rows used for last fit and basic params
+                n_fit = cache.get('n') or 0
+                st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators=50, depth=3")
+    else:
+        st.sidebar.write("Value model: Ridge")
 except Exception:
     pass
 
