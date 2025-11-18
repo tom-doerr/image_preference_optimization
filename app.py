@@ -12,6 +12,16 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel, perf_panel
+from batch_ui import (
+    _curation_init_batch,
+    _curation_new_batch,
+    _curation_replace_at,
+    _curation_add,
+    _curation_train_and_next,
+    _refit_from_dataset_keep_batch,
+    _render_batch_ui,
+    run_batch_mode,
+)
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
