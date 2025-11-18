@@ -13,7 +13,7 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
-from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row
+from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
@@ -257,6 +257,23 @@ try:
     except Exception:
         rows.append(("Dataset rows", "n/a"))
     sidebar_metric_rows(rows, per_row=2)
+except Exception:
+    pass
+
+# Training data details (collapsed)
+try:
+    exp = getattr(st.sidebar, 'expander', None)
+    stats = dataset_stats_for_prompt(base_prompt)
+    if callable(exp):
+        with exp("Training data", expanded=False):
+            sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
+            sidebar_metric_rows([("Feat dim", stats.get("d", 0))], per_row=1)
+            rl = stats.get("recent_labels", [])
+            if rl:
+                st.sidebar.write("Recent y: " + ", ".join([f"{v:+d}" for v in rl]))
+    else:
+        # Fallback simple line
+        st.sidebar.write("Training data: pos={} neg={} d={}".format(stats.get("pos",0), stats.get("neg",0), stats.get("d",0)))
 except Exception:
     pass
 

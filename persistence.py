@@ -50,6 +50,31 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     return int(X_new.shape[0])
 
 
+def dataset_stats_for_prompt(prompt: str) -> dict:
+    """Return minimal stats for the saved dataset of this prompt.
+
+    Keys: rows, pos, neg, d, recent_labels (list of ints, up to 5)
+    """
+    rows = pos = neg = d = 0
+    recent = []
+    import os
+    p = dataset_path_for_prompt(prompt)
+    if not os.path.exists(p):
+        return {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": recent}
+    with np.load(p) as z:
+        X = z['X'] if 'X' in z.files else None
+        y = z['y'] if 'y' in z.files else None
+        if X is not None and hasattr(X, 'shape'):
+            rows = int(X.shape[0])
+            d = int(X.shape[1]) if X.ndim == 2 else 0
+        if y is not None:
+            yy = np.asarray(y).astype(int)
+            pos = int((yy > 0).sum())
+            neg = int((yy < 0).sum())
+            recent = [int(v) for v in yy[-5:]]
+    return {"rows": rows, "pos": pos, "neg": neg, "d": d, "recent_labels": recent}
+
+
 def export_state_bytes(state, prompt: str) -> bytes:
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:
