@@ -466,6 +466,9 @@ New learnings (Nov 18, 2025):
 - Turbo guidance: for `*sd*-turbo` and `*sdxl*-turbo` models, we now force effective guidance (CFG) to 0.0 in the app calls. This matches how Turbo models are intended to run and eliminates another source of flat/black outputs.
 - Sidebar “Debug” shows last-call stats (model, size, steps, guidance, latents_std, init_sigma, img0_std/min/max) to surface problems immediately.
  - Safety checker: to prevent spurious blacked-out frames, we disable the pipeline safety checker after load (set `safety_checker=None`, `feature_extractor=None`, and config flag where available). Minimal, avoids false positives in local testing.
+ 
+UI fragments (Nov 18, 2025, late):
+- Wrapped each displayed image (Prompt, Left, Right, Batch/Queue items) in `st.fragment` to scope reruns and reduce unnecessary re-execution. Kept buttons outside the fragments to preserve interaction semantics. Minimal change; improves responsiveness.
 
 Decision (123d):
 - Added a one-click "Use Turbo defaults" button in the sidebar. It overrides the active model to `stabilityai/sd-turbo`, re-initializes the latent state at 512×512, and relies on the app’s Turbo-effective guidance (CFG=0.0). Minimal code; no fallbacks.

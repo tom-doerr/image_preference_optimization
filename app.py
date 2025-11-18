@@ -56,6 +56,20 @@ if prompt_changed:
 
 st.session_state.state_path = state_path_for_prompt(st.session_state.prompt)
 
+
+@st.fragment
+def _image_fragment(img, caption: str, v_label: str | None = None, v_val: float | None = None) -> None:
+    """Render a single image (and optional metric) in its own fragment."""
+    if img is None:
+        st.empty()
+        return
+    st.image(img, caption=caption, use_container_width=True)
+    if v_val is not None:
+        try:
+            st.metric(v_label or "V", f"{v_val:.3f}")
+        except Exception:
+            st.write(f"{v_label or 'V'}: {v_val:.3f}")
+
 def _apply_state(new_state) -> None:
     """Apply a freshly loaded/created state to session and reset derived caches."""
     st.session_state.lstate = new_state
@@ -235,7 +249,7 @@ if st.session_state.get('prompt_image') is not None:
         st.caption(f"z_prompt: first8={np.array2string(z_prompt[:8], precision=2, separator=', ')} | ‖z_p‖={float(np.linalg.norm(z_prompt)):.3f}")
     except Exception:
         pass
-    st.image(st.session_state.prompt_image, caption="Prompt-only image", use_container_width=True)
+    _image_fragment(st.session_state.prompt_image, caption="Prompt-only image")
     # Content warning badge for prompt image (if stats present)
     try:
         ps = st.session_state.get('prompt_stats') or {}
@@ -594,23 +608,13 @@ def _render_pair_ui(img_left: Any, img_right: Any,
     with left:
         if img_left is not None:
             cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
-            st.image(img_left, caption=cap, use_container_width=True)
-            if v_left is not None:
-                try:
-                    st.metric("V(left)", f"{v_left:.3f}")
-                except Exception:
-                    st.write(f"V(left): {v_left:.3f}")
+            _image_fragment(img_left, caption=cap, v_label="V(left)", v_val=v_left)
         if st.button("Prefer Left", use_container_width=True):
             _choose_preference('a')
     with right:
         if img_right is not None:
             cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
-            st.image(img_right, caption=cap, use_container_width=True)
-            if v_right is not None:
-                try:
-                    st.metric("V(right)", f"{v_right:.3f}")
-                except Exception:
-                    st.write(f"V(right): {v_right:.3f}")
+            _image_fragment(img_right, caption=cap, v_label="V(right)", v_val=v_right)
         if st.button("Prefer Right", use_container_width=True):
             _choose_preference('b')
 
@@ -620,7 +624,7 @@ def _render_batch_ui() -> None:
     for i, z_i in enumerate(st.session_state.cur_batch or []):
         lat = z_to_latents(lstate, z_i)
         img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-        st.image(img_i, caption=f"Item {i}", use_container_width=True)
+        _image_fragment(img_i, caption=f"Item {i}")
         cols = st.columns(2)
         with cols[0]:
             if st.button(f"Good (+1) {i}"):
@@ -648,7 +652,7 @@ def _render_queue_ui() -> None:
     for i, it in enumerate(list(q)):
         img = it['future'].result() if it['future'].done() else None
         if img is not None:
-            st.image(img, caption=f"Item {i}", use_container_width=True)
+            _image_fragment(img, caption=f"Item {i}")
         else:
             st.write(f"Item {i}: loading…")
         cols = st.columns(2)
