@@ -12,7 +12,7 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
-from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt
+from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
     init_latent_state,
@@ -236,13 +236,7 @@ try:
         rows.append(("Train score", "n/a"))
     # Dataset rows (from saved NPZ)
     try:
-        ds_path = dataset_path_for_prompt(base_prompt)
-        n_rows = 0
-        if os.path.exists(ds_path):
-            with np.load(ds_path) as d:
-                Xd = d['X'] if 'X' in d.files else None
-                n_rows = 0 if Xd is None else int(getattr(Xd, 'shape', (0,))[0])
-        rows.append(("Dataset rows", str(n_rows)))
+        rows.append(("Dataset rows", str(dataset_rows_for_prompt(base_prompt))))
     except Exception:
         rows.append(("Dataset rows", "n/a"))
     sidebar_metric_rows(rows, per_row=2)
@@ -390,52 +384,23 @@ if st.sidebar.checkbox("Debug", value=False):
         except Exception as e:
             st.sidebar.write(f"random latents failed: {e}")
 
-def _decode_one(side: str, latents, slot=None):
-    """Decode one side and record last-call stats and optional streaming render."""
-    img = generate_flux_image_latents(
-        base_prompt,
-        latents=latents,
-        width=lstate.width,
-        height=lstate.height,
-        steps=steps,
-        guidance=guidance_eff,
-    )
+def _decode_one(side: str, latents):
+    """Decode one side and record last-call stats (no UI rendering here)."""
+    img = generate_flux_image_latents(base_prompt, latents=latents, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
     try:
         st.session_state.img_stats = st.session_state.get('img_stats') or {}
         st.session_state.img_stats[side] = get_last_call().copy()
     except Exception:
         pass
-    if hasattr(slot, 'image'):
-        slot.image(img, caption=side.capitalize(), use_container_width=True)
     return img
 
 
 def generate_pair():
     lat_a = z_to_latents(lstate, z_a)
     lat_b = z_to_latents(lstate, z_b)
-    # Best-effort placeholders if available (tests may stub them out)
-    make_slot = getattr(st, 'empty', None)
-    left_slot = make_slot() if callable(make_slot) else None
-    right_slot = make_slot() if callable(make_slot) else None
-
-    # Decode sequentially with shared helper
-    img_a = _decode_one('left', lat_a, left_slot)
-    st.session_state.images = (img_a, None)
-    try:
-        st.caption(
-            f"z_left: first8={np.array2string(z_a[:8], precision=2, separator=', ')} | ‖z_l‖={float(np.linalg.norm(z_a)):.3f}"
-        )
-    except Exception:
-        pass
-
-    img_b = _decode_one('right', lat_b, right_slot)
+    img_a = _decode_one('left', lat_a)
+    img_b = _decode_one('right', lat_b)
     st.session_state.images = (img_a, img_b)
-    try:
-        st.caption(
-            f"z_right: first8={np.array2string(z_b[:8], precision=2, separator=', ')} | ‖z_r‖={float(np.linalg.norm(z_b)):.3f}"
-        )
-    except Exception:
-        pass
     # Prefetch next pair for the Generate button
     _prefetch_next_for_generate()
 
@@ -560,6 +525,16 @@ def _curation_train_and_next():
         except Exception:
             pass
     _curation_new_batch()
+
+
+def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
+    """Unified label/save/train pipeline for Pair/Batch/Queue."""
+    _curation_add(int(label), z)
+    if retrain:
+        try:
+            _curation_train_and_next()
+        except Exception:
+            pass
 
 
 # Async queue mode helpers
@@ -698,9 +673,8 @@ with left:
             update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
             # Append both items to dataset and retrain from disk
             try:
-                _curation_add(1, z_a)
-                _curation_add(-1, z_b)
-                _curation_train_and_next()  # train (does not change current pair)
+                _label_and_persist(z_a, +1)
+                _label_and_persist(z_b, -1)
             except Exception:
                 pass
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
@@ -782,9 +756,8 @@ with right:
             feats_b = z_b - z_p
             update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
             try:
-                _curation_add(-1, z_a)
-                _curation_add(1, z_b)
-                _curation_train_and_next()
+                _label_and_persist(z_a, -1)
+                _label_and_persist(z_b, +1)
             except Exception:
                 pass
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'

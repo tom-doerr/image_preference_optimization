@@ -16,6 +16,19 @@ def dataset_path_for_prompt(prompt: str) -> str:
     return f"dataset_{h}.npz"
 
 
+def dataset_rows_for_prompt(prompt: str) -> int:
+    """Return number of rows in the saved dataset for this prompt, or 0 if none."""
+    import os
+    p = dataset_path_for_prompt(prompt)
+    if not os.path.exists(p):
+        return 0
+    with np.load(p) as d:
+        if 'X' not in d.files:
+            return 0
+        X = d['X']
+        return int(getattr(X, 'shape', (0,))[0])
+
+
 def export_state_bytes(state, prompt: str) -> bytes:
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:
