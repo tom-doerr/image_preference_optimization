@@ -937,6 +937,7 @@ def _curation_new_batch() -> None:
     st.session_state.cur_labels = [None] * len(z_list)
     # Reset per-item decode futures for async rendering
     st.session_state.batch_futures = [None] * len(z_list)
+    st.session_state.batch_started = [None] * len(z_list)
 
 
 def _curation_sample_one() -> np.ndarray:
@@ -1099,13 +1100,38 @@ def _render_batch_ui() -> None:
     if not futs or len(futs) != len(st.session_state.cur_batch or []):
         futs = [None] * len(st.session_state.cur_batch or [])
         st.session_state.batch_futures = futs
+    starts = st.session_state.get('batch_started') or [None] * len(st.session_state.cur_batch or [])
+    if len(starts) != len(st.session_state.cur_batch or []):
+        starts = [None] * len(st.session_state.cur_batch or [])
+        st.session_state.batch_started = starts
     for i, z_i in enumerate(st.session_state.cur_batch or []):
         # Schedule decode if needed
         if futs[i] is None:
             la = z_to_latents(lstate, z_i)
             futs[i] = bg.schedule_decode_latents(base_prompt, la, lstate.width, lstate.height, steps, guidance_eff)
             st.session_state.batch_futures = futs
-        img_i = futs[i].result() if futs[i].done() else None
+            import time as _time
+            starts[i] = _time.time()
+            st.session_state.batch_started = starts
+        # If pending too long, synchronously decode to avoid indefinite loading
+        img_i = None
+        if futs[i] is not None and futs[i].done():
+            img_i = futs[i].result()
+        else:
+            try:
+                import time as _time
+                t0 = starts[i] or _time.time()
+                if (_time.time() - t0) > 3.0:
+                    la = z_to_latents(lstate, z_i)
+                    img_i = generate_flux_image_latents(base_prompt, latents=la, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
+                    from concurrent.futures import Future as _Future
+                    f = _Future(); f.set_result(img_i)
+                    futs[i] = f
+                    st.session_state.batch_futures = futs
+                    starts[i] = None
+                    st.session_state.batch_started = starts
+            except Exception:
+                img_i = None
         if img_i is not None:
             _image_fragment(img_i, caption=f"Item {i}")
         else:
