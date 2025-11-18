@@ -106,7 +106,7 @@ def _render_batch_ui() -> None:
     from latent_opt import z_to_latents
     from flux_local import generate_flux_image_latents
 
-    st.subheader("Curation batch")
+    (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
     futs = st.session_state.get('batch_futures') or []
     if not futs or len(futs) != len(st.session_state.cur_batch or []):
         futs = [None] * len(st.session_state.cur_batch or [])
@@ -179,4 +179,3 @@ def _render_batch_ui() -> None:
 def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
-

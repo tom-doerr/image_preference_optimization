@@ -80,11 +80,11 @@ def generate_pair() -> None:
     import streamlit as st
     from latent_opt import z_to_latents
 
-    lstate, _ = _lstate_and_prompt()
+    lstate, prompt = _lstate_and_prompt()
     if st.session_state.get('lz_pair') is None:
         # Minimal init if missing: symmetric pair around prompt anchor
         from latent_logic import z_from_prompt
-        z_p = z_from_prompt(lstate, st.session_state.prompt)
+        z_p = z_from_prompt(lstate, prompt)
         r = lstate.rng.standard_normal(lstate.d)
         r = r / (np.linalg.norm(r) + 1e-12)
         delta = lstate.sigma * 0.5 * r

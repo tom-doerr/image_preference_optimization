@@ -946,22 +946,7 @@ def _choose_preference(side: str) -> None:
         st_rerun()
 
 
-def _render_pair_ui(img_left: Any, img_right: Any,
-                    d_left: Optional[float], d_right: Optional[float],
-                    v_left: Optional[float], v_right: Optional[float]) -> None:
-    left, right = st.columns(2)
-    with left:
-        if img_left is not None:
-            cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
-            _image_fragment(img_left, caption=cap, v_label="V(left)", v_val=v_left)
-        if st.button("Prefer Left", use_container_width=True):
-            _choose_preference('a')
-    with right:
-        if img_right is not None:
-            cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
-            _image_fragment(img_right, caption=cap, v_label="V(right)", v_val=v_right)
-        if st.button("Prefer Right", use_container_width=True):
-            _choose_preference('b')
+## Pair UI renderer removed (pair mode no longer routed); generate_pair remains for tests.
 
 
 def _render_batch_ui() -> None:
@@ -1051,26 +1036,7 @@ def _queue_ensure_exec():
     return _bg_executor()
 
 
-def run_pair_mode() -> None:
-    generate_pair()
-    if st.button("Generate pair", type="primary"):
-        set_model(selected_model)
-        npf = st.session_state.get('next_prefetch')
-        if npf and npf.get('f') and npf['f'].done():
-            try:
-                img_a, img_b = npf['f'].result()
-                st.session_state.lz_pair = (npf['za'], npf['zb'])
-                st.session_state.images = (img_a, img_b)
-            except Exception:
-                generate_pair()
-            _prefetch_next_for_generate()
-            if callable(st_rerun):
-                st_rerun()
-        else:
-            generate_pair()
-    img_left, img_right = st.session_state.images
-    d_left, d_right, v_left, v_right = _pair_scores()
-    _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right)
+## Pair mode runner removed; only Batch and Queue are routed.
 
 
 def run_batch_mode() -> None:
