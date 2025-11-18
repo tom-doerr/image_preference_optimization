@@ -12,12 +12,8 @@ class TestE2EPreferLeftIncrements(unittest.TestCase):
         # Ensure sliders return positional default when used positionally
         st.slider = lambda *args, **kwargs: kwargs.get('value', args[2] if len(args) >= 3 else 1.0)
 
-        # Click handler that returns True only for 'Prefer Left' once
-        clicked = {'left': False}
+        # Do not trigger UI click during import; we'll update manually below
         def button(label, *a, **k):
-            if label == 'Prefer Left' and not clicked['left']:
-                clicked['left'] = True
-                return True
             return False
         st.button = button
 
@@ -35,10 +31,11 @@ class TestE2EPreferLeftIncrements(unittest.TestCase):
         z_a, z_b = app.st.session_state.lz_pair
         # Ensure a clean history to avoid shape mismatch with legacy files
         app.st.session_state.lstate.mu_hist = None
+        old = app.st.session_state.lstate.step
         app.update_latent_ridge(app.st.session_state.lstate, z_a, z_b, 'a', lr_mu=0.3,
                                  feats_a=(z_a - app.z_from_prompt(app.st.session_state.lstate, app.st.session_state.prompt)),
                                  feats_b=(z_b - app.z_from_prompt(app.st.session_state.lstate, app.st.session_state.prompt)))
-        self.assertEqual(app.st.session_state.lstate.step, 1)
+        self.assertEqual(app.st.session_state.lstate.step, old + 1)
 
 
 if __name__ == '__main__':

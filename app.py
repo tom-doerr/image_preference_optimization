@@ -79,17 +79,8 @@ def _apply_state(new_state):
     st.session_state.mu_best_idx = 0
     # Generate prompt-only image now only when text path is unavailable
     # (at runtime the autorun block below will prefer the text path, which is more reliable)
-    # Always generate prompt via text path (simpler, reliable)
-    try:
-        st.session_state.prompt_image = generate_flux_image(
-            st.session_state.prompt,
-            width=new_state.width,
-            height=new_state.height,
-            steps=Config.DEFAULT_STEPS,
-            guidance=Config.DEFAULT_GUIDANCE,
-        )
-    except Exception:
-        st.session_state.prompt_image = None
+    # Reset prompt image; autorun below will generate via text path
+    st.session_state.prompt_image = None
 
 if 'lstate' not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):

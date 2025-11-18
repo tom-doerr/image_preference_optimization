@@ -21,6 +21,7 @@ class TestE2EDebugWarnOnLowStd(unittest.TestCase):
 
         # Stub flux_local to emit a last_call with std≈0
         fl = types.ModuleType('flux_local')
+        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
         fl.set_model = lambda *a, **kw: None
         def get_last_call():
@@ -43,4 +44,3 @@ class TestE2EDebugWarnOnLowStd(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
