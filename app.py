@@ -25,6 +25,7 @@ from latent_opt import (
     load_state,
     state_summary,
 )
+from latent_logic import ridge_fit  # for full-dataset training
 from flux_local import (
     generate_flux_image_latents,
     generate_flux_image,  # text-only path
@@ -461,21 +462,37 @@ def _curation_add(label: int, z: np.ndarray):
     lab = np.array([float(label)])
     st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
     st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
+    # Persist to on-disk dataset immediately (always train from saved dataset)
+    try:
+        path = dataset_path_for_prompt(base_prompt)
+        try:
+            with np.load(path) as d:
+                Xd = d['X'] if 'X' in d.files else np.zeros((0, feat.shape[1]))
+                yd = d['y'] if 'y' in d.files else np.zeros((0,))
+        except FileNotFoundError:
+            Xd, yd = np.zeros((0, feat.shape[1])), np.zeros((0,))
+        X_new = np.vstack([Xd, feat]) if Xd.size else feat
+        y_new = np.concatenate([yd, lab]) if yd.size else lab
+        np.savez_compressed(path, X=X_new, y=y_new)
+    except Exception:
+        pass
 
 
 def _curation_train_and_next():
-    X = getattr(st.session_state, 'dataset_X', None)
-    y = getattr(st.session_state, 'dataset_y', None)
-    if X is not None and y is not None and len(y) > 0:
-        # fit ridge and update w
+    # Always train from saved dataset on disk
+    try:
+        with np.load(dataset_path_for_prompt(base_prompt)) as d:
+            X = d['X'] if 'X' in d.files else None
+            y = d['y'] if 'y' in d.files else None
+    except Exception:
+        X = y = None
+    # Prefer saved dataset; if missing, fall back to in-memory (keeps tests/light runs simple)
+    if (X is None or y is None) and getattr(st.session_state, 'dataset_X', None) is not None:
+        X = st.session_state.dataset_X
+        y = st.session_state.dataset_y
+    if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
-            import latent_logic as _ll
-            lstate.w = _ll.ridge_fit(X, y, lam=float(reg_lambda))
-        except Exception:
-            pass
-        # persist dataset
-        try:
-            np.savez_compressed(dataset_path_for_prompt(base_prompt), X=X, y=y)
+            lstate.w = ridge_fit(X, y, lam=float(reg_lambda))
         except Exception:
             pass
     _curation_new_batch()
@@ -556,7 +573,15 @@ with left:
             z_p = z_from_prompt(lstate, base_prompt)
             feats_a = z_a - z_p
             feats_b = z_b - z_p
+            # Update state (mu, history), then always refit from saved dataset
             update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
+            # Append both items to dataset and retrain from disk
+            try:
+                _curation_add(1, z_a)
+                _curation_add(-1, z_b)
+                _curation_train_and_next()  # train (does not change current pair)
+            except Exception:
+                pass
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
             from latent_opt import ProposerOpts
             opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
@@ -607,6 +632,12 @@ with right:
             feats_a = z_a - z_p
             feats_b = z_b - z_p
             update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
+            try:
+                _curation_add(-1, z_a)
+                _curation_add(1, z_b)
+                _curation_train_and_next()
+            except Exception:
+                pass
             mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
             from latent_opt import ProposerOpts
             opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
