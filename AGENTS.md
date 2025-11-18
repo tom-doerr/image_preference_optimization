@@ -622,3 +622,6 @@ UI modularization (Nov 18, 2025, late):
 - Extracted Batch UI into `batch_ui.py` and Async Queue UI into `queue_ui.py`. `app.py` delegates to `run_batch_mode()` / `run_queue_mode()` and re-exports batch helpers used in tests.
 - Sidebar control values that other modules need (`queue_size`, `steps`, `guidance`, `guidance_eff`, `alpha`) are written to `st.session_state` to avoid threading values through many function calls.
 - Timeout constant moved to `constants.DECODE_TIMEOUT_S`.
+
+Dispatch consolidation (Nov 18, 2025, later):
+- Added `modes.run_mode(async_queue_mode: bool)` and replaced the inline if/else in `app.py`. This keeps `app.py` focused on wiring and defers mode selection to a tiny module. Unit test: `tests/test_modes_dispatch.py`.

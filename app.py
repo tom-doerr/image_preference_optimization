@@ -1079,16 +1079,13 @@ def run_queue_mode() -> None:
     _render_queue_ui()
 
 
-# Run selected mode
-# Without Pair mode: choose between Batch (default) and Async queue
+from modes import run_mode
+# Run selected mode (Batch default vs Async queue)
 try:
     async_queue_mode
 except NameError:  # minimal guard for test stubs/import order
     async_queue_mode = False
-if async_queue_mode:
-    run_queue_mode()
-else:
-    run_batch_mode()
+run_mode(bool(async_queue_mode))
 
 st.write(f"Interactions: {lstate.step}")
 if st.button("Reset", type="secondary"):
