@@ -635,3 +635,19 @@ Constants pass (Nov 18, 2025, later):
 Typing (Nov 18, 2025, later):
 - Added lightweight type hints to `value_model.py`, `value_scorer.py`, `pair_ui.py`, `batch_ui.py`, `queue_ui.py`, and `modes.py` to clarify APIs.
 - Added `mypy.ini` with permissive config (`ignore_missing_imports=True`) to allow gradual typing without churn.
+
+Module map (Nov 18, 2025):
+- `app.py`: thin coordinator (sidebar controls, wiring, wrappers for tests), delegates to modes.
+- `modes.py`: single `run_mode(async_queue_mode)` dispatcher.
+- `pair_ui.py`: pair image generation helpers used by tests (not routed as a mode).
+- `batch_ui.py`: Batch curation UI flow (init/render/label/train).
+- `queue_ui.py`: Async queue UI flow (fill/render/label).
+- `value_model.py`: single entry to fit Ridge (and cache XGB) + perf bookkeeping.
+- `value_scorer.py`: returns a scorer callable for Ridge/XGB/Distance/Cosine.
+- `proposer.py`: proposer functions + `build_proposer_opts`.
+- `constants.py`: all UI defaults + scoring constants.
+- `background.py`: single-thread executor + async→sync decode fallback.
+- `ui.py`: sidebar panels and metric helpers.
+
+Make targets:
+- `make test` runs the full suite; `make test-fast` runs unit slices; `make mypy` checks typed modules.

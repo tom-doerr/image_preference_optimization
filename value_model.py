@@ -6,6 +6,10 @@ from typing import Any
 
 import numpy as np
 
+__all__ = [
+    'fit_value_model',
+]
+
 
 def fit_value_model(
     vm_choice: str,

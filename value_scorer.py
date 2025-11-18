@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Callable, Any
 import numpy as np
 
+__all__ = [
+    'get_value_scorer',
+]
+
 
 def get_value_scorer(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> Callable[[np.ndarray], float]:
     """Return a callable f(fvec) -> score based on selected value model.

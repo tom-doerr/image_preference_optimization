@@ -811,47 +811,23 @@ def _prefetch_next_for_generate():
 # history helpers removed
 
 def _curation_init_batch() -> None:
-    if st.session_state.get('cur_batch') is None:
-        st.session_state.cur_batch = []
-        st.session_state.cur_labels = []
-        _curation_new_batch()
+    return _batch_ui._curation_init_batch()
 
 
 def _curation_new_batch() -> None:
-    z_list = []
-    z_p = z_from_prompt(lstate, base_prompt)
-    for i in range(int(batch_size)):
-        # sample a small random delta around prompt
-        r = lstate.rng.standard_normal(lstate.d)
-        r = r / (np.linalg.norm(r) + 1e-12)
-        z = z_p + lstate.sigma * 0.8 * r
-        z_list.append(z)
-    st.session_state.cur_batch = z_list
-    st.session_state.cur_labels = [None] * len(z_list)
-    # Reset per-item decode futures for async rendering
-    st.session_state.batch_futures = [None] * len(z_list)
-    st.session_state.batch_started = [None] * len(z_list)
+    return _batch_ui._curation_new_batch()
 
 
 def _curation_sample_one() -> np.ndarray:
-    return _sample_around_prompt(0.8)
+    return _batch_ui._sample_around_prompt(0.8)
 
 
 def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
-    z_p = z_from_prompt(lstate, base_prompt)
-    r = lstate.rng.standard_normal(lstate.d)
-    r = r / (np.linalg.norm(r) + 1e-12)
-    return z_p + lstate.sigma * float(scale) * r
+    return _batch_ui._sample_around_prompt(scale)
 
 
 def _curation_replace_at(idx: int) -> None:
-    try:
-        z_new = _curation_sample_one()
-        st.session_state.cur_batch[idx] = z_new
-        st.session_state.cur_labels[idx] = None
-        _toast(f"Replaced item {idx}")
-    except Exception:
-        pass
+    return _batch_ui._curation_replace_at(idx)
 
 
 def _proposer_opts():
@@ -865,35 +841,11 @@ def _proposer_opts():
 
 
 def _curation_add(label: int, z: np.ndarray) -> None:
-    # Feature is delta to prompt
-    z_p = z_from_prompt(lstate, base_prompt)
-    X = getattr(st.session_state, 'dataset_X', None)
-    y = getattr(st.session_state, 'dataset_y', None)
-    feat = (z - z_p).reshape(1, -1)
-    lab = np.array([float(label)])
-    st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
-    st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
-    # Persist to on-disk dataset immediately (always train from saved dataset)
-    try:
-        append_dataset_row(base_prompt, feat, float(label))
-        _toast(f"Saved label {int(label):+d} to dataset")
-    except Exception:
-        pass
+    return _batch_ui._curation_add(label, z)
 
 
 def _curation_train_and_next() -> None:
-    # Always train from saved dataset on disk; measure performance
-    import streamlit as _st
-    import time as _time
-    from persistence import get_dataset_for_prompt_or_session
-    X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
-    if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
-        try:
-            lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-            fit_value_model(st.session_state.get('vm_choice'), lstate, X, y, lam_now, _st.session_state)
-        except Exception:
-            pass
-    _curation_new_batch()
+    return _batch_ui._curation_train_and_next()
 
 
 def _refit_from_dataset_keep_batch() -> None:
@@ -949,74 +901,7 @@ def _choose_preference(side: str) -> None:
 
 
 def _render_batch_ui() -> None:
-    (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
-    futs = st.session_state.get('batch_futures') or []
-    if not futs or len(futs) != len(st.session_state.cur_batch or []):
-        futs = [None] * len(st.session_state.cur_batch or [])
-        st.session_state.batch_futures = futs
-    starts = st.session_state.get('batch_started') or [None] * len(st.session_state.cur_batch or [])
-    if len(starts) != len(st.session_state.cur_batch or []):
-        starts = [None] * len(st.session_state.cur_batch or [])
-        st.session_state.batch_started = starts
-    for i, z_i in enumerate(st.session_state.cur_batch or []):
-        # Schedule decode if needed
-        if futs[i] is None:
-            la = z_to_latents(lstate, z_i)
-            futs[i] = bg.schedule_decode_latents(base_prompt, la, lstate.width, lstate.height, steps, guidance_eff)
-            st.session_state.batch_futures = futs
-            import time as _time
-            starts[i] = _time.time()
-            st.session_state.batch_started = starts
-        # If pending too long, synchronously decode to avoid indefinite loading
-        def _sync_decode():
-            la2 = z_to_latents(lstate, z_i)
-            return generate_flux_image_latents(base_prompt, latents=la2, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-        from constants import DECODE_TIMEOUT_S
-        img_i, futs[i] = bg.result_or_sync_after(futs[i], starts[i], DECODE_TIMEOUT_S, _sync_decode)
-        st.session_state.batch_futures = futs
-        if img_i is not None:
-            _image_fragment(img_i, caption=f"Item {i}")
-        else:
-            st.write(f"Item {i}: loading…")
-            # Do not render action buttons until the image is ready
-            continue
-        if st.button(f"Good (+1) {i}", use_container_width=True):
-            import time as _time
-            t0 = _time.perf_counter()
-            _curation_add(1, z_i)
-            st.session_state.cur_labels[i] = 1
-            _refit_from_dataset_keep_batch()
-            # Replace only this position to avoid full-batch stalls
-            _curation_replace_at(i)
-            try:
-                print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
-            except Exception:
-                pass
-            if callable(st_rerun):
-                st_rerun()
-        if st.button(f"Bad (-1) {i}", use_container_width=True):
-            import time as _time
-            t0 = _time.perf_counter()
-            _curation_add(-1, z_i)
-            st.session_state.cur_labels[i] = -1
-            _refit_from_dataset_keep_batch()
-            # Replace only this position to avoid full-batch stalls
-            _curation_replace_at(i)
-            try:
-                print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0)*1000:.1f} ms")
-            except Exception:
-                pass
-            if callable(st_rerun):
-                st_rerun()
-    if st.button("Train on dataset and next batch", type="primary"):
-        _curation_train_and_next()
-        if callable(st_rerun):
-            st_rerun()
-    if st.button("Train on dataset (keep batch)"):
-        # Refit w from saved dataset without regenerating the batch
-        _refit_from_dataset_keep_batch()
-        if callable(st_rerun):
-            st_rerun()
+    return _batch_ui._render_batch_ui()
 
 
 def _render_queue_ui() -> None:
@@ -1039,8 +924,7 @@ def _queue_ensure_exec():
 
 
 def run_batch_mode() -> None:
-    _curation_init_batch()
-    _render_batch_ui()
+    return _batch_ui.run_batch_mode()
 
 
 def run_queue_mode() -> None:

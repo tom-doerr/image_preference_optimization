@@ -86,8 +86,11 @@ def _prefetch_next_for_generate() -> None:
 
 def generate_pair() -> None:
     import streamlit as st
-    from latent_opt import z_to_latents
+    from latent_opt import z_to_latents, init_latent_state
 
+    # Ensure lstate exists for tests that call generate_pair directly
+    if st.session_state.get('lstate') is None:
+        st.session_state.lstate = init_latent_state()
     lstate, prompt = _lstate_and_prompt()
     if st.session_state.get('lz_pair') is None:
         # Minimal init if missing: symmetric pair around prompt anchor
