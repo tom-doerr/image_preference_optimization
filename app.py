@@ -495,6 +495,101 @@ def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
             pass
 
 
+def _choose_preference(side: str) -> None:
+    """Handle pair preference: update state, persist both labels, propose next pair."""
+    set_model(selected_model)
+    z_p = z_from_prompt(lstate, base_prompt)
+    feats_a = z_a - z_p
+    feats_b = z_b - z_p
+    winner = 'a' if side == 'a' else 'b'
+    update_latent_ridge(lstate, z_a, z_b, winner, lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
+    try:
+        _label_and_persist(z_a, +1 if winner == 'a' else -1)
+        _label_and_persist(z_b, +1 if winner == 'b' else -1)
+    except Exception:
+        pass
+    st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
+    save_state(lstate, st.session_state.state_path)
+    if callable(st_rerun):
+        st_rerun()
+
+
+def _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right):
+    left, right = st.columns(2)
+    with left:
+        if img_left is not None:
+            cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
+            st.image(img_left, caption=cap, use_container_width=True)
+            if v_left is not None:
+                try:
+                    st.metric("V(left)", f"{v_left:.3f}")
+                except Exception:
+                    st.write(f"V(left): {v_left:.3f}")
+        if st.button("Prefer Left", use_container_width=True):
+            _choose_preference('a')
+    with right:
+        if img_right is not None:
+            cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
+            st.image(img_right, caption=cap, use_container_width=True)
+            if v_right is not None:
+                try:
+                    st.metric("V(right)", f"{v_right:.3f}")
+                except Exception:
+                    st.write(f"V(right): {v_right:.3f}")
+        if st.button("Prefer Right", use_container_width=True):
+            _choose_preference('b')
+
+
+def _render_batch_ui():
+    st.subheader("Curation batch")
+    for i, z_i in enumerate(st.session_state.cur_batch or []):
+        lat = z_to_latents(lstate, z_i)
+        img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
+        st.image(img_i, caption=f"Item {i}", use_container_width=True)
+        cols = st.columns(2)
+        with cols[0]:
+            if st.button(f"Good (+1) {i}"):
+                _curation_add(1, z_i)
+                st.session_state.cur_labels[i] = 1
+                _curation_replace_at(i)
+                if callable(st_rerun):
+                    st_rerun()
+        with cols[1]:
+            if st.button(f"Bad (-1) {i}"):
+                _curation_add(-1, z_i)
+                st.session_state.cur_labels[i] = -1
+                _curation_replace_at(i)
+                if callable(st_rerun):
+                    st_rerun()
+    if st.button("Train on dataset and next batch", type="primary"):
+        _curation_train_and_next()
+        if callable(st_rerun):
+            st_rerun()
+
+
+def _render_queue_ui():
+    st.subheader("Async queue")
+    q = st.session_state.get('queue') or []
+    for i, it in enumerate(list(q)):
+        img = it['future'].result() if it['future'].done() else None
+        if img is not None:
+            st.image(img, caption=f"Item {i}", use_container_width=True)
+        else:
+            st.write(f"Item {i}: loading…")
+        cols = st.columns(2)
+        with cols[0]:
+            if st.button(f"Accept {i}"):
+                _queue_label(i, 1)
+                if callable(st_rerun):
+                    st_rerun()
+        with cols[1]:
+            if st.button(f"Reject {i}"):
+                _queue_label(i, -1)
+                if callable(st_rerun):
+                    st_rerun()
+    _queue_fill_up_to()
+
+
 # Async queue mode helpers
 def _queue_ensure_exec():
     return _bg_executor()
@@ -537,172 +632,68 @@ def _queue_label(idx: int, label: int):
         st.session_state.queue = q
 
 
-# Autorun: generate the pair once on load (keep it simple)
-if not curation_mode:
+def run_pair_mode():
     generate_pair()
-else:
-    _curation_init_batch()
-
-if st.button("Generate pair", type="primary"):
-    # Ensure model is loaded per selection
-    set_model(selected_model)
-    npf = st.session_state.get('next_prefetch')
-    if npf and npf.get('f') and npf['f'].done():
-        try:
-            img_a, img_b = npf['f'].result()
-            st.session_state.lz_pair = (npf['za'], npf['zb'])
-            st.session_state.images = (img_a, img_b)
-        except Exception:
-            generate_pair()
-        # Chain another prefetch
-        _prefetch_next_for_generate()
-        if callable(st_rerun):
-            st_rerun()
-    else:
-        generate_pair()
-
-img_left, img_right = st.session_state.images
-
-left, right = st.columns(2)
-# Compute prompt distances and predicted values for captions/metrics
-try:
-    z_p_cap = z_from_prompt(st.session_state.lstate, base_prompt)
-    d_left = float(np.linalg.norm(z_a - z_p_cap))
-    d_right = float(np.linalg.norm(z_b - z_p_cap))
-    try:
-        if use_xgb:
-            cache = st.session_state.get('xgb_cache') or {}
-            mdl = cache.get('model')
-            if mdl is not None:
-                from xgb_value import score_xgb_proba  # type: ignore
-                v_left = score_xgb_proba(mdl, (z_a - z_p_cap))
-                v_right = score_xgb_proba(mdl, (z_b - z_p_cap))
-            else:
-                v_left = v_right = None
+    if st.button("Generate pair", type="primary"):
+        set_model(selected_model)
+        npf = st.session_state.get('next_prefetch')
+        if npf and npf.get('f') and npf['f'].done():
+            try:
+                img_a, img_b = npf['f'].result()
+                st.session_state.lz_pair = (npf['za'], npf['zb'])
+                st.session_state.images = (img_a, img_b)
+            except Exception:
+                generate_pair()
+            _prefetch_next_for_generate()
+            if callable(st_rerun):
+                st_rerun()
         else:
-            w_now = st.session_state.lstate.w
-            v_left = float(np.dot(w_now, (z_a - z_p_cap)))
-            v_right = float(np.dot(w_now, (z_b - z_p_cap)))
-    except Exception:
-        v_left = v_right = None
-except Exception:
-    z_p_cap = None
-    d_left = d_right = None
-    v_left = v_right = None
-with left:
-    if not curation_mode and not async_queue_mode:
-        if img_left is not None:
-            cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
-            st.image(img_left, caption=cap, use_container_width=True)
-            if v_left is not None:
-                try:
-                    st.metric("V(left)", f"{v_left:.3f}")
-                except Exception:
-                    st.write(f"V(left): {v_left:.3f}")
-            try:
-                stats = (st.session_state.get('img_stats') or {}).get('left') or {}
-                s = stats.get('img0_std')
-                if s is not None and float(s) < 2.0:
-                    (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
-            except Exception:
-                pass
-        if st.button("Prefer Left", use_container_width=True):
-            set_model(selected_model)
-            z_p = z_from_prompt(lstate, base_prompt)
-            feats_a = z_a - z_p
-            feats_b = z_b - z_p
-            # Update state (mu, history), then always refit from saved dataset
-            update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
-            # Append both items to dataset and retrain from disk
-            try:
-                _label_and_persist(z_a, +1)
-                _label_and_persist(z_b, -1)
-            except Exception:
-                pass
-            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
-            save_state(lstate, st.session_state.state_path)
-            if callable(st_rerun):
-                st_rerun()
-    else:
-        st.subheader("Curation batch")
-        # Render batch items vertically (simple and clear)
-        for i, z_i in enumerate(st.session_state.cur_batch or []):
-            lat = z_to_latents(lstate, z_i)
-            img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
-            st.image(img_i, caption=f"Item {i}", use_container_width=True)
-            cols = st.columns(2)
-            with cols[0]:
-                # Use explicit label values in button text
-                if st.button(f"Good (+1) {i}"):
-                    _curation_add(1, z_i)
-                    st.session_state.cur_labels[i] = 1
-                    _curation_replace_at(i)
-                    if callable(st_rerun):
-                        st_rerun()
-            with cols[1]:
-                if st.button(f"Bad (-1) {i}"):
-                    _curation_add(-1, z_i)
-                    st.session_state.cur_labels[i] = -1
-                    _curation_replace_at(i)
-                    if callable(st_rerun):
-                        st_rerun()
-        if st.button("Train on dataset and next batch", type="primary"):
-            _curation_train_and_next()
-            if callable(st_rerun):
-                st_rerun()
-    if async_queue_mode:
-        st.subheader("Async queue")
-        q = st.session_state.get('queue') or []
-        for i, it in enumerate(list(q)):
-            img = it['future'].result() if it['future'].done() else None
-            if img is not None:
-                st.image(img, caption=f"Item {i}", use_container_width=True)
+            generate_pair()
+    img_left, img_right = st.session_state.images
+    try:
+        z_p_cap = z_from_prompt(st.session_state.lstate, base_prompt)
+        d_left = float(np.linalg.norm(z_a - z_p_cap))
+        d_right = float(np.linalg.norm(z_b - z_p_cap))
+        try:
+            if use_xgb:
+                cache = st.session_state.get('xgb_cache') or {}
+                mdl = cache.get('model')
+                if mdl is not None:
+                    from xgb_value import score_xgb_proba  # type: ignore
+                    v_left = score_xgb_proba(mdl, (z_a - z_p_cap))
+                    v_right = score_xgb_proba(mdl, (z_b - z_p_cap))
+                else:
+                    v_left = v_right = None
             else:
-                st.write(f"Item {i}: loading…")
-            cols = st.columns(2)
-            with cols[0]:
-                if st.button(f"Accept {i}"):
-                    _queue_label(i, 1)
-                    if callable(st_rerun):
-                        st_rerun()
-            with cols[1]:
-                if st.button(f"Reject {i}"):
-                    _queue_label(i, -1)
-                    if callable(st_rerun):
-                        st_rerun()
-        _queue_fill_up_to()
-with right:
-    if not curation_mode and not async_queue_mode:
-        if img_right is not None:
-            cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
-            st.image(img_right, caption=cap, use_container_width=True)
-            if v_right is not None:
-                try:
-                    st.metric("V(right)", f"{v_right:.3f}")
-                except Exception:
-                    st.write(f"V(right): {v_right:.3f}")
-            try:
-                stats = (st.session_state.get('img_stats') or {}).get('right') or {}
-                s = stats.get('img0_std')
-                if s is not None and float(s) < 2.0:
-                    (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
-            except Exception:
-                pass
-        if st.button("Prefer Right", use_container_width=True):
-            set_model(selected_model)
-            z_p = z_from_prompt(lstate, base_prompt)
-            feats_a = z_a - z_p
-            feats_b = z_b - z_p
-            update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), lam=float(reg_lambda), feats_a=feats_a, feats_b=feats_b)
-            try:
-                _label_and_persist(z_a, -1)
-                _label_and_persist(z_b, +1)
-            except Exception:
-                pass
-            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
-            save_state(lstate, st.session_state.state_path)
-            if callable(st_rerun):
-                st_rerun()
+                w_now = st.session_state.lstate.w
+                v_left = float(np.dot(w_now, (z_a - z_p_cap)))
+                v_right = float(np.dot(w_now, (z_b - z_p_cap)))
+        except Exception:
+            v_left = v_right = None
+    except Exception:
+        d_left = d_right = v_left = v_right = None
+    _render_pair_ui(img_left, img_right, d_left, d_right, v_left, v_right)
+
+
+def run_batch_mode():
+    _curation_init_batch()
+    _render_batch_ui()
+
+
+def run_queue_mode():
+    if 'queue' not in st.session_state:
+        st.session_state.queue = []
+    _queue_fill_up_to()
+    _render_queue_ui()
+
+
+# Run selected mode
+if not curation_mode and not async_queue_mode:
+    run_pair_mode()
+elif curation_mode:
+    run_batch_mode()
+else:
+    run_queue_mode()
 
 st.write(f"Interactions: {lstate.step}")
 if st.button("Reset", type="secondary"):
