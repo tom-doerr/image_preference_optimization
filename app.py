@@ -111,7 +111,8 @@ _sb_sel = getattr(st.sidebar, 'selectbox', None)
 selected_gen_mode = None
 if callable(_sb_sel):
     try:
-        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=0)
+        # Default to Batch curation
+        selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=1)
         if selected_gen_mode not in _gen_opts:
             selected_gen_mode = None
     except Exception:
