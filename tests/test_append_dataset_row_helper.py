@@ -1,0 +1,29 @@
+import os
+import sys
+import types
+import unittest
+import numpy as np
+from tests.helpers.st_streamlit import stub_basic
+from persistence import append_dataset_row, dataset_rows_for_prompt, dataset_path_for_prompt
+
+
+class TestAppendDatasetRow(unittest.TestCase):
+    def test_append_returns_new_count(self):
+        # Use plain helper without UI
+        prompt = 'append dataset row helper test'
+        # Clean file
+        try:
+            os.remove(dataset_path_for_prompt(prompt))
+        except FileNotFoundError:
+            pass
+        feat = np.zeros((1, 8))  # small dummy, shape only matters
+        n1 = append_dataset_row(prompt, feat, +1.0)
+        self.assertEqual(n1, 1)
+        n2 = append_dataset_row(prompt, feat, -1.0)
+        self.assertEqual(n2, 2)
+        self.assertEqual(dataset_rows_for_prompt(prompt), 2)
+
+
+if __name__ == '__main__':
+    unittest.main()
+

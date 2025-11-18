@@ -490,3 +490,9 @@ CPU load notes (Nov 18, 2025):
 - Generation loop refactor (_decode_one) reduces duplicate work and centralizes metrics/streaming.
 Batch save tests (Nov 18, 2025):
 - Added tests to ensure batch curation Accept/Reject persists to `dataset_<hash>.npz` and appends correctly. Files: `tests/test_batch_save_dataset.py`, plus existing `tests/test_train_from_saved_dataset.py` covers refitting from the saved dataset.
+
+Pair/Queue save tests (Nov 18, 2025):
+- Pair mode: `tests/test_pair_mode_save_dataset.py` uses `_choose_preference('a')` to assert two rows are appended per decision.
+- Async queue: `tests/test_queue_mode_save_dataset.py` asserts `_queue_label(i, 1)` grows the dataset.
+- Dataset isolation: `tests/test_dataset_isolation_by_prompt.py` verifies separate files per prompt.
+- Persistence helper: `tests/test_append_dataset_row_helper.py` checks `append_dataset_row` returns the new row count.
