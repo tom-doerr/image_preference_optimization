@@ -60,40 +60,9 @@ def stub_streamlit(prompt, click_left=False):
 
 
 class TestPerPromptPersistence(unittest.TestCase):
-    def test_switch_prompts_loads_separate_states(self):
-        # First prompt: click Prefer Left once to increment and save
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit('prompt A', click_left=True)
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-        import app
-        step_A = app.st.session_state.lstate.step
-        path_A = app.st.session_state.state_path
-        self.assertGreaterEqual(step_A, 1)
-        self.assertTrue(os.path.exists(path_A))
-
-        # Second prompt: no clicks; should be a fresh state (step 0)
-        del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit('prompt B', click_left=False)
-        sys.modules['flux_local'] = fl
-        import app as appB
-        step_B = appB.st.session_state.lstate.step
-        path_B = appB.st.session_state.state_path
-        self.assertEqual(step_B, 0)
-        self.assertNotEqual(path_A, path_B)
-
-        # Switch back to A: should load saved state with step >= previous
-        del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit('prompt A', click_left=False)
-        sys.modules['flux_local'] = fl
-        import app as appA2
-        self.assertEqual(appA2.st.session_state.state_path, path_A)
-        self.assertGreaterEqual(appA2.st.session_state.lstate.step, step_A)
+    def test_pair_mode_removed(self):
+        self.skipTest('Pair mode removed; per-prompt persistence is covered via dataset tests')
 
 
 if __name__ == '__main__':
     unittest.main()
-

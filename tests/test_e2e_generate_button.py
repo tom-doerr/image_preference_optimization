@@ -62,24 +62,8 @@ def stub_streamlit_click_generate_once():
 
 
 class TestE2EGenerateButton(unittest.TestCase):
-    def test_generate_calls_set_model_and_images(self):
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit_click_generate_once()
-        calls = {'set_model': 0}
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
-        def _set_model(mid):
-            calls['set_model'] += 1
-        fl.set_model = _set_model
-        fl.get_last_call = lambda: {}
-        sys.modules['flux_local'] = fl
-
-        import app
-        # After clicking generate, we expect images set and set_model invoked at least once
-        self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
-        self.assertGreaterEqual(calls['set_model'], 1)
+    def test_pair_mode_removed(self):
+        self.skipTest('Pair mode removed; Generate pair button no longer exists')
 
 
 if __name__ == '__main__':

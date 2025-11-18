@@ -76,19 +76,8 @@ def make_streamlit_with_prefer_left_once():
 
 
 class TestE2EPreferButton(unittest.TestCase):
-    def test_prefer_left_increments_step(self):
-        # Ensure fresh import
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        sys.modules['streamlit'] = make_streamlit_with_prefer_left_once()
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-
-        import app
-        # After import, our stub clicked Prefer Left once
-        self.assertGreaterEqual(app.st.session_state.lstate.step, 1)
+    def test_pair_mode_removed(self):
+        self.skipTest('Pair mode removed; prefer buttons no longer exist')
 
 
 if __name__ == '__main__':

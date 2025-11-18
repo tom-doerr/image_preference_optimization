@@ -155,8 +155,8 @@ if st.sidebar.button("Apply size now"):
     if callable(st_rerun):
         st_rerun()
 st.sidebar.header("Settings")
-# Generation mode at top of sidebar (dropdown)
-_gen_opts = ["Pair (A/B)", "Batch curation", "Async queue"]
+# Generation mode at top of sidebar (dropdown) — Pair mode removed
+_gen_opts = ["Batch curation", "Async queue"]
 _sb_sel = getattr(st.sidebar, 'selectbox', None)
 selected_gen_mode = None
 if callable(_sb_sel):
@@ -214,7 +214,7 @@ else:
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
     if selected_gen_mode is not None:
-        return (selected_gen_mode == _gen_opts[1], selected_gen_mode == _gen_opts[2])
+        return (selected_gen_mode == _gen_opts[0], selected_gen_mode == _gen_opts[1])
     return (bool(curation_mode_cb), bool(async_queue_mode_cb))
 
 curation_mode, async_queue_mode = _resolve_modes()
@@ -799,12 +799,11 @@ def run_queue_mode() -> None:
 
 
 # Run selected mode
-if not curation_mode and not async_queue_mode:
-    run_pair_mode()
-elif curation_mode:
-    run_batch_mode()
-else:
+# Without Pair mode: choose between Batch (default) and Async queue
+if async_queue_mode:
     run_queue_mode()
+else:
+    run_batch_mode()
 
 st.write(f"Interactions: {lstate.step}")
 if st.button("Reset", type="secondary"):

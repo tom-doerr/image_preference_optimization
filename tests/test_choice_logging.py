@@ -62,24 +62,9 @@ def stub_streamlit_click_right_once():
 
 
 class TestChoiceLogging(unittest.TestCase):
-    def test_z_pairs_and_choices_logged(self):
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit_click_right_once()
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-
-        import app
-        st = app.st.session_state.lstate
-        # After one click, logs should be initialized and length >= 1
-        self.assertIsNotNone(st.z_pairs)
-        self.assertIsNotNone(st.choices)
-        self.assertGreaterEqual(st.z_pairs.shape[0], 1)
-        self.assertGreaterEqual(st.choices.shape[0], 1)
+    def test_pair_mode_removed(self):
+        self.skipTest('Pair mode removed; choice logging is batch/queue now')
 
 
 if __name__ == '__main__':
     unittest.main()
-
