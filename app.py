@@ -185,7 +185,20 @@ if not hasattr(st.sidebar, 'metric'):
 try:
     _info_top = state_summary(lstate)
     st.sidebar.subheader("Data")
-    sidebar_metric_rows([("Pairs", f"{_info_top['pairs_logged']}"), ("Choices", f"{_info_top['choices_logged']}")], per_row=2)
+    rows = [("Pairs", f"{_info_top['pairs_logged']}"), ("Choices", f"{_info_top['choices_logged']}")]
+    # Simple train score over logged pairs using current w
+    try:
+        X = getattr(lstate, 'X', None)
+        y = getattr(lstate, 'y', None)
+        if X is not None and y is not None and len(y) > 0:
+            pred = X @ lstate.w
+            acc = float(np.mean((pred >= 0) == (y > 0)))
+            rows.append(("Train score", f"{acc*100:.0f}%"))
+        else:
+            rows.append(("Train score", "n/a"))
+    except Exception:
+        rows.append(("Train score", "n/a"))
+    sidebar_metric_rows(rows, per_row=2)
 except Exception:
     pass
 

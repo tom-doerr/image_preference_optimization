@@ -475,3 +475,6 @@ Model selection removal (Nov 18, 2025, 128b):
 - Updated tests that assumed switchable models; they now assert `set_model('stabilityai/sd-turbo')` is called and that small‑VRAM still overrides to SD‑1.5.
 - Sidebar data counters (Nov 18, 2025):
 - Added a compact “Data” block at the very top of the sidebar showing the number of logged pairs and choices. Minimal code, uses existing `state_summary`. Test: `tests/test_sidebar_samples_top.py`.
+
+Train score (Nov 18, 2025):
+- The “Data” block now includes a simple training score computed on logged pairs using the current ridge weights `w` (accuracy of `sign(Xw)` vs labels). Shown as “Train score”. If no data yet, displays “n/a”. Test: `tests/test_sidebar_train_score.py`.
