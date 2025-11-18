@@ -13,6 +13,7 @@ from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt
+import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
     init_latent_state,
@@ -87,6 +88,10 @@ def _apply_state(new_state):
     st.session_state.pop('next_prefetch', None)
     # Reset shared background executor
     st.session_state.pop('_bg_exec', None)
+    try:
+        bg.reset_executor()
+    except Exception:
+        pass
 
 if 'lstate' not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):
@@ -405,15 +410,6 @@ def generate_pair():
     _prefetch_next_for_generate()
 
 
-def _bg_executor():
-    ex = st.session_state.get('_bg_exec')
-    if ex is None:
-        # Single worker globally: generate only one image at a time (even in background)
-        ex = ThreadPoolExecutor(max_workers=1)
-        st.session_state._bg_exec = ex
-    return ex
-
-
 def _prefetch_next_for_generate():
     try:
         try:
@@ -425,12 +421,7 @@ def _prefetch_next_for_generate():
             za_n, zb_n = propose_latent_pair_ridge(lstate)
         la_n = z_to_latents(lstate, za_n)
         lb_n = z_to_latents(lstate, zb_n)
-        ex = _bg_executor()
-        def _decode_pair():
-            img_a = generate_flux_image_latents(base_prompt, la_n, lstate.width, lstate.height, steps, guidance_eff)
-            img_b = generate_flux_image_latents(base_prompt, lb_n, lstate.width, lstate.height, steps, guidance_eff)
-            return img_a, img_b
-        f = ex.submit(_decode_pair)
+        f = bg.schedule_decode_pair(base_prompt, la_n, lb_n, lstate.width, lstate.height, steps, guidance_eff)
         st.session_state.next_prefetch = {
             'za': za_n,
             'zb': zb_n,
@@ -556,16 +547,7 @@ def _queue_add_one():
         r = r / (np.linalg.norm(r) + 1e-12)
         za = z_p + lstate.sigma * 0.8 * r
     lat = z_to_latents(lstate, za)
-    ex = _queue_ensure_exec()
-    fut = ex.submit(
-        generate_flux_image_latents,
-        base_prompt,
-        lat,
-        lstate.width,
-        lstate.height,
-        steps,
-        guidance_eff,
-    )
+    fut = bg.schedule_decode_latents(base_prompt, lat, lstate.width, lstate.height, steps, guidance_eff)
     item = {'z': za, 'future': fut, 'label': None}
     q = st.session_state.get('queue') or []
     q.append(item)

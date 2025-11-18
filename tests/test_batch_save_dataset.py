@@ -50,11 +50,12 @@ class TestBatchSaveDataset(unittest.TestCase):
         app._curation_add(1, z0)
         app._curation_add(-1, z1)
         from persistence import dataset_rows_for_prompt
-        self.assertGreaterEqual(dataset_rows_for_prompt(prompt), 2)
+        # Use app.base_prompt to match the in-app path computation
+        self.assertGreaterEqual(dataset_rows_for_prompt(app.base_prompt), 2)
 
         # Add one more and ensure it appends to 3 rows
         app._curation_add(1, app.st.session_state.cur_batch[0])
-        self.assertGreaterEqual(dataset_rows_for_prompt(prompt), 3)
+        self.assertGreaterEqual(dataset_rows_for_prompt(app.base_prompt), 3)
 
 
 if __name__ == '__main__':
