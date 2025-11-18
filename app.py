@@ -85,6 +85,8 @@ def _apply_state(new_state):
     st.session_state.prompt_image = None
     # Clear any pending prefetch when state changes
     st.session_state.pop('next_prefetch', None)
+    # Reset shared background executor
+    st.session_state.pop('_bg_exec', None)
 
 if 'lstate' not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):
@@ -407,11 +409,12 @@ def generate_pair():
     _prefetch_next_for_generate()
 
 
-def _ensure_executor():
-    ex = st.session_state.get('_prefetch_exec')
+def _bg_executor():
+    ex = st.session_state.get('_bg_exec')
     if ex is None:
-        ex = ThreadPoolExecutor(max_workers=2)
-        st.session_state._prefetch_exec = ex
+        # Single worker globally: generate only one image at a time (even in background)
+        ex = ThreadPoolExecutor(max_workers=1)
+        st.session_state._bg_exec = ex
     return ex
 
 
@@ -426,30 +429,16 @@ def _prefetch_next_for_generate():
             za_n, zb_n = propose_latent_pair_ridge(lstate)
         la_n = z_to_latents(lstate, za_n)
         lb_n = z_to_latents(lstate, zb_n)
-        ex = _ensure_executor()
-        fa = ex.submit(
-            generate_flux_image_latents,
-            base_prompt,
-            lat_a := la_n,
-            lstate.width,
-            lstate.height,
-            steps,
-            guidance_eff,
-        )
-        fb = ex.submit(
-            generate_flux_image_latents,
-            base_prompt,
-            lat_b := lb_n,
-            lstate.width,
-            lstate.height,
-            steps,
-            guidance_eff,
-        )
+        ex = _bg_executor()
+        def _decode_pair():
+            img_a = generate_flux_image_latents(base_prompt, la_n, lstate.width, lstate.height, steps, guidance_eff)
+            img_b = generate_flux_image_latents(base_prompt, lb_n, lstate.width, lstate.height, steps, guidance_eff)
+            return img_a, img_b
+        f = ex.submit(_decode_pair)
         st.session_state.next_prefetch = {
             'za': za_n,
             'zb': zb_n,
-            'fa': fa,
-            'fb': fb,
+            'f': f,
         }
     except Exception:
         st.session_state.pop('next_prefetch', None)
@@ -526,11 +515,7 @@ def _curation_train_and_next():
 
 # Async queue mode helpers
 def _queue_ensure_exec():
-    ex = st.session_state.get('_queue_exec')
-    if ex is None:
-        ex = ThreadPoolExecutor(max_workers=2)
-        st.session_state._queue_exec = ex
-    return ex
+    return _bg_executor()
 
 
 def _queue_add_one():
@@ -565,9 +550,10 @@ def _queue_add_one():
 
 def _queue_fill_up_to():
     q = st.session_state.get('queue') or []
-    # remove any finished and labeled items (they should have been popped already by UI)
     st.session_state.queue = q
-    while len(st.session_state.queue) < int(queue_size):
+    # Generate only one image at a time: add a new one only if no pending futures
+    pending = any((it.get('future') and not it['future'].done()) for it in q)
+    if (not pending) and len(st.session_state.queue) < int(queue_size):
         _queue_add_one()
 
 
@@ -595,10 +581,9 @@ if st.button("Generate pair", type="primary"):
     # Ensure model is loaded per selection
     set_model(selected_model)
     npf = st.session_state.get('next_prefetch')
-    if npf and npf.get('fa') and npf.get('fb') and npf['fa'].done() and npf['fb'].done():
+    if npf and npf.get('f') and npf['f'].done():
         try:
-            img_a = npf['fa'].result()
-            img_b = npf['fb'].result()
+            img_a, img_b = npf['f'].result()
             st.session_state.lz_pair = (npf['za'], npf['zb'])
             st.session_state.images = (img_a, img_b)
         except Exception:

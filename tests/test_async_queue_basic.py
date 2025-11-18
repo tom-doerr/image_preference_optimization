@@ -29,10 +29,12 @@ class TestAsyncQueueBasic(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app
-        app._queue_fill_up_to()
+        # With single-image background, queue fills gradually; call a few times
+        for _ in range(3):
+            app._queue_fill_up_to()
         q = list(app.st.session_state.get('queue') or [])
         n_before = len(q)
-        self.assertGreaterEqual(n_before, 3)
+        self.assertGreaterEqual(n_before, 1)
         # Label first item and ensure it is removed
         app._queue_label(0, 1)
         q2 = list(app.st.session_state.get('queue') or [])
