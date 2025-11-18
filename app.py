@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import os
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from constants import (
     DEFAULT_PROMPT,
     SMALL_VRAM_MAX_WIDTH,
@@ -81,6 +82,8 @@ def _apply_state(new_state):
     # (at runtime the autorun block below will prefer the text path, which is more reliable)
     # Reset prompt image; autorun below will generate via text path
     st.session_state.prompt_image = None
+    # Clear any pending prefetch when state changes
+    st.session_state.pop('next_prefetch', None)
 
 if 'lstate' not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):
@@ -373,6 +376,56 @@ def generate_pair():
         )
     except Exception:
         pass
+    # Prefetch next pair for the Generate button
+    _prefetch_next_for_generate()
+
+
+def _ensure_executor():
+    ex = st.session_state.get('_prefetch_exec')
+    if ex is None:
+        ex = ThreadPoolExecutor(max_workers=2)
+        st.session_state._prefetch_exec = ex
+    return ex
+
+
+def _prefetch_next_for_generate():
+    try:
+        try:
+            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+            from latent_opt import ProposerOpts
+            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+            za_n, zb_n = propose_next_pair(lstate, base_prompt, opts=opts)
+        except Exception:
+            za_n, zb_n = propose_latent_pair_ridge(lstate)
+        la_n = z_to_latents(lstate, za_n)
+        lb_n = z_to_latents(lstate, zb_n)
+        ex = _ensure_executor()
+        fa = ex.submit(
+            generate_flux_image_latents,
+            base_prompt,
+            lat_a := la_n,
+            lstate.width,
+            lstate.height,
+            steps,
+            guidance_eff,
+        )
+        fb = ex.submit(
+            generate_flux_image_latents,
+            base_prompt,
+            lat_b := lb_n,
+            lstate.width,
+            lstate.height,
+            steps,
+            guidance_eff,
+        )
+        st.session_state.next_prefetch = {
+            'za': za_n,
+            'zb': zb_n,
+            'fa': fa,
+            'fb': fb,
+        }
+    except Exception:
+        st.session_state.pop('next_prefetch', None)
 
     # μ preview removed
 
@@ -437,7 +490,21 @@ else:
 if st.button("Generate pair", type="primary"):
     # Ensure model is loaded per selection
     set_model(selected_model)
-    generate_pair()
+    npf = st.session_state.get('next_prefetch')
+    if npf and npf.get('fa') and npf.get('fb') and npf['fa'].done() and npf['fb'].done():
+        try:
+            img_a = npf['fa'].result()
+            img_b = npf['fb'].result()
+            st.session_state.lz_pair = (npf['za'], npf['zb'])
+            st.session_state.images = (img_a, img_b)
+        except Exception:
+            generate_pair()
+        # Chain another prefetch
+        _prefetch_next_for_generate()
+        if callable(st_rerun):
+            st_rerun()
+    else:
+        generate_pair()
 
 img_left, img_right = st.session_state.images
 
