@@ -856,11 +856,13 @@ def _curation_replace_at(idx: int) -> None:
 
 
 def _proposer_opts():
-    """Return a ProposerOpts built from current sidebar settings."""
-    from latent_opt import ProposerOpts  # local import keeps tests light
-    mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-    eta = float(iter_eta) if iter_eta > 0.0 else None
-    return ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=eta)
+    """Return a ProposerOpts built from current sidebar settings (delegates)."""
+    from proposer import build_proposer_opts
+    try:
+        ie = float(iter_eta) if iter_eta is not None else None
+    except Exception:
+        ie = None
+    return build_proposer_opts(int(iter_steps), ie, trust_r, gamma_orth)
 
 
 def _curation_add(label: int, z: np.ndarray) -> None:

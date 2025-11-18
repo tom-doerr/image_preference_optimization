@@ -625,3 +625,6 @@ UI modularization (Nov 18, 2025, late):
 
 Dispatch consolidation (Nov 18, 2025, later):
 - Added `modes.run_mode(async_queue_mode: bool)` and replaced the inline if/else in `app.py`. This keeps `app.py` focused on wiring and defers mode selection to a tiny module. Unit test: `tests/test_modes_dispatch.py`.
+
+Proposer options (Nov 18, 2025, later):
+- Moved the UI→ProposerOpts conversion into `proposer.build_proposer_opts(...)`. `app._proposer_opts()` now delegates to this helper, reducing duplication and making intent testable. Test: `tests/test_proposer_opts_build.py`.

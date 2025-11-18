@@ -48,3 +48,17 @@ def propose_next_pair(
         )
     return propose_pair_prompt_anchor_linesearch(state, prompt, trust_r=trust_r, gamma=gamma)
 
+
+def build_proposer_opts(
+    iter_steps: int,
+    iter_eta: float | None,
+    trust_r: float | None,
+    gamma_orth: float,
+) -> ProposerOpts:
+    """Small helper to build ProposerOpts from UI values.
+
+    Keeps the logic for choosing 'iter' vs 'line' in one place.
+    """
+    mode = "iter" if (int(iter_steps) > 1 or (iter_eta is not None and float(iter_eta) > 0.0)) else "line"
+    eta = float(iter_eta) if (iter_eta is not None and float(iter_eta) > 0.0) else None
+    return ProposerOpts(mode=mode, trust_r=trust_r, gamma=float(gamma_orth), steps=int(iter_steps), eta=eta)
