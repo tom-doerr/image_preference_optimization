@@ -502,3 +502,6 @@ Pair/Queue save tests (Nov 18, 2025):
 
 UI micro‑update (Nov 18, 2025, later):
 - Added a compact top‑of‑sidebar “Data” strip showing `Dataset rows` and `Train score` so progress is visible without scrolling. The detailed “Data” section remains for compatibility.
+
+Persistence UI change (Nov 18, 2025, final):
+- Removed state upload and download controls from the sidebar to simplify UX and avoid cross‑prompt confusion. Export/import still exists programmatically via `persistence.export_state_bytes` and `latent_opt.dumps_state/loads_state`; tests adjusted accordingly.
