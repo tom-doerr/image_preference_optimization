@@ -66,22 +66,8 @@ def stub_streamlit_import_with_upload(data_bytes):
 
 class TestImportStateMuHistory(unittest.TestCase):
     def test_mu_history_populates_from_import(self):
-        # Build a state with custom mu_hist and export bytes
-        from latent_opt import init_latent_state, dumps_state
-        st0 = init_latent_state(seed=0)
-        st0.mu_hist = np.stack([np.zeros(4), np.ones(4)], axis=0)
-        data = dumps_state(st0)
-
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit_import_with_upload(data)
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-
-        import app
-        self.assertGreaterEqual(len(app.st.session_state.mu_history), 2)
+        self.skipTest('Upload/import UI removed from app; export only')
+        return
 
 
 if __name__ == '__main__':

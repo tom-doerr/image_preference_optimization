@@ -14,41 +14,15 @@ def render_persistence_controls(lstate, prompt: str, state_path: str, apply_stat
     - Uses `apply_state_fn(new_state)` to inject state into the app and `save_state` to persist.
     - Calls `rerun_fn()` if provided (e.g., st.rerun) after changes.
     """
+    # Export only. Upload has been removed to simplify the UI and avoid
+    # cross-prompt/state confusion. Keep the minimal download path.
     st.sidebar.download_button(
         label="Download state (.npz)",
         data=export_state_bytes(lstate, prompt),
         file_name="latent_state.npz",
         mime="application/octet-stream",
     )
-    uploaded = st.sidebar.file_uploader("Upload state (.npz)", type=["npz"])
-    if uploaded is not None and st.sidebar.button("Load uploaded state"):
-        data_bytes = uploaded.read()
-        up_prompt = None
-        try:
-            arr = np.load(io.BytesIO(data_bytes))
-            if 'prompt' in arr.files:
-                up_prompt = arr['prompt'].item()
-        except Exception:
-            up_prompt = None
-        if up_prompt is not None and up_prompt != prompt:
-            st.sidebar.warning(
-                f"Uploaded state is for a different prompt: '{up_prompt}'. Change the Prompt or switch via Manage states, then load."
-            )
-            if st.sidebar.button("Switch to uploaded prompt and load now"):
-                # Switch prompt and load uploaded state immediately
-                st.session_state.prompt = up_prompt
-                st.session_state.state_path = state_path_for_prompt(up_prompt)
-                new_state = loads_state(data_bytes)
-                apply_state_fn(new_state)
-                save_state(new_state, st.session_state.state_path)
-            if callable(rerun_fn):
-                rerun_fn()
-        else:
-            new_state = loads_state(data_bytes)
-            apply_state_fn(new_state)
-            save_state(new_state, state_path)
-            if callable(rerun_fn):
-                rerun_fn()
+    # Upload removed
 
 
 def render_metadata_panel(state_path: str, prompt: str, per_row: int = 2) -> None:

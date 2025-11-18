@@ -30,11 +30,18 @@ from latent_opt import (
 from latent_logic import ridge_fit  # for full-dataset training
 from flux_local import (
     generate_flux_image_latents,
-    generate_flux_image,  # text-only path
     set_model,
 )
-# Debug accessor (exists in flux_local)
-from flux_local import get_last_call  # type: ignore
+# Optional helpers (text-only path and debug accessor) — may be absent in tests
+try:
+    from flux_local import generate_flux_image  # type: ignore
+except Exception:  # pragma: no cover - shim for minimal stubs
+    generate_flux_image = None  # type: ignore
+try:
+    from flux_local import get_last_call  # type: ignore
+except Exception:  # pragma: no cover
+    def get_last_call():  # type: ignore
+        return {}
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="centered")
 # Streamlit rerun API shim: prefer st.rerun(), fallback to experimental in older versions
@@ -165,13 +172,22 @@ if callable(_sb_sel):
         selected_gen_mode = None
 # Simplified: hardcode sd-turbo; no model selector
 selected_model = "stabilityai/sd-turbo"
-with st.sidebar.expander("Pair controls", expanded=False):
+_exp = getattr(st.sidebar, 'expander', None)
+if callable(_exp):
+    with _exp("Pair controls", expanded=False):
+        alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
+        beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
+        trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
+        lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
+        gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+        # Optional iterative controls (default disabled)
+        iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
+else:
     alpha = _sb_sld("Alpha (ridge d1)", 0.05, 3.0, 0.5, 0.05)
     beta = _sb_sld("Beta (ridge d2)", 0.05, 3.0, 0.5, 0.05)
     trust_r = _sb_sld("Trust radius (||y||)", 0.5, 5.0, 2.5, 0.1)
     lr_mu_ui = _sb_sld("Step size (lr_μ)", 0.05, 1.0, 0.3, 0.05)
     gamma_orth = _sb_sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
-    # Optional iterative controls (default disabled)
     iter_steps = _sb_sld("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
@@ -188,10 +204,15 @@ if selected_gen_mode is not None and callable(getattr(st.sidebar, 'expander', No
 else:
     curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
 
-with st.sidebar.expander("Batch controls", expanded=(selected_gen_mode==_gen_opts[1])):
-    batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
-with st.sidebar.expander("Queue controls", expanded=(selected_gen_mode==_gen_opts[2])):
-    queue_size = st.sidebar.slider("Queue size", 2, 16, 6, 1)
+_exp = getattr(st.sidebar, 'expander', None)
+if callable(_exp):
+    with _exp("Batch controls", expanded=(selected_gen_mode==_gen_opts[1])):
+        batch_size = _sb_sld("Batch size", 2, 12, 6, 1)
+    with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[2])):
+        queue_size = _sb_sld("Queue size", 2, 16, 6, 1)
+else:
+    batch_size = _sb_sld("Batch size", 2, 12, 6, 1)
+    queue_size = _sb_sld("Queue size", 2, 16, 6, 1)
 
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
@@ -200,7 +221,7 @@ def _resolve_modes():
     return (bool(curation_mode_cb), bool(async_queue_mode_cb))
 
 curation_mode, async_queue_mode = _resolve_modes()
-reg_lambda = st.sidebar.slider("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
+reg_lambda = _sb_sld("Ridge λ (regularization)", 1e-5, 1e-1, 1e-2)
 iter_eta = _sb_sld("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
@@ -227,9 +248,17 @@ render_persistence_controls(lstate, st.session_state.prompt, st.session_state.st
 # Autorun: generate prompt image only when missing or prompt changed; then generate the A/B pair
 set_model(selected_model)
 if st.session_state.get('prompt_image') is None or prompt_changed:
-    st.session_state.prompt_image = generate_flux_image(
-        base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
-    )
+    if callable(generate_flux_image):
+        st.session_state.prompt_image = generate_flux_image(
+            base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
+        )
+    else:
+        # Minimal fallback: decode prompt-derived latent via latents path
+        z_prompt = z_from_prompt(lstate, base_prompt)
+        lat = z_to_latents(lstate, z_prompt)
+        st.session_state.prompt_image = generate_flux_image_latents(
+            base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
+        )
     try:
         st.session_state.prompt_stats = get_last_call().copy()
     except Exception:
@@ -240,9 +269,16 @@ if st.session_state.get('prompt_image') is None or prompt_changed:
 st.subheader("Prompt-only generation")
 if st.button("Generate from Prompt", use_container_width=True):
     set_model(selected_model)
-    st.session_state.prompt_image = generate_flux_image(
-        base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
-    )
+    if callable(generate_flux_image):
+        st.session_state.prompt_image = generate_flux_image(
+            base_prompt, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
+        )
+    else:
+        z_prompt = z_from_prompt(lstate, base_prompt)
+        lat = z_to_latents(lstate, z_prompt)
+        st.session_state.prompt_image = generate_flux_image_latents(
+            base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff
+        )
     try:
         st.session_state.prompt_stats = get_last_call().copy()
     except Exception:

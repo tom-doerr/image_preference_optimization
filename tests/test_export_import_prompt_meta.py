@@ -135,6 +135,7 @@ class TestExportImportPromptMeta(unittest.TestCase):
         self.assertEqual(arr['prompt'].item(), 'prompt A')
 
     def test_import_mismatch_prompts_warns(self):
+        self.skipTest('Upload/import UI removed from app; export only')
         # Build exported bytes for prompt B
         if 'app' in sys.modules:
             del sys.modules['app']
@@ -146,15 +147,11 @@ class TestExportImportPromptMeta(unittest.TestCase):
         import app as maker
         data = maker._export_state_bytes(maker.st.session_state.lstate, 'prompt B')
 
-        # Now try to import into prompt A and capture warning
-        warnings = []
-        del sys.modules['app']
-        sys.modules['streamlit'] = stub_streamlit_import_with_mismatch('prompt A', data, warnings)
-        sys.modules['flux_local'] = fl
-        import app  # trigger import-time upload handling and warning
-        self.assertTrue(any('different prompt' in w for w in warnings))
+        # Upload/import path removed; nothing to assert here
+        return
 
     def test_import_mismatch_switch_button_loads(self):
+        self.skipTest('Upload/import UI removed from app; export only')
         # Build exported bytes for prompt B
         if 'app' in sys.modules:
             del sys.modules['app']
@@ -179,11 +176,7 @@ class TestExportImportPromptMeta(unittest.TestCase):
                 return orig_btn(label, *a, **k)
             st.sidebar.button = btn
             return st
-        sys.modules['streamlit'] = stub_streamlit_import_with_switch()
-        sys.modules['flux_local'] = fl
-        import app as consumer2
-        # After switch, prompt should match uploaded prompt
-        self.assertEqual(consumer2.st.session_state.prompt, 'prompt B')
+        return
 
 
 if __name__ == '__main__':
