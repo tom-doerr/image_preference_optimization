@@ -22,6 +22,11 @@ from batch_ui import (
     _render_batch_ui,
     run_batch_mode,
 )
+from queue_ui import (
+    _queue_fill_up_to,
+    _queue_label,
+    run_queue_mode,
+)
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, append_dataset_row, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
@@ -283,6 +288,11 @@ width = _sb_num("Width", min_value=256, max_value=1024, step=64, value=lstate.wi
 height = _sb_num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
 steps = _sb_sld("Steps", 1, 50, value=Config.DEFAULT_STEPS)
 guidance = _sb_sld("Guidance", 0.0, 10.0, value=Config.DEFAULT_GUIDANCE, step=0.1)
+try:
+    st.session_state['steps'] = int(steps)
+    st.session_state['guidance'] = float(guidance)
+except Exception:
+    pass
 if st.sidebar.button("Apply size now"):
     _apply_state(init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)
@@ -307,6 +317,10 @@ if callable(_exp):
     with _exp("Proposer controls", expanded=False):
         # Distance hill climbing settings: use numeric inputs for precision
         alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
+        try:
+            st.session_state['alpha'] = float(alpha)
+        except Exception:
+            pass
         beta = _sb_num("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.01, format="%.2f")
         trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1, format="%.1f")
         lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01, format="%.2f")
@@ -332,6 +346,10 @@ if callable(_exp):
 else:
     # Fallback path for minimal stubs: number inputs without hard caps
     alpha = _sb_num("Alpha (ridge d1)", min_value=0.0, value=0.5, step=0.01)
+    try:
+        st.session_state['alpha'] = float(alpha)
+    except Exception:
+        pass
     beta = _sb_num("Beta (ridge d2)", min_value=0.0, value=0.5, step=0.01)
     trust_r = _sb_num("Trust radius (||y||)", min_value=0.0, value=2.5, step=0.1)
     lr_mu_ui = _sb_num("Step size (lr_μ)", min_value=0.0, value=0.3, step=0.01)
@@ -397,9 +415,17 @@ if callable(_exp):
         batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
     with _exp("Queue controls", expanded=(selected_gen_mode==_gen_opts[1])):
         queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
+        try:
+            st.session_state['queue_size'] = int(queue_size)
+        except Exception:
+            pass
 else:
     batch_size = _sb_sld("Batch size", 2, 12, value=6, step=1)
     queue_size = _sb_sld("Queue size", 2, 16, value=6, step=1)
+    try:
+        st.session_state['queue_size'] = int(queue_size)
+    except Exception:
+        pass
 
 def _resolve_modes():
     """Return (curation_mode, async_queue_mode) from dropdown/checkboxes."""
@@ -427,6 +453,10 @@ use_clip = False
 
 is_turbo = True
 guidance_eff = 0.0
+try:
+    st.session_state['guidance_eff'] = float(guidance_eff)
+except Exception:
+    pass
 
 # (auto-run added after function definitions below)
 
@@ -1053,28 +1083,9 @@ def _render_batch_ui() -> None:
 
 
 def _render_queue_ui() -> None:
-    st.subheader("Async queue")
-    q = st.session_state.get('queue') or []
-    # Only show a single head-of-queue item in the UI
-    if not q:
-        st.write("Queue empty…")
-    else:
-        i = 0
-        it = q[0]
-        img = it['future'].result() if it['future'].done() else None
-        if img is not None:
-            _image_fragment(img, caption=f"Item {i}")
-        else:
-            st.write(f"Item {i}: loading…")
-        if st.button(f"Accept {i}", use_container_width=True):
-            _queue_label(i, 1)
-            if callable(st_rerun):
-                st_rerun()
-        if st.button(f"Reject {i}", use_container_width=True):
-            _queue_label(i, -1)
-            if callable(st_rerun):
-                st_rerun()
-    _queue_fill_up_to()
+    # Backward-compat shim: delegate to queue_ui
+    from queue_ui import _render_queue_ui as _rq
+    _rq()
 
 
 def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
@@ -1106,72 +1117,8 @@ def _pair_scores() -> Tuple[Optional[float], Optional[float], Optional[float], O
 
 # Async queue mode helpers
 def _queue_ensure_exec():
+    # Deprecated shim
     return _bg_executor()
-
-
-def _queue_add_one():
-    # propose single z based on pair proposer (use first vector)
-    try:
-        vmc = st.session_state.get('vm_choice', 'DistanceHill')
-        pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
-        if pp == 'DistanceHill':
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
-            from latent_logic import propose_pair_distancehill
-            za, _ = propose_pair_distancehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), gamma=0.5, trust_r=None)
-        elif pp == 'CosineHill':
-            Xd = yd = None
-            try:
-                with np.load(dataset_path_for_prompt(base_prompt)) as d:
-                    Xd = d['X'] if 'X' in d.files else None
-                    yd = d['y'] if 'y' in d.files else None
-            except Exception:
-                Xd = yd = None
-            if (Xd is None or yd is None) and getattr(st.session_state, 'dataset_X', None) is not None:
-                Xd = st.session_state.dataset_X
-                yd = st.session_state.dataset_y
-            from latent_logic import propose_pair_cosinehill
-            za, _ = propose_pair_cosinehill(lstate, base_prompt, Xd, yd, alpha=float(alpha), beta=5.0, trust_r=None)
-        else:
-            za, _ = propose_next_pair(lstate, base_prompt, opts=_proposer_opts())
-    except Exception:
-        za = _sample_around_prompt(0.8)
-    lat = z_to_latents(lstate, za)
-    fut = bg.schedule_decode_latents(base_prompt, lat, lstate.width, lstate.height, steps, guidance_eff)
-    item = {'z': za, 'future': fut, 'label': None}
-    q = st.session_state.get('queue') or []
-    q.append(item)
-    st.session_state.queue = q
-
-
-def _queue_fill_up_to():
-    q = st.session_state.get('queue') or []
-    st.session_state.queue = q
-    # Fill up to desired size; allow multiple pending items to avoid stalls
-    while len(st.session_state.queue) < int(queue_size):
-        _queue_add_one()
-
-
-def _queue_label(idx: int, label: int):
-    q = st.session_state.get('queue') or []
-    if 0 <= idx < len(q):
-        z = q[idx]['z']
-        _curation_add(int(label), z)
-        # optionally refit from saved dataset for immediate model update
-        try:
-            _curation_train_and_next()  # trains from disk; does not alter queue
-        except Exception:
-            pass
-        q.pop(idx)
-        st.session_state.queue = q
 
 
 def run_pair_mode() -> None:
