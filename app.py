@@ -219,18 +219,32 @@ pairs_state = [("Latent dim", f"{info['d']}")]
 pairs_state += [(k, f"{info[k]}") for k in ('width','height','step','sigma','mu_norm','w_norm','pairs_logged','choices_logged')]
 sidebar_metric_rows(pairs_state, per_row=2)
 
-# Debug panel: expose last pipeline call stats to spot black-frame issues
+# Debug panel (collapsible): expose last pipeline call stats to spot black-frame issues
 try:
-    st.sidebar.subheader("Debug")
-    last = get_last_call() or {}
-    dbg_pairs = []
-    for k in ("model_id", "width", "height", "steps", "guidance", "latents_std", "init_sigma", "img0_std", "img0_min", "img0_max"):
-        if k in last and last[k] is not None:
-            dbg_pairs.append((k, str(last[k])))
-    if is_turbo:
-        dbg_pairs.append(("guidance_eff", str(guidance_eff)))
-    if dbg_pairs:
-        sidebar_metric_rows(dbg_pairs, per_row=2)
+    expander = getattr(st.sidebar, 'expander', None)
+    if callable(expander):
+        with expander("Debug", expanded=False):
+            last = get_last_call() or {}
+            dbg_pairs = []
+            for k in ("model_id", "width", "height", "steps", "guidance", "latents_std", "init_sigma", "img0_std", "img0_min", "img0_max"):
+                if k in last and last[k] is not None:
+                    dbg_pairs.append((k, str(last[k])))
+            if is_turbo:
+                dbg_pairs.append(("guidance_eff", str(guidance_eff)))
+            if dbg_pairs:
+                sidebar_metric_rows(dbg_pairs, per_row=2)
+    else:
+        # Fallback when expander not available (e.g., test stubs)
+        st.sidebar.subheader("Debug")
+        last = get_last_call() or {}
+        dbg_pairs = []
+        for k in ("model_id", "width", "height", "steps", "guidance", "latents_std", "init_sigma", "img0_std", "img0_min", "img0_max"):
+            if k in last and last[k] is not None:
+                dbg_pairs.append((k, str(last[k])))
+        if is_turbo:
+            dbg_pairs.append(("guidance_eff", str(guidance_eff)))
+        if dbg_pairs:
+            sidebar_metric_rows(dbg_pairs, per_row=2)
 except Exception:
     pass
 
