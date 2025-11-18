@@ -91,6 +91,12 @@ Working state (Nov 18, 2025, evening):
 - App auto-generates prompt image (text) and pair (latents) on load; Debug panel exposes image/std stats.
 - Next simplifications to consider (only if requested): hardcode sd‑turbo and drop model selector; collapse proposer controls to a single trust‑radius slider; trim Debug UI to core metrics.
 
+GPU E2E (Nov 18, 2025, 128a):
+- Added an opt‑in GPU e2e content test that decodes a real sd‑turbo A/B pair and asserts non‑trivial variance to prevent regressions into black frames.
+- Run on a CUDA box with weights available:
+  - `export E2E_GPU=1; export FLUX_LOCAL_MODEL=stabilityai/sd-turbo`
+  - `pytest -q tests/e2e/test_e2e_pair_content_gpu.py`
+
 Scheduler race fix (Nov 13, 2025):
 - Wrapped all pipeline `__call__` invocations in a module-level lock (`PIPE_LOCK`) to avoid scheduler `step_index` races under ThreadPool concurrency.
 - Added `tests/test_pipeline_lock.py` to ensure concurrent calls are serialized (no overlap), preventing the `IndexError` seen in Euler schedulers.
