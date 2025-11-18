@@ -11,7 +11,7 @@ from constants import (
 from constants import Config
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel
-from persistence import state_path_for_prompt, export_state_bytes
+from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
     init_latent_state,
@@ -108,6 +108,8 @@ gamma_orth = st.slider("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
 iter_steps = st.slider("Optimization steps (latent)", 1, 10, 1, 1)
 # Value function option: Ridge (linear) vs XGBoost
 use_xgb = st.sidebar.checkbox("Use XGBoost value function", value=False)
+curation_mode = st.sidebar.checkbox("Batch curation mode", value=False)
+batch_size = st.sidebar.slider("Batch size", 2, 12, 6, 1)
 iter_eta = st.slider("Iterative step (eta)", 0.0, 1.0, 0.0, 0.05)
 use_clip = False
 
@@ -376,8 +378,60 @@ def generate_pair():
 
 # history helpers removed
 
+def _curation_init_batch():
+    if st.session_state.get('cur_batch') is None:
+        st.session_state.cur_batch = []
+        st.session_state.cur_labels = []
+        _curation_new_batch()
+
+
+def _curation_new_batch():
+    z_list = []
+    z_p = z_from_prompt(lstate, base_prompt)
+    for i in range(int(batch_size)):
+        # sample a small random delta around prompt
+        r = lstate.rng.standard_normal(lstate.d)
+        r = r / (np.linalg.norm(r) + 1e-12)
+        z = z_p + lstate.sigma * 0.8 * r
+        z_list.append(z)
+    st.session_state.cur_batch = z_list
+    st.session_state.cur_labels = [None] * len(z_list)
+
+
+def _curation_add(label: int, z: np.ndarray):
+    # Feature is delta to prompt
+    z_p = z_from_prompt(lstate, base_prompt)
+    X = getattr(st.session_state, 'dataset_X', None)
+    y = getattr(st.session_state, 'dataset_y', None)
+    feat = (z - z_p).reshape(1, -1)
+    lab = np.array([float(label)])
+    st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
+    st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
+
+
+def _curation_train_and_next():
+    X = getattr(st.session_state, 'dataset_X', None)
+    y = getattr(st.session_state, 'dataset_y', None)
+    if X is not None and y is not None and len(y) > 0:
+        # fit ridge and update w
+        try:
+            from latent_logic import ridge_fit
+            lstate.w = ridge_fit(X, y, lam=1e-2)
+        except Exception:
+            pass
+        # persist dataset
+        try:
+            np.savez_compressed(dataset_path_for_prompt(base_prompt), X=X, y=y)
+        except Exception:
+            pass
+    _curation_new_batch()
+
+
 # Autorun: generate the pair once on load (keep it simple)
-generate_pair()
+if not curation_mode:
+    generate_pair()
+else:
+    _curation_init_batch()
 
 if st.button("Generate pair", type="primary"):
     # Ensure model is loaded per selection
@@ -413,66 +467,85 @@ except Exception:
     d_left = d_right = None
     v_left = v_right = None
 with left:
-    if img_left is not None:
-        cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
-        st.image(img_left, caption=cap, use_container_width=True)
-        # Show predicted value for Left (fallback to text if st.metric missing in tests)
-        if v_left is not None:
+    if not curation_mode:
+        if img_left is not None:
+            cap = f"Left (d_prompt={d_left:.3f})" if d_left is not None else "Left"
+            st.image(img_left, caption=cap, use_container_width=True)
+            if v_left is not None:
+                try:
+                    st.metric("V(left)", f"{v_left:.3f}")
+                except Exception:
+                    st.write(f"V(left): {v_left:.3f}")
             try:
-                st.metric("V(left)", f"{v_left:.3f}")
+                stats = (st.session_state.get('img_stats') or {}).get('left') or {}
+                s = stats.get('img0_std')
+                if s is not None and float(s) < 2.0:
+                    (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
             except Exception:
-                st.write(f"V(left): {v_left:.3f}")
-        # Content warning for left
-        try:
-            stats = (st.session_state.get('img_stats') or {}).get('left') or {}
-            s = stats.get('img0_std')
-            if s is not None and float(s) < 2.0:
-                (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
-        except Exception:
-            pass
-    if st.button("Prefer Left", use_container_width=True):
-        set_model(selected_model)
-        z_p = z_from_prompt(lstate, base_prompt)
-        feats_a = z_a - z_p
-        feats_b = z_b - z_p
-        update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
-        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        from latent_opt import ProposerOpts
-        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-        st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
-        save_state(lstate, st.session_state.state_path)
-        if callable(st_rerun):
-            st_rerun()
+                pass
+        if st.button("Prefer Left", use_container_width=True):
+            set_model(selected_model)
+            z_p = z_from_prompt(lstate, base_prompt)
+            feats_a = z_a - z_p
+            feats_b = z_b - z_p
+            update_latent_ridge(lstate, z_a, z_b, 'a', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
+            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+            from latent_opt import ProposerOpts
+            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
+            save_state(lstate, st.session_state.state_path)
+            if callable(st_rerun):
+                st_rerun()
+    else:
+        st.subheader("Curation batch")
+        # Render batch items vertically (simple and clear)
+        for i, z_i in enumerate(st.session_state.cur_batch or []):
+            lat = z_to_latents(lstate, z_i)
+            img_i = generate_flux_image_latents(base_prompt, latents=lat, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)
+            st.image(img_i, caption=f"Item {i}", use_container_width=True)
+            cols = st.columns(2)
+            with cols[0]:
+                if st.button(f"Accept {i}"):
+                    _curation_add(1, z_i)
+                    st.session_state.cur_labels[i] = 1
+            with cols[1]:
+                if st.button(f"Reject {i}"):
+                    _curation_add(-1, z_i)
+                    st.session_state.cur_labels[i] = -1
+        if st.button("Train on dataset and next batch", type="primary"):
+            _curation_train_and_next()
+            if callable(st_rerun):
+                st_rerun()
 with right:
-    if img_right is not None:
-        cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
-        st.image(img_right, caption=cap, use_container_width=True)
-        if v_right is not None:
+    if not curation_mode:
+        if img_right is not None:
+            cap = f"Right (d_prompt={d_right:.3f})" if d_right is not None else "Right"
+            st.image(img_right, caption=cap, use_container_width=True)
+            if v_right is not None:
+                try:
+                    st.metric("V(right)", f"{v_right:.3f}")
+                except Exception:
+                    st.write(f"V(right): {v_right:.3f}")
             try:
-                st.metric("V(right)", f"{v_right:.3f}")
+                stats = (st.session_state.get('img_stats') or {}).get('right') or {}
+                s = stats.get('img0_std')
+                if s is not None and float(s) < 2.0:
+                    (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
             except Exception:
-                st.write(f"V(right): {v_right:.3f}")
-        # Content warning for right
-        try:
-            stats = (st.session_state.get('img_stats') or {}).get('right') or {}
-            s = stats.get('img0_std')
-            if s is not None and float(s) < 2.0:
-                (getattr(st, 'warning', None) or st.write)(f"⚠️ Low content (std={float(s):.2f})")
-        except Exception:
-            pass
-    if st.button("Prefer Right", use_container_width=True):
-        set_model(selected_model)
-        z_p = z_from_prompt(lstate, base_prompt)
-        feats_a = z_a - z_p
-        feats_b = z_b - z_p
-        update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
-        mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
-        from latent_opt import ProposerOpts
-        opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
-        st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
-        save_state(lstate, st.session_state.state_path)
-        if callable(st_rerun):
-            st_rerun()
+                pass
+        if st.button("Prefer Right", use_container_width=True):
+            set_model(selected_model)
+            z_p = z_from_prompt(lstate, base_prompt)
+            feats_a = z_a - z_p
+            feats_b = z_b - z_p
+            update_latent_ridge(lstate, z_a, z_b, 'b', lr_mu=float(lr_mu_ui), feats_a=feats_a, feats_b=feats_b)
+            mode = 'iter' if (iter_steps > 1 or iter_eta > 0.0) else 'line'
+            from latent_opt import ProposerOpts
+            opts = ProposerOpts(mode=mode, trust_r=trust_r, gamma=gamma_orth, steps=int(iter_steps), eta=(float(iter_eta) if iter_eta > 0.0 else None))
+            st.session_state.lz_pair = propose_next_pair(lstate, base_prompt, opts=opts)
+            save_state(lstate, st.session_state.state_path)
+            if callable(st_rerun):
+                st_rerun()
 
 st.write(f"Interactions: {lstate.step}")
     # Best μ history UI removed

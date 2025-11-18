@@ -11,6 +11,11 @@ def state_path_for_prompt(prompt: str) -> str:
     return f"latent_state_{h}.npz"
 
 
+def dataset_path_for_prompt(prompt: str) -> str:
+    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+    return f"dataset_{h}.npz"
+
+
 def export_state_bytes(state, prompt: str) -> bytes:
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:
