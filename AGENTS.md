@@ -544,6 +544,10 @@ New learnings (Nov 20, 2025):
   - Reused `_sample_around_prompt` across Batch and Queue to avoid duplicated RNG math.
   - Moved dataset dimension mismatch handling into `persistence.get_dataset_for_prompt_or_session`; callers no longer repeat the guard. Sidebar notices still work via `Keys.DATASET_DIM_MISMATCH`.
   - Added a tiny materialization in `app._queue_fill_up_to()` so stubs see a concrete `queue` list (fixes flaky test state exposure without altering behavior).
+- Consolidation (batch sampling helpers):
+  - Extracted `_prepare_xgb_scorer` and `_sample_one_for_batch` from `_curation_new_batch` to reduce complexity and duplication.
+  - Added `_curation_params()` to read steps/lr_mu/trust_r and VM choice once.
+  - Tests cover both paths (`tests/test_sample_one_for_batch.py`).
 - Sidebar cleanup: grouped “Train results” expander (Train/CV/Last train/Scorer status); removed “Images status”.
 - Dataset is folder‑only: all rows read/written under `data/<hash>/<row>/sample.npz`. Aggregated `dataset_*.npz` is ignored.
 - “Dataset rows” autorefreshes every 1s; added dim‑scoped count “Rows (this d)”. Dropped “Rows (all)”.

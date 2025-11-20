@@ -37,6 +37,7 @@ __all__ = [
     '_sample_around_prompt',
     '_prepare_xgb_scorer',
     '_sample_one_for_batch',
+    '_curation_params',
     '_curation_init_batch',
     '_curation_new_batch',
     '_curation_replace_at',
@@ -120,6 +121,30 @@ def _sample_one_for_batch(lstate: Any,
     return _sample_around_prompt(scale=0.8)
 
 
+def _curation_params():
+    """Read once: VM choice, steps, lr_mu, trust_r, use_xgb."""
+    import streamlit as st
+    try:
+        vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
+    except Exception:
+        vm_choice = ""
+    use_xgb = (vm_choice == "XGBoost")
+    try:
+        steps = int(st.session_state.get(Keys.ITER_STEPS, 10))
+    except Exception:
+        steps = 10
+    try:
+        lr_mu = float(st.session_state.get(Keys.LR_MU_UI, 0.3))
+    except Exception:
+        lr_mu = 0.3
+    try:
+        trust = st.session_state.get(Keys.TRUST_R, None)
+        trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
+    except Exception:
+        trust_r = None
+    return vm_choice, use_xgb, steps, lr_mu, trust_r
+
+
 def _curation_init_batch() -> None:
     # Always create a fresh batch on init so each page reload/new round uses
     # newly sampled latents instead of reusing the previous cur_batch.
@@ -136,14 +161,9 @@ def _curation_new_batch() -> None:
     z_p = z_from_prompt(lstate, prompt)
     batch_n = int(st.session_state.get('batch_size', 6))
     # Optional XGBoost-guided hill climb per image when XGB is active.
-    vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
-    use_xgb = (vm_choice == "XGBoost")
+    vm_choice, use_xgb, steps, lr_mu, trust_r = _curation_params()
     scorer = None
     scorer_status = None
-    steps = int(st.session_state.get(Keys.ITER_STEPS, 10))
-    lr_mu = float(st.session_state.get(Keys.LR_MU_UI, 0.3))
-    trust = st.session_state.get(Keys.TRUST_R, None)
-    trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
     if use_xgb:
         scorer, scorer_status = _prepare_xgb_scorer(lstate, prompt)
         if scorer_status != 'ok':
