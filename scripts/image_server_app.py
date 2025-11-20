@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
     from rich_cli import enable_color_print as _enable_color
+
     _enable_color()
 except Exception:
     pass
@@ -17,6 +18,7 @@ except Exception:
 def _b64_png(img) -> str:
     try:
         from PIL import Image  # type: ignore
+
         buf = io.BytesIO()
         (img if hasattr(img, "save") else Image.fromarray(img)).save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -27,6 +29,7 @@ def _b64_png(img) -> str:
 def _ensure_model():
     try:
         from flux_local import set_model
+
         mid = os.getenv("FLUX_LOCAL_MODEL", "stabilityai/sd-turbo")
         set_model(mid)
     except Exception as e:
@@ -61,18 +64,32 @@ class App(BaseHTTPRequestHandler):
             prompt = str(req.get("prompt", ""))
             if self.path == "/generate":
                 from flux_local import generate_flux_image
-                img = generate_flux_image(prompt, width=width, height=height, steps=steps, guidance=guidance)
+
+                img = generate_flux_image(
+                    prompt, width=width, height=height, steps=steps, guidance=guidance
+                )
                 return self._reply(200, {"image": _b64_png(img)})
             if self.path == "/generate_latents":
                 from flux_local import generate_flux_image_latents
+
                 latents = req.get("latents")
                 shape = req.get("latents_shape")
                 if latents is None or shape is None:
                     return self._reply(400, {"error": "missing latents/latents_shape"})
                 # Minimal: trust shape and reshape
                 import numpy as np
-                arr = np.array(latents, dtype=float).reshape(tuple(int(x) for x in shape))
-                img = generate_flux_image_latents(prompt, arr, width=width, height=height, steps=steps, guidance=guidance)
+
+                arr = np.array(latents, dtype=float).reshape(
+                    tuple(int(x) for x in shape)
+                )
+                img = generate_flux_image_latents(
+                    prompt,
+                    arr,
+                    width=width,
+                    height=height,
+                    steps=steps,
+                    guidance=guidance,
+                )
                 return self._reply(200, {"image": _b64_png(img)})
             return self._reply(404, {"error": "unknown path"})
         except Exception as e:  # keep minimal; surface errors plainly

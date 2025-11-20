@@ -7,6 +7,7 @@ Usage:
 
 Minimal, no deps. Exits non‑zero if nvidia-smi is unavailable.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,11 +40,13 @@ def main() -> int:
 
     # Per-process usage across all GPUs
     # fields: pid, process_name, used_memory [MiB], gpu_uuid
-    lines = _cmd([
-        "nvidia-smi",
-        "--query-compute-apps=pid,process_name,used_memory,gpu_uuid",
-        "--format=csv,noheader",
-    ])
+    lines = _cmd(
+        [
+            "nvidia-smi",
+            "--query-compute-apps=pid,process_name,used_memory,gpu_uuid",
+            "--format=csv,noheader",
+        ]
+    )
     by_pid: dict[int, dict] = {}
     for ln in lines:
         parts = [p.strip() for p in ln.split(",")]
@@ -61,11 +64,21 @@ def main() -> int:
         if cmd:
             rec["name"] = cmd
 
-    rows = sorted(((pid, rec["mem"], rec["name"]) for pid, rec in by_pid.items()), key=lambda r: r[1], reverse=True)
+    rows = sorted(
+        ((pid, rec["mem"], rec["name"]) for pid, rec in by_pid.items()),
+        key=lambda r: r[1],
+        reverse=True,
+    )
 
     # Print per-GPU summary first
     try:
-        gsum = _cmd(["nvidia-smi", "--query-gpu=index,name,memory.total,memory.used", "--format=csv,noheader"])
+        gsum = _cmd(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,name,memory.total,memory.used",
+                "--format=csv,noheader",
+            ]
+        )
         print("Per-GPU memory:")
         for g in gsum:
             idx, name, tot, used = [x.strip() for x in g.split(",")]

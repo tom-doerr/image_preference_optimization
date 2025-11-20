@@ -32,23 +32,26 @@ class TestAsyncXGBNonBlocking(unittest.TestCase):
         ss.ridge_train_async = True
 
         # Stub xgb trainer to be slow so blocking would be visible
-        xv = types.ModuleType('xgb_value')
+        xv = types.ModuleType("xgb_value")
+
         def slow_fit(Xd, yd, n_estimators=50, max_depth=3):
             time.sleep(0.2)
-            return 'mdl'
+            return "mdl"
+
         xv.fit_xgb_classifier = slow_fit
-        sys.modules['xgb_value'] = xv
+        sys.modules["xgb_value"] = xv
 
         import value_model as vm
-        vm.fit_value_model('XGBoost', lstate, X, y, lam=1e-3, session_state=ss)
+
+        vm.fit_value_model("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)
 
         # Non-blocking: future should be present and not done immediately
-        fut = ss.get('xgb_fit_future')
+        fut = ss.get("xgb_fit_future")
         self.assertIsNotNone(fut)
         self.assertFalse(fut.done())
         # Allow it to finish to avoid leaking threads
         fut.result(timeout=2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

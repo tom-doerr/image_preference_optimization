@@ -6,7 +6,7 @@ from persistence import append_dataset_row, dataset_rows_for_prompt
 class TestAppendDatasetRow(unittest.TestCase):
     def test_append_returns_new_count(self):
         # Use plain helper without UI
-        prompt = 'append dataset row helper test'
+        prompt = "append dataset row helper test"
         # Clean file
         # No NPZ to remove under folder-only scheme
         feat = np.zeros((1, 8))  # small dummy, shape only matters
@@ -17,5 +17,5 @@ class TestAppendDatasetRow(unittest.TestCase):
         self.assertEqual(dataset_rows_for_prompt(prompt), 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

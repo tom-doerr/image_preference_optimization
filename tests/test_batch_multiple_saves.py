@@ -6,7 +6,14 @@ import numpy as np
 
 class BatchMultipleSavesTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "latent_logic", "persistence", "flux_local", "value_scorer"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "latent_logic",
+            "persistence",
+            "flux_local",
+            "value_scorer",
+        ):
             sys.modules.pop(m, None)
 
     def test_multiple_labels_append_rows(self):
@@ -14,7 +21,9 @@ class BatchMultipleSavesTest(unittest.TestCase):
 
         st, _ = st_streamlit.stub_with_writes()
         st.session_state.prompt = "multi-save"
-        st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0))
+        st.session_state.lstate = types.SimpleNamespace(
+            width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0)
+        )
         st.session_state.steps = 3
         st.session_state.guidance_eff = 0.0
         st.session_state.cur_labels = [None, None]

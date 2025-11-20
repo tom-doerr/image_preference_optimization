@@ -7,7 +7,15 @@ from tests.helpers import st_streamlit
 
 class XGBAsyncDefaultTest(unittest.TestCase):
     def tearDown(self):
-        for name in ("streamlit", "app", "persistence", "value_scorer", "latent_logic", "batch_ui", "flux_local"):
+        for name in (
+            "streamlit",
+            "app",
+            "persistence",
+            "value_scorer",
+            "latent_logic",
+            "batch_ui",
+            "flux_local",
+        ):
             sys.modules.pop(name, None)
 
     def test_async_training_default_true(self):
@@ -22,8 +30,18 @@ class XGBAsyncDefaultTest(unittest.TestCase):
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.dataset_rows_for_prompt = lambda prompt: 0
         p.get_dataset_for_prompt_or_session = lambda prompt, ss: (None, None)
-        p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}
-        p.dataset_stats_for_prompt = lambda prompt: {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": []}
+        p.read_metadata = lambda path: {
+            "app_version": None,
+            "created_at": None,
+            "prompt": None,
+        }
+        p.dataset_stats_for_prompt = lambda prompt: {
+            "rows": 0,
+            "pos": 0,
+            "neg": 0,
+            "d": 0,
+            "recent_labels": [],
+        }
         p.export_state_bytes = lambda state, prompt: b""
         sys.modules["persistence"] = p
         # Minimal flux_local stub to avoid loading torch/diffusers during import

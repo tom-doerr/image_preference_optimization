@@ -13,8 +13,10 @@ class TestXGBLogging(unittest.TestCase):
 
         def fit_xgb_classifier(X, y, **kwargs):
             calls["n"] = int(X.shape[0])
+
             class _M:
                 pass
+
             return _M()
 
         xgb_mod = types.ModuleType("xgb_value")

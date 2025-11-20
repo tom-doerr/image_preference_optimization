@@ -9,8 +9,8 @@ class TestFullPersistenceHistory(unittest.TestCase):
         z_a = np.zeros(st.d)
         z_a[0] = 1.0
         z_b = -z_a.copy()
-        update_latent_ridge(st, z_a, z_b, 'a')
-        update_latent_ridge(st, z_b, z_a, 'b')
+        update_latent_ridge(st, z_a, z_b, "a")
+        update_latent_ridge(st, z_b, z_a, "b")
         # sanity shapes before save
         self.assertEqual(st.z_pairs.shape, (2, 2, st.d))
         self.assertEqual(st.choices.shape, (2,))
@@ -18,8 +18,9 @@ class TestFullPersistenceHistory(unittest.TestCase):
 
         import tempfile
         import os
+
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, 'state_full.npz')
+            path = os.path.join(d, "state_full.npz")
             save_state(st, path)
             st2 = load_state(path)
             np.testing.assert_allclose(st2.z_pairs, st.z_pairs)
@@ -27,5 +28,5 @@ class TestFullPersistenceHistory(unittest.TestCase):
             np.testing.assert_allclose(st2.mu_hist, st.mu_hist)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

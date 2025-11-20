@@ -26,7 +26,12 @@ class LatentState:
     w_lock: Any = field(default_factory=_threading.Lock, repr=False, compare=False)
 
 
-def init_latent_state(width: int = Config.DEFAULT_WIDTH, height: int = Config.DEFAULT_HEIGHT, d: int = 0, seed: Optional[int] = 0) -> LatentState:
+def init_latent_state(
+    width: int = Config.DEFAULT_WIDTH,
+    height: int = Config.DEFAULT_HEIGHT,
+    d: int = 0,
+    seed: Optional[int] = 0,
+) -> LatentState:
     h8, w8 = height // 8, width // 8
     flat = 4 * h8 * w8
     rng = np.random.default_rng(seed)
@@ -39,9 +44,9 @@ def init_latent_state(width: int = Config.DEFAULT_WIDTH, height: int = Config.DE
 def save_state(state: LatentState, path: str) -> None:
     X = state.X if state.X is not None else np.zeros((0, state.d), dtype=float)
     y = state.y if state.y is not None else np.zeros((0,), dtype=float)
-    z_pairs = getattr(state, 'z_pairs', None)
-    choices = getattr(state, 'choices', None)
-    mu_hist = getattr(state, 'mu_hist', None)
+    z_pairs = getattr(state, "z_pairs", None)
+    choices = getattr(state, "choices", None)
+    mu_hist = getattr(state, "mu_hist", None)
     if z_pairs is None:
         z_pairs = np.zeros((0, 2, state.d), dtype=float)
     if choices is None:
@@ -65,8 +70,14 @@ def save_state(state: LatentState, path: str) -> None:
     )
 
 
-def _optional_arr(z: Mapping[str, Any], name: str, fallback_shape: tuple[int, ...]) -> np.ndarray:
-    arr = z[name] if name in getattr(z, 'files', z) else np.zeros(fallback_shape, dtype=float)  # type: ignore[index]
+def _optional_arr(
+    z: Mapping[str, Any], name: str, fallback_shape: tuple[int, ...]
+) -> np.ndarray:
+    arr = (
+        z[name]
+        if name in getattr(z, "files", z)
+        else np.zeros(fallback_shape, dtype=float)
+    )  # type: ignore[index]
     return arr
 
 
@@ -89,7 +100,9 @@ def _build_state_from_npz(z: Mapping[str, Any], seed: Optional[int]) -> LatentSt
     zp_out = None if z_pairs.size == 0 else z_pairs
     ch_out = None if choices.size == 0 else choices
     mh_out = None if mu_hist.size == 0 else mu_hist
-    return LatentState(width, height, d, mu, sigma, rng, w, X_out, y_out, step, zp_out, ch_out, mh_out)
+    return LatentState(
+        width, height, d, mu, sigma, rng, w, X_out, y_out, step, zp_out, ch_out, mh_out
+    )
 
 
 def load_state(path: str, seed: Optional[int] = 0) -> LatentState:
@@ -103,9 +116,9 @@ def dumps_state(state: LatentState) -> bytes:
     buf = io.BytesIO()
     X = state.X if state.X is not None else np.zeros((0, state.d), dtype=float)
     y = state.y if state.y is not None else np.zeros((0,), dtype=float)
-    z_pairs = getattr(state, 'z_pairs', None)
-    choices = getattr(state, 'choices', None)
-    mu_hist = getattr(state, 'mu_hist', None)
+    z_pairs = getattr(state, "z_pairs", None)
+    choices = getattr(state, "choices", None)
+    mu_hist = getattr(state, "mu_hist", None)
     if z_pairs is None:
         z_pairs = np.zeros((0, 2, state.d), dtype=float)
     if choices is None:
@@ -133,22 +146,22 @@ def dumps_state(state: LatentState) -> bytes:
 def state_summary(state: LatentState) -> dict:
     mu_norm = float(np.linalg.norm(state.mu))
     w_norm = float(np.linalg.norm(state.w))
-    z_pairs = getattr(state, 'z_pairs', None)
-    choices = getattr(state, 'choices', None)
-    X = getattr(state, 'X', None)
-    y = getattr(state, 'y', None)
+    z_pairs = getattr(state, "z_pairs", None)
+    choices = getattr(state, "choices", None)
+    X = getattr(state, "X", None)
+    y = getattr(state, "y", None)
     return {
-        'width': int(state.width),
-        'height': int(state.height),
-        'd': int(state.d),
-        'step': int(state.step),
-        'sigma': float(state.sigma),
-        'mu_norm': mu_norm,
-        'w_norm': w_norm,
-        'pairs_logged': 0 if z_pairs is None else int(z_pairs.shape[0]),
-        'choices_logged': 0 if choices is None else int(choices.shape[0]),
-        'X_shape': None if X is None else tuple(X.shape),
-        'y_len': None if y is None else int(len(y)),
+        "width": int(state.width),
+        "height": int(state.height),
+        "d": int(state.d),
+        "step": int(state.step),
+        "sigma": float(state.sigma),
+        "mu_norm": mu_norm,
+        "w_norm": w_norm,
+        "pairs_logged": 0 if z_pairs is None else int(z_pairs.shape[0]),
+        "choices_logged": 0 if choices is None else int(choices.shape[0]),
+        "X_shape": None if X is None else tuple(X.shape),
+        "y_len": None if y is None else int(len(y)),
     }
 
 

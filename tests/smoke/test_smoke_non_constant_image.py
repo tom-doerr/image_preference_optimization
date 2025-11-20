@@ -21,7 +21,12 @@ class TestSmokeNonConstantImage(unittest.TestCase):
         lat = z_to_latents(st, z)
 
         img = generate_flux_image_latents(
-            DEFAULT_PROMPT, latents=lat, width=st.width, height=st.height, steps=6, guidance=2.5
+            DEFAULT_PROMPT,
+            latents=lat,
+            width=st.width,
+            height=st.height,
+            steps=6,
+            guidance=2.5,
         )
 
         arr = np.asarray(img).astype(np.float32)
@@ -33,7 +38,9 @@ class TestSmokeNonConstantImage(unittest.TestCase):
 
         p10 = np.percentile(gray, 10)
         p90 = np.percentile(gray, 90)
-        self.assertGreaterEqual(p90 - p10, 5.0, "Dynamic range too small; image nearly constant")
+        self.assertGreaterEqual(
+            p90 - p10, 5.0, "Dynamic range too small; image nearly constant"
+        )
 
         vals = gray.round().astype(np.int16).ravel()
         if vals.size == 0:
@@ -45,4 +52,3 @@ class TestSmokeNonConstantImage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

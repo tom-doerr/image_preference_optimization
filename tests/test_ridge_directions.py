@@ -17,5 +17,5 @@ class TestRidgeDirections(unittest.TestCase):
         self.assertAlmostEqual(dot, 0.0, places=5)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

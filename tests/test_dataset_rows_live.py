@@ -5,7 +5,14 @@ import unittest
 
 class DatasetRowsLiveTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("app", "streamlit", "persistence", "latent_logic", "flux_local", "value_scorer"):
+        for m in (
+            "app",
+            "streamlit",
+            "persistence",
+            "latent_logic",
+            "flux_local",
+            "value_scorer",
+        ):
             sys.modules.pop(m, None)
 
     def test_dataset_rows_prefers_live_session(self):
@@ -23,9 +30,19 @@ class DatasetRowsLiveTest(unittest.TestCase):
         p = types.ModuleType("persistence")
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.dataset_rows_for_prompt = lambda prompt: 1
-        p.dataset_stats_for_prompt = lambda prompt: {"rows": 1, "pos": 1, "neg": 0, "d": 4, "recent_labels": []}
+        p.dataset_stats_for_prompt = lambda prompt: {
+            "rows": 1,
+            "pos": 1,
+            "neg": 0,
+            "d": 4,
+            "recent_labels": [],
+        }
         p.export_state_bytes = lambda state, prompt: b""
-        p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}
+        p.read_metadata = lambda path: {
+            "app_version": None,
+            "created_at": None,
+            "prompt": None,
+        }
         p.get_dataset_for_prompt_or_session = lambda prompt, ss: (None, None)
         sys.modules["persistence"] = p
 

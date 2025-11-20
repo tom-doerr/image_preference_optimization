@@ -1,6 +1,12 @@
 import unittest
 import numpy as np
-from learning import init_state, propose_pair, update, feature_to_image, estimate_preferred_feature
+from learning import (
+    init_state,
+    propose_pair,
+    update,
+    feature_to_image,
+    estimate_preferred_feature,
+)
 
 
 class TestLearning(unittest.TestCase):
@@ -14,7 +20,7 @@ class TestLearning(unittest.TestCase):
         s = init_state(seed=2)
         a = np.array([0.9, 0.1, 0.1])
         b = np.array([0.1, 0.9, 0.9])
-        update(s, a, b, 'a', lr=1.0)
+        update(s, a, b, "a", lr=1.0)
         np.testing.assert_allclose(s.w, a - b)
 
     def test_training_converges_with_random_pairs(self):
@@ -25,7 +31,7 @@ class TestLearning(unittest.TestCase):
         for _ in range(400):
             a = rng.random(3)
             b = rng.random(3)
-            choice = 'a' if np.dot(a, u_true) >= np.dot(b, u_true) else 'b'
+            choice = "a" if np.dot(a, u_true) >= np.dot(b, u_true) else "b"
             update(s, a, b, choice, lr=0.1)
         self.assertGreater(np.dot(s.w, u_true), base_dot + 0.2)
 
@@ -40,6 +46,5 @@ class TestLearning(unittest.TestCase):
         self.assertTrue(np.all(pref >= 0) and np.all(pref <= 1))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

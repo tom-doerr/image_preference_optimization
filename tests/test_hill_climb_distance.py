@@ -7,7 +7,7 @@ from latent_logic import hill_climb_mu_distance, z_from_prompt
 class TestHillClimbDistance(unittest.TestCase):
     def test_moves_toward_positive_away_from_negative(self):
         st = init_latent_state(width=512, height=512, seed=0)
-        prompt = 'hill_climb_test'
+        prompt = "hill_climb_test"
         z_p = z_from_prompt(st, prompt)
         d = st.d
         # Construct one positive near +e1 and one negative near -e1
@@ -29,5 +29,5 @@ class TestHillClimbDistance(unittest.TestCase):
         self.assertGreater(dneg1, dneg0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

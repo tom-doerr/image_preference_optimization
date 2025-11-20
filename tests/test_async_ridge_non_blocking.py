@@ -28,24 +28,26 @@ class TestAsyncRidgeNonBlocking(unittest.TestCase):
         ss.ridge_train_async = True
 
         # Patch latent_logic.ridge_fit to be slow
-        ll = types.ModuleType('latent_logic')
+        ll = types.ModuleType("latent_logic")
+
         def slow_ridge_fit(Xd, yd, lam):
             time.sleep(0.2)
             return np.ones(Xd.shape[1], dtype=np.float32)
+
         ll.ridge_fit = slow_ridge_fit
-        sys.modules['latent_logic'] = ll
+        sys.modules["latent_logic"] = ll
 
         import value_model as vm
+
         t0 = time.perf_counter()
-        vm.fit_value_model('Ridge', lstate, X, y, lam=1e-3, session_state=ss)
+        vm.fit_value_model("Ridge", lstate, X, y, lam=1e-3, session_state=ss)
         dt = time.perf_counter() - t0
 
         self.assertLess(dt, 0.15)
-        fut = ss.get('ridge_fit_future')
+        fut = ss.get("ridge_fit_future")
         self.assertIsNotNone(fut)
         fut.result(timeout=2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

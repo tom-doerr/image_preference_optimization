@@ -9,7 +9,7 @@ class Session(dict):
 
 
 def stub_streamlit_min():
-    st = types.ModuleType('streamlit')
+    st = types.ModuleType("streamlit")
     st.session_state = Session()
     st.set_page_config = lambda **_: None
     st.title = lambda *_, **__: None
@@ -20,21 +20,29 @@ def stub_streamlit_min():
     st.slider = lambda *_, value=None, **__: value
     st.button = lambda *_, **__: False
     st.image = lambda *_, **__: None
+
     class Sidebar:
-        selectbox = staticmethod(lambda *a, **k: 'stabilityai/sd-turbo')
+        selectbox = staticmethod(lambda *a, **k: "stabilityai/sd-turbo")
         header = staticmethod(lambda *a, **k: None)
         subheader = staticmethod(lambda *a, **k: None)
         download_button = staticmethod(lambda *a, **k: None)
         file_uploader = staticmethod(lambda *a, **k: None)
-        text_input = staticmethod(lambda *a, **k: '')
+        text_input = staticmethod(lambda *a, **k: "")
         checkbox = staticmethod(lambda *a, **k: False)
         button = staticmethod(lambda *a, **k: False)
+
         def write(*a, **k):
             return None
+
     st.sidebar = Sidebar()
+
     class Col:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
     st.columns = lambda n: (Col(), Col())
     st.write = lambda *_, **__: None
     st.experimental_rerun = lambda: None
@@ -43,16 +51,17 @@ def stub_streamlit_min():
 
 class TestSmokeAppImport(unittest.TestCase):
     def test_import_creates_state_quickly(self):
-        sys.modules['streamlit'] = stub_streamlit_min()
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.generate_flux_image = lambda *a, **kw: 'ok-image-text'
+        sys.modules["streamlit"] = stub_streamlit_min()
+        fl = types.ModuleType("flux_local")
+        fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
+        fl.generate_flux_image = lambda *a, **kw: "ok-image-text"
         fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
+        sys.modules["flux_local"] = fl
         import app
-        self.assertIn('lstate', app.st.session_state)
-        self.assertIn('lz_pair', app.st.session_state)
+
+        self.assertIn("lstate", app.st.session_state)
+        self.assertIn("lz_pair", app.st.session_state)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

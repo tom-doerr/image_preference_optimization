@@ -13,6 +13,10 @@ fi
 echo "Running unit tests (verbose)..."
 echo "Python: $(python -V)"
 
+# Isolate datasets to a temp folder for deterministic counts
+export IPO_DATA_ROOT="$(mktemp -d .tmp_testdata.XXXXXX)"
+echo "IPO_DATA_ROOT=${IPO_DATA_ROOT}"
+
 python - <<'PY'
 import unittest, time, sys
 
@@ -37,7 +41,18 @@ class TimingResult(unittest.TextTestResult):
         self.stream.write(f"SKIP  {test}  ({self._dur():.3f}s) — {reason}\n")
         super().addSkip(test, reason)
 
-runner = unittest.TextTestRunner(verbosity=2, resultclass=TimingResult)
+class PurgeAppRunner(unittest.TextTestRunner):
+    def _makeResult(self):
+        res = super()._makeResult()
+        _orig_start = res.startTest
+        import sys as _sys
+        def _start_test(test):
+            _sys.modules.pop('app', None)
+            _orig_start(test)
+        res.startTest = _start_test
+        return res
+
+runner = PurgeAppRunner(verbosity=2, resultclass=TimingResult)
 start = time.perf_counter()
 result = runner.run(suite)
 end = time.perf_counter()

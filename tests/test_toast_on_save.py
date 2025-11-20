@@ -15,18 +15,24 @@ class TestToastOnSave(unittest.TestCase):
 
         # Small latent for speed
         from latent_state import init_latent_state
+
         st.session_state.lstate = init_latent_state(width=32, height=32)
-        sys.modules['streamlit'] = st
+        sys.modules["streamlit"] = st
 
         # Ensure clean slate for dataset/data folders
         # Folder-only; remove per-prompt data folder if present
-        h = __import__("hashlib").sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
+        h = (
+            __import__("hashlib")
+            .sha1(st.session_state.prompt.encode("utf-8"))
+            .hexdigest()[:10]
+        )
         data_dir = os.path.join("data", h)
         if os.path.isdir(data_dir):
             shutil.rmtree(data_dir)
 
         # Now import batch_ui and add one sample
         import batch_ui
+
         z = st.session_state.lstate.mu.copy()
         batch_ui._curation_add(1, z, img=None)
 

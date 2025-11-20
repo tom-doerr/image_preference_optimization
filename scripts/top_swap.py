@@ -7,6 +7,7 @@ Usage:
 
 No dependencies; reads /proc/*/status and /proc/*/cmdline.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -75,10 +76,11 @@ def main() -> int:
     print(f"Top by {args.sort.upper()} (limit {args.limit})")
     print(f"{'PID':>6} {'SWAP(MB)':>9} {'RSS(MB)':>8} NAME CMD")
     for p in rows[: args.limit]:
-        print(f"{p.pid:6d} {p.swap_kb/1024:9.1f} {p.rss_kb/1024:8.1f} {p.name} {p.cmd[:80]}")
+        print(
+            f"{p.pid:6d} {p.swap_kb / 1024:9.1f} {p.rss_kb / 1024:8.1f} {p.name} {p.cmd[:80]}"
+        )
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

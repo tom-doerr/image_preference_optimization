@@ -6,7 +6,15 @@ import numpy as np
 
 class TrainToastOnStartTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "persistence", "latent_logic", "value_model", "value_scorer", "flux_local"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "persistence",
+            "latent_logic",
+            "value_model",
+            "value_scorer",
+            "flux_local",
+        ):
             sys.modules.pop(m, None)
 
     def test_toast_called_when_training_starts(self):
@@ -21,13 +29,23 @@ class TrainToastOnStartTest(unittest.TestCase):
         st.session_state.batch_size = 1
         st.session_state.cur_batch = [np.zeros(4)]
         st.session_state.cur_labels = [None]
-        st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0), w=np.zeros(4))
+        st.session_state.lstate = types.SimpleNamespace(
+            width=64,
+            height=64,
+            d=4,
+            sigma=1.0,
+            rng=np.random.default_rng(0),
+            w=np.zeros(4),
+        )
         st.session_state.vm_choice = "XGBoost"
         st.session_state.xgb_train_async = False
         st.session_state.reg_lambda = 1e-3
 
         p = types.ModuleType("persistence")
-        p.get_dataset_for_prompt_or_session = lambda *a, **k: (np.ones((3, 4)), np.array([1.0, -1.0, 1.0]))
+        p.get_dataset_for_prompt_or_session = lambda *a, **k: (
+            np.ones((3, 4)),
+            np.array([1.0, -1.0, 1.0]),
+        )
         sys.modules["persistence"] = p
 
         ll = types.ModuleType("latent_logic")

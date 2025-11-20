@@ -10,7 +10,9 @@ class TestPromptAnchorLineSearch(unittest.TestCase):
         w = np.zeros(st.d)
         w[0] = 1.0
         st.w = w
-        z1, z2 = propose_pair_prompt_anchor_linesearch(st, "p", trust_r=0.8, gamma=0.0, mags=[0.2, 0.5, 1.5])
+        z1, z2 = propose_pair_prompt_anchor_linesearch(
+            st, "p", trust_r=0.8, gamma=0.0, mags=[0.2, 0.5, 1.5]
+        )
         # Expect |Δ| ≈ trust_r (largest allowable)
         # Check via half-distance from midpoint
         mid = 0.5 * (z1 + z2)
@@ -18,5 +20,5 @@ class TestPromptAnchorLineSearch(unittest.TestCase):
         self.assertAlmostEqual(d, 0.8, places=6)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -13,11 +13,11 @@ class TestPersistence(unittest.TestCase):
         st.sigma = 0.42
         st.step = 7
         # Add some history (X,y)
-        st.X = (np.arange(16, dtype=float).reshape(2, 8))
+        st.X = np.arange(16, dtype=float).reshape(2, 8)
         st.y = np.array([1.0, -1.0])
 
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, 'state.npz')
+            path = os.path.join(d, "state.npz")
             save_state(st, path)
             st2 = load_state(path)
             self.assertEqual(st2.width, st.width)
@@ -31,5 +31,5 @@ class TestPersistence(unittest.TestCase):
             np.testing.assert_allclose(st2.y, st.y)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

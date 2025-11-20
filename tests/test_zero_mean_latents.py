@@ -13,5 +13,5 @@ class TestZeroMeanLatents(unittest.TestCase):
         self.assertLess(float(np.abs(ch_means).max()), 1e-5)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

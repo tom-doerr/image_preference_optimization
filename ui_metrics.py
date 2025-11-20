@@ -16,18 +16,25 @@ def compute_step_scores(
     """Compute per-step scores along d1. Returns None when unfitted/unavailable."""
     try:
         from latent_logic import z_from_prompt  # type: ignore
+
         # Gather weights (snapshot on read) and scorer status
-        _w_raw = getattr(lstate, 'w', None)
-        w = None if _w_raw is None else np.asarray(_w_raw[: getattr(lstate, 'd', 0)], dtype=float).copy()
+        _w_raw = getattr(lstate, "w", None)
+        w = (
+            None
+            if _w_raw is None
+            else np.asarray(_w_raw[: getattr(lstate, "d", 0)], dtype=float).copy()
+        )
         n = float(np.linalg.norm(w)) if w is not None else 0.0
         scorer = None
         status = "ok"
         try:
             from value_scorer import get_value_scorer_with_status as _gvs
+
             scorer, status = _gvs(vm_choice, lstate, prompt, session_state)
         except Exception:
             try:
                 from value_scorer import get_value_scorer as _gvs2
+
                 scorer = _gvs2(vm_choice, lstate, prompt, session_state)
                 status = "ok"
             except Exception:
@@ -35,7 +42,9 @@ def compute_step_scores(
                 status = "unavailable"
 
         # If no usable weights/scorer, prefer showing n/a rather than zeros
-        if (vm_choice == "Ridge" and (w is None or n == 0.0)) or (vm_choice != "Ridge" and status != "ok"):
+        if w is None or n == 0.0:
+            return None
+        if vm_choice != "Ridge" and status != "ok":
             return None
 
         # Compute step scores along d1 ∥ w
@@ -73,11 +82,14 @@ def render_iter_step_scores(
     iter_eta: float | None,
     trust_r: float | None,
 ) -> None:
-    scores = compute_step_scores(lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state)
+    scores = compute_step_scores(
+        lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state
+    )
     if scores is None:
         try:
             st.sidebar.write("Step scores: n/a")
             from ui import sidebar_metric_rows
+
             sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
         except Exception:
             pass
@@ -88,6 +100,7 @@ def render_iter_step_scores(
         pass
     try:
         from ui import sidebar_metric_rows
+
         pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
         sidebar_metric_rows(pairs, per_row=2)
     except Exception:
@@ -101,6 +114,7 @@ def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
         if mu_hist is None or getattr(mu_hist, "size", 0) == 0:
             return
         from latent_logic import z_from_prompt
+
         z_p = z_from_prompt(lstate, prompt).reshape(1, -1)
         mu_flat = mu_hist.reshape(mu_hist.shape[0], -1)
         vals = np.linalg.norm(mu_flat - z_p, axis=1)

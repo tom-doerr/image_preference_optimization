@@ -6,6 +6,7 @@ import numpy as np
 class TestDataFolderSamples(unittest.TestCase):
     def test_append_creates_per_sample_folder(self):
         from persistence import append_dataset_row, get_dataset_for_prompt_or_session
+
         prompt = "data folder samples test"
         # Ensure clean dataset file and data folder
         # No NPZ path under folder-only scheme; ensure folder root is clean
@@ -13,6 +14,7 @@ class TestDataFolderSamples(unittest.TestCase):
         root = os.path.join("data", h)
         if os.path.isdir(root):
             import shutil
+
             shutil.rmtree(root)
 
         d = 4
@@ -38,7 +40,9 @@ class TestDataFolderSamples(unittest.TestCase):
         self.assertAlmostEqual(float(y2[0]), -1.0)
 
         # Loader should reconstruct X, y from data/<hash>/
-        X_loaded, y_loaded = get_dataset_for_prompt_or_session(prompt, type("SS", (), {})())
+        X_loaded, y_loaded = get_dataset_for_prompt_or_session(
+            prompt, type("SS", (), {})()
+        )
         self.assertIsNotNone(X_loaded)
         self.assertEqual(int(X_loaded.shape[0]), 2)
 

@@ -1,5 +1,7 @@
 import io
 import hashlib
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 import os
@@ -13,15 +15,59 @@ def state_path_for_prompt(prompt: str) -> str:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
     return f"latent_state_{h}.npz"
 
+
+def _base_data_dir() -> str:
+    """Return base data directory.
+
+    Precedence:
+    - IPO_DATA_ROOT env if set
+    - Per-test isolated folder when PYTEST_CURRENT_TEST is present
+    - Default 'data/'
+    """
+    root = os.getenv("IPO_DATA_ROOT")
+    if root:
+        return root
+    tname = os.getenv("PYTEST_CURRENT_TEST")
+    if tname:
+        hh = hashlib.sha1(tname.encode("utf-8")).hexdigest()[:10]
+        return os.path.join(".tmp_cli_models", f"tdata_{hh}")
+    return "data"
+
+
 def data_root_for_prompt(prompt: str) -> str:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    return os.path.join("data", h)
+    return os.path.join(_base_data_dir(), h)
+
+
+def _lockfile_path_for_prompt(prompt: str) -> str:
+    return os.path.join(data_root_for_prompt(prompt), ".append.lock")
+
+
+@contextmanager
+def _file_lock_for_prompt(prompt: str):
+    """On-disk lock for multi-process safety during dataset appends.
+
+    Uses fcntl.flock on a per-prompt lock file. Minimal and POSIX-only by design.
+    """
+    import fcntl  # type: ignore
+
+    root = data_root_for_prompt(prompt)
+    os.makedirs(root, exist_ok=True)
+    lf = _lockfile_path_for_prompt(prompt)
+    f = open(lf, "a+")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(f, fcntl.LOCK_UN)
+        finally:
+            f.close()
 
 
 def dataset_rows_for_prompt(prompt: str) -> int:
     """Count rows from per-sample folders only (data/<hash>/*/sample.npz)."""
-    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    root = os.path.join("data", h)
+    root = data_root_for_prompt(prompt)
     if not os.path.isdir(root):
         return 0
     n = 0
@@ -31,10 +77,10 @@ def dataset_rows_for_prompt(prompt: str) -> int:
             n += 1
     return n
 
+
 def dataset_rows_for_prompt_dim(prompt: str, d: int) -> int:
     """Count rows in folders where X.shape[1] == d."""
-    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    root = os.path.join("data", h)
+    root = data_root_for_prompt(prompt)
     if not os.path.isdir(root):
         return 0
     n = 0
@@ -43,17 +89,20 @@ def dataset_rows_for_prompt_dim(prompt: str, d: int) -> int:
         if not os.path.exists(sample_path):
             continue
         with np.load(sample_path) as z:
-            X = z['X'] if 'X' in z.files else None
-            if X is not None and getattr(X, 'ndim', 1) == 2 and X.shape[1] == int(d):
+            X = z["X"] if "X" in z.files else None
+            if X is not None and getattr(X, "ndim", 1) == 2 and X.shape[1] == int(d):
                 n += 1
     return n
+
 
 def dataset_rows_all_for_prompt(prompt: str) -> int:
     """Rows across all dims from folders (same as dataset_rows_for_prompt)."""
     return dataset_rows_for_prompt(prompt)
 
 
-def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[object | None, object | None]:
+def get_dataset_for_prompt_or_session(
+    prompt: str, session_state
+) -> tuple[object | None, object | None]:
     """Return (X, y) from per-sample folders only (no NPZ fallback).
 
     - Reads rows from data/<hash>/*/sample.npz and concatenates them.
@@ -62,8 +111,7 @@ def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[objec
     - If the folder is missing or empty, returns (None, None).
     """
     X = y = None
-    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    root = os.path.join("data", h)
+    root = data_root_for_prompt(prompt)
     try:
         if os.path.isdir(root):
             xs = []
@@ -84,21 +132,24 @@ def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[objec
                 y = np.concatenate(ys)
                 # Dim guard: ignore datasets that don't match current latent dim
                 try:
-                    lstate = getattr(session_state, 'lstate', None)
-                    if lstate is not None and getattr(X, 'ndim', 2) == 2:
+                    lstate = getattr(session_state, "lstate", None)
+                    if lstate is not None and getattr(X, "ndim", 2) == 2:
                         d_x = int(X.shape[1])
-                        d_lat = int(getattr(lstate, 'd', d_x))
+                        d_lat = int(getattr(lstate, "d", d_x))
                         if d_x != d_lat:
                             try:
                                 from constants import Keys as _K
+
                                 session_state[_K.DATASET_DIM_MISMATCH] = (d_x, d_lat)
                             except Exception:
-                                session_state['dataset_dim_mismatch'] = (d_x, d_lat)
+                                session_state["dataset_dim_mismatch"] = (d_x, d_lat)
                             return None, None
                 except Exception:
                     pass
                 try:
-                    print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from data/{h}")
+                    print(
+                        f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}"
+                    )
                 except Exception:
                     pass
                 return X, y
@@ -117,47 +168,58 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     Returns the new number of rows.
     """
     import os
-    # Write only to per-sample folder dataset
-    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    root = os.path.join("data", h)
+
+    # Write only to per-sample folder dataset, protected by in-proc + file locks
+    root = data_root_for_prompt(prompt)
     os.makedirs(root, exist_ok=True)
-    # Determine next row index from existing sample folders, then atomically
-    # create a new directory to avoid races when many saves happen quickly.
+    with _lock_for_prompt(prompt):
+        with _file_lock_for_prompt(prompt):
+            # Determine next row index from existing sample folders, then atomically
+            # create a new directory; still guard with the prompt lock to avoid
+            # many concurrent os.listdir/os.mkdir races.
+            try:
+                import re as _re
+                idxs = []
+                for name in os.listdir(root):
+                    m = _re.fullmatch(r"(\d+)", name)
+                    if m:
+                        idxs.append(int(m.group(1)))
+                next_idx = (max(idxs) + 1) if idxs else 1
+            except Exception:
+                next_idx = 1
+            # Attempt to create a unique directory by incrementing until it succeeds.
+            attempts = 0
+            while True:
+                attempts += 1
+                sample_dir = os.path.join(root, f"{next_idx:06d}")
+                try:
+                    os.mkdir(sample_dir)
+                    break
+                except FileExistsError:
+                    next_idx += 1
+                    if attempts > 1000:
+                        next_idx += 1000
+                except Exception:
+                    next_idx += 1
+            sample_path = os.path.join(sample_dir, "sample.npz")
+            np.savez_compressed(sample_path, X=feat, y=np.array([label], dtype=float))
+            ret_idx = next_idx
     try:
-        import re as _re
-        idxs = []
-        for name in os.listdir(root):
-            m = _re.fullmatch(r"(\d+)", name)
-            if m:
-                idxs.append(int(m.group(1)))
-        next_idx = (max(idxs) + 1) if idxs else 1
+        import numpy as _np
+
+        fn = float(_np.linalg.norm(_np.asarray(feat, dtype=float)))
+        print(
+            f"[data] wrote {sample_path} (row #{next_idx}) feat_norm={fn:.3f} label={int(label):+d}"
+        )
     except Exception:
-        next_idx = 1
-    # Attempt to create a unique directory by incrementing until it succeeds.
-    # Keeps names numeric for simplicity and test compatibility.
-    attempts = 0
-    while True:
-        attempts += 1
-        sample_dir = os.path.join(root, f"{next_idx:06d}")
-        try:
-            os.mkdir(sample_dir)
-            break
-        except FileExistsError:
-            next_idx += 1
-            if attempts > 1000:
-                # Failsafe: give up with a new high index if something is odd
-                next_idx += 1000
-        except Exception:
-            # Best effort: try the next index
-            next_idx += 1
-    sample_path = os.path.join(sample_dir, "sample.npz")
-    np.savez_compressed(sample_path, X=feat, y=np.array([label], dtype=float))
+        pass
     # Maintain a minimal backup of the sample file (legacy backup test)
     try:
-        base = f"sample_{h}_{next_idx:06d}.npz"
-        tmp_copy = os.path.join('.', base)
+        base = f"sample_{os.path.basename(root)}_{ret_idx:06d}.npz"
+        tmp_copy = os.path.join(".", base)
         # create a copy named deterministically for backup routine
         import shutil as _sh
+
         _sh.copy2(sample_path, tmp_copy)
         _write_backups(tmp_copy)
         try:
@@ -168,7 +230,7 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
         pass
 
     # Also save per-sample NPZ under data/<hash>/<row_idx>/sample.npz
-    return next_idx
+    return ret_idx
 
 
 def save_sample_image(prompt: str, row_idx: int, img: Any) -> None:
@@ -177,18 +239,24 @@ def save_sample_image(prompt: str, row_idx: int, img: Any) -> None:
     Keeps the image in `data/<hash>/<row_idx>/image.png`. Errors are not raised.
     """
     try:
-        h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-        root = os.path.join("data", h)
+        root = data_root_for_prompt(prompt)
         sample_dir = os.path.join(root, f"{row_idx:06d}")
         os.makedirs(sample_dir, exist_ok=True)
         path = os.path.join(sample_dir, "image.png")
         import numpy as _np
         from PIL import Image  # pillow is already a dependency via diffusers/Streamlit
-        if hasattr(img, "save"):
-            img.save(path)
-        else:
-            arr = _np.asarray(img)
-            Image.fromarray(arr).save(path)
+
+        with _lock_for_prompt(prompt):
+            with _file_lock_for_prompt(prompt):
+                if hasattr(img, "save"):
+                    img.save(path)
+                else:
+                    arr = _np.asarray(img)
+                    Image.fromarray(arr).save(path)
+        try:
+            print(f"[data] wrote image {path}")
+        except Exception:
+            pass
     except Exception:
         # Image saving is best-effort; do not affect core flow.
         pass
@@ -225,8 +293,7 @@ def dataset_stats_for_prompt(prompt: str) -> dict:
     """Folder-based stats: rows/pos/neg/d/recent_labels from data/<hash>/*/sample.npz."""
     rows = pos = neg = d = 0
     recent: list[int] = []
-    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    root = os.path.join("data", h)
+    root = data_root_for_prompt(prompt)
     if not os.path.isdir(root):
         return {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": recent}
     labels: list[int] = []
@@ -235,11 +302,11 @@ def dataset_stats_for_prompt(prompt: str) -> dict:
         if not os.path.exists(sample_path):
             continue
         with np.load(sample_path) as z:
-            Xi = z['X'] if 'X' in z.files else None
-            yi = z['y'] if 'y' in z.files else None
+            Xi = z["X"] if "X" in z.files else None
+            yi = z["y"] if "y" in z.files else None
         if Xi is None or yi is None:
             continue
-        if d == 0 and getattr(Xi, 'ndim', 1) == 2:
+        if d == 0 and getattr(Xi, "ndim", 1) == 2:
             d = int(Xi.shape[1])
         rows += 1
         val = int(np.asarray(yi).astype(int).ravel()[0])
@@ -272,13 +339,31 @@ def read_metadata(path: str) -> dict:
     """
     out = {"app_version": None, "created_at": None, "prompt": None}
     with np.load(path) as data:
-        if 'app_version' in data.files:
-            out['app_version'] = data['app_version'].item()
-        if 'created_at' in data.files:
-            out['created_at'] = data['created_at'].item()
-        if 'prompt' in data.files:
+        if "app_version" in data.files:
+            out["app_version"] = data["app_version"].item()
+        if "created_at" in data.files:
+            out["created_at"] = data["created_at"].item()
+        if "prompt" in data.files:
             try:
-                out['prompt'] = data['prompt'].item()
+                out["prompt"] = data["prompt"].item()
             except Exception:
                 pass
     return out
+_LOCKS_GUARD = threading.Lock()
+_APPEND_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _lock_for_prompt(prompt: str) -> threading.Lock:
+    """Return a stable mutex for this prompt's dataset folder.
+
+    Keeps concurrency simple when many samples are saved quickly.
+    """
+    key = data_root_for_prompt(prompt)
+    lock = _APPEND_LOCKS.get(key)
+    if lock is None:
+        with _LOCKS_GUARD:
+            lock = _APPEND_LOCKS.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                _APPEND_LOCKS[key] = lock
+    return lock

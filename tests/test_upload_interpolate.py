@@ -48,14 +48,27 @@ class UploadInterpolateTest(unittest.TestCase):
         st.session_state.dataset_y = []
         st.session_state.dataset_X = []
         st.session_state.lstate = types.SimpleNamespace(
-            width=64, height=64, d=4 * (64 // 8) * (64 // 8), sigma=1.0, rng=np.random.default_rng(0), w=np.zeros(4), step=0
+            width=64,
+            height=64,
+            d=4 * (64 // 8) * (64 // 8),
+            sigma=1.0,
+            rng=np.random.default_rng(0),
+            w=np.zeros(4),
+            step=0,
         )
-        st.session_state.lz_pair = (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        st.session_state.lz_pair = (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
 
         # Streamlit sidebar controls
-        st.sidebar.selectbox = lambda label, opts, index=0: ("Upload latents" if "Generation" in label else opts[index])
+        st.sidebar.selectbox = lambda label, opts, index=0: (
+            "Upload latents" if "Generation" in label else opts[index]
+        )
         st.sidebar.file_uploader = lambda *a, **k: [DummyImg()]
-        st.sidebar.slider = lambda *a, **k: 0.5 if "Interpolate" in a[0] else k.get("value", 1.0)
+        st.sidebar.slider = (
+            lambda *a, **k: 0.5 if "Interpolate" in a[0] else k.get("value", 1.0)
+        )
         st.sidebar.checkbox = lambda *a, **k: False
 
         # Buttons: only Good returns True
@@ -69,9 +82,19 @@ class UploadInterpolateTest(unittest.TestCase):
         p = types.ModuleType("persistence")
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.dataset_rows_for_prompt = lambda prompt: 0
-        p.dataset_stats_for_prompt = lambda prompt: {"rows": 0, "pos": 0, "neg": 0, "d": st.session_state.lstate.d, "recent_labels": []}
+        p.dataset_stats_for_prompt = lambda prompt: {
+            "rows": 0,
+            "pos": 0,
+            "neg": 0,
+            "d": st.session_state.lstate.d,
+            "recent_labels": [],
+        }
         p.export_state_bytes = lambda state, prompt: b""
-        p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}
+        p.read_metadata = lambda path: {
+            "app_version": None,
+            "created_at": None,
+            "prompt": None,
+        }
         p.get_dataset_for_prompt_or_session = lambda prompt, ss: (None, None)
         p.append_dataset_row = lambda *a, **k: 0
         p.save_sample_image = lambda *a, **k: None
@@ -79,12 +102,26 @@ class UploadInterpolateTest(unittest.TestCase):
 
         ll = types.ModuleType("latent_logic")
         ll.z_from_prompt = lambda lstate, prompt: np.zeros(lstate.d)
-        ll.z_to_latents = lambda z, lstate: z.reshape(1, 4, lstate.height // 8, lstate.width // 8)
+        ll.z_to_latents = lambda z, lstate: z.reshape(
+            1, 4, lstate.height // 8, lstate.width // 8
+        )
         ll.sample_z_xgb_hill = lambda *a, **k: np.zeros(st.session_state.lstate.d)
-        ll.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor_iterative = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        ll.propose_latent_pair_ridge = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor_iterative = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
         ll.update_latent_ridge = lambda *a, **k: None
         sys.modules["latent_logic"] = ll
 
@@ -102,9 +139,14 @@ class UploadInterpolateTest(unittest.TestCase):
         # Capture added z
         added = []
         bu = types.ModuleType("batch_ui")
-        bu._lstate_and_prompt = lambda: (st.session_state.lstate, st.session_state.prompt)
+        bu._lstate_and_prompt = lambda: (
+            st.session_state.lstate,
+            st.session_state.prompt,
+        )
+
         def _add(lbl, z, img=None):
             added.append(z.copy())
+
         bu._curation_add = _add
         bu._curation_train_and_next = lambda: None
         bu._curation_init_batch = lambda: None
@@ -129,12 +171,30 @@ class UploadInterpolateTest(unittest.TestCase):
         lo.load_state = lambda *a, **k: st.session_state.lstate
         lo.loads_state = lambda *a, **k: st.session_state.lstate
         lo.save_state = lambda *a, **k: None
-        lo.state_summary = lambda *a, **k: {"d": st.session_state.lstate.d, "width": 64, "height": 64, "step": 0, "sigma": 1.0, "mu_norm": 0.0, "w_norm": 0.0, "pairs_logged": 0, "choices_logged": 0}
+        lo.state_summary = lambda *a, **k: {
+            "d": st.session_state.lstate.d,
+            "width": 64,
+            "height": 64,
+            "step": 0,
+            "sigma": 1.0,
+            "mu_norm": 0.0,
+            "w_norm": 0.0,
+            "pairs_logged": 0,
+            "choices_logged": 0,
+        }
         lo.z_from_prompt = lambda lstate, prompt: np.zeros(lstate.d)
-        lo.propose_next_pair = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        lo.z_to_latents = lambda z, lstate: z.reshape(1, 4, lstate.height // 8, lstate.width // 8)
+        lo.propose_next_pair = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        lo.z_to_latents = lambda z, lstate: z.reshape(
+            1, 4, lstate.height // 8, lstate.width // 8
+        )
         lo.update_latent_ridge = lambda *a, **k: None
-        lo.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_latent_pair_ridge = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
         sys.modules["latent_opt"] = lo
 
         # modes stub

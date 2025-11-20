@@ -18,14 +18,17 @@ def test_set_model_uses_lcm_for_turbo(monkeypatch):
 
     # Capture LCMScheduler.from_config calls by faking diffusers module
     calls = {}
+
     class _LCM:
         @classmethod
         def from_config(cls, cfg):
             calls["cfg"] = cfg
             return "LCM_SCHEDULER"
+
     import sys
+
     fake_diffusers = types.SimpleNamespace(LCMScheduler=_LCM)
-    monkeypatch.setitem(sys.modules, 'diffusers', fake_diffusers)
+    monkeypatch.setitem(sys.modules, "diffusers", fake_diffusers)
 
     # Act
     flux_local.set_model("stabilityai/sd-turbo")

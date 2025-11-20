@@ -10,7 +10,7 @@ class TestLoadOldNPZ(unittest.TestCase):
         st = init_latent_state(width=320, height=256, seed=0)
         # Create an "old" npz missing z_pairs/choices/mu_hist/X/y
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, 'old_state.npz')
+            path = os.path.join(d, "old_state.npz")
             np.savez_compressed(
                 path,
                 width=st.width,
@@ -33,11 +33,11 @@ class TestLoadOldNPZ(unittest.TestCase):
             za = np.zeros(st2.d)
             za[0] = 1.0
             zb = -za.copy()
-            update_latent_ridge(st2, za, zb, 'a')
+            update_latent_ridge(st2, za, zb, "a")
             self.assertEqual(st2.z_pairs.shape, (1, 2, st2.d))
             self.assertEqual(st2.choices.shape, (1,))
             self.assertEqual(st2.mu_hist.shape[1], st2.d)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

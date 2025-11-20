@@ -31,12 +31,15 @@ class TestXgbCli(unittest.TestCase):
         prompt = "cli prompt test"
         # Seed folder dataset via append
         from persistence import append_dataset_row
+
         append_dataset_row(prompt, np.array([[1.0, 0.0]]), +1.0)
         append_dataset_row(prompt, np.array([[0.0, 1.0]]), -1.0)
 
         # Stub xgb_value.fit_xgb_classifier
         stub_mod = types.SimpleNamespace()
-        stub_mod.fit_xgb_classifier = lambda X, y, n_estimators=50, max_depth=3: DummyXGB(y)
+        stub_mod.fit_xgb_classifier = (
+            lambda X, y, n_estimators=50, max_depth=3: DummyXGB(y)
+        )
         sys.modules["xgb_value"] = stub_mod
 
         from xgb_cli import train_xgb_for_prompt, _prompt_hash

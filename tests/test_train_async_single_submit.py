@@ -6,7 +6,13 @@ import numpy as np
 
 class TrainAsyncSingleSubmitTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "persistence", "value_model", "latent_logic"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "persistence",
+            "value_model",
+            "latent_logic",
+        ):
             sys.modules.pop(m, None)
 
     def test_async_training_submits_once(self):
@@ -14,7 +20,9 @@ class TrainAsyncSingleSubmitTest(unittest.TestCase):
 
         st, _ = st_streamlit.stub_with_writes()
         st.session_state.prompt = "async-once"
-        st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0))
+        st.session_state.lstate = types.SimpleNamespace(
+            width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0)
+        )
         st.session_state.reg_lambda = 0.001
         st.session_state.batch_size = 2
         st.session_state.xgb_train_async = True

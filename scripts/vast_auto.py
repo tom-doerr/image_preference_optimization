@@ -21,7 +21,7 @@ def _hdrs() -> dict:
 def _get(path: str, params: dict | None = None) -> dict:
     url = f"{API}{path}"
     if params:
-        url += ("?" + urllib.parse.urlencode(params))
+        url += "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers=_hdrs())
     with urllib.request.urlopen(req, timeout=60) as r:  # nosec - trusted API base
         return json.loads(r.read().decode("utf-8"))
@@ -30,7 +30,9 @@ def _get(path: str, params: dict | None = None) -> dict:
 def _post(path: str, payload: dict) -> dict:
     url = f"{API}{path}"
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={**_hdrs(), "Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url, data=data, headers={**_hdrs(), "Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=60) as r:  # nosec
         return json.loads(r.read().decode("utf-8"))
 
@@ -38,7 +40,12 @@ def _post(path: str, payload: dict) -> dict:
 def _put(path: str, payload: dict) -> dict:
     url = f"{API}{path}"
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, method="PUT", headers={**_hdrs(), "Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="PUT",
+        headers={**_hdrs(), "Content-Type": "application/json"},
+    )
     with urllib.request.urlopen(req, timeout=60) as r:  # nosec
         return json.loads(r.read().decode("utf-8"))
 
@@ -58,11 +65,17 @@ def find_offer(min_vram_gb: int = 10, max_dph: float | None = None) -> dict | No
     if not results:
         return None
     if max_dph is not None:
-        results = [o for o in results if float(o.get("dph_total", o.get("dph", 0.0))) <= float(max_dph)]
+        results = [
+            o
+            for o in results
+            if float(o.get("dph_total", o.get("dph", 0.0))) <= float(max_dph)
+        ]
     return results[0] if results else None
 
 
-def onstart_cmd(repo_url: str, model: str, server_port: int = 8000, app_port: int = 8501) -> str:
+def onstart_cmd(
+    repo_url: str, model: str, server_port: int = 8000, app_port: int = 8501
+) -> str:
     # Keep it short; install deps, start image server in background, then Streamlit app
     return (
         "bash -lc '"
@@ -78,7 +91,14 @@ def onstart_cmd(repo_url: str, model: str, server_port: int = 8000, app_port: in
     )
 
 
-def rent(ask_id: int, model: str, repo_url: str, disk_gb: int = 40, server_port: int = 8000, app_port: int = 8501) -> dict:
+def rent(
+    ask_id: int,
+    model: str,
+    repo_url: str,
+    disk_gb: int = 40,
+    server_port: int = 8000,
+    app_port: int = 8501,
+) -> dict:
     payload = {
         "image": "pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime",
         "env": {
@@ -122,20 +142,32 @@ def main(argv: list[str]) -> int:
             print("rent requires <ask_id>")
             return 2
         ask_id = int(argv[2])
-        repo = argv[argv.index("--repo") + 1] if "--repo" in argv else os.getenv("IPO_REPO_URL", "https://github.com/")
-        model = argv[argv.index("--model") + 1] if "--model" in argv else os.getenv("FLUX_LOCAL_MODEL", "stabilityai/sd-turbo")
+        repo = (
+            argv[argv.index("--repo") + 1]
+            if "--repo" in argv
+            else os.getenv("IPO_REPO_URL", "https://github.com/")
+        )
+        model = (
+            argv[argv.index("--model") + 1]
+            if "--model" in argv
+            else os.getenv("FLUX_LOCAL_MODEL", "stabilityai/sd-turbo")
+        )
         disk = int(argv[argv.index("--disk") + 1]) if "--disk" in argv else 40
         sp = int(argv[argv.index("--srv_port") + 1]) if "--srv_port" in argv else 8000
         ap = int(argv[argv.index("--app_port") + 1]) if "--app_port" in argv else 8501
         out = rent(ask_id, model, repo, disk, sp, ap)
         print(json.dumps(out, indent=2))
-        print("Instance requested. Use 'status' to list instances; expose ports via Vast panel.")
+        print(
+            "Instance requested. Use 'status' to list instances; expose ports via Vast panel."
+        )
         return 0
     if cmd == "status":
         out = instances()
         print(json.dumps(out, indent=2))
         # Tiny hint
-        print("Tip: map public ports to 8501 (app) and 8000 (image server) in Vast's ports UI.")
+        print(
+            "Tip: map public ports to 8501 (app) and 8000 (image server) in Vast's ports UI."
+        )
         return 0
     print(f"unknown command: {cmd}")
     return 2
@@ -143,4 +175,3 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - tiny CLI
     raise SystemExit(main(sys.argv))
-

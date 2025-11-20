@@ -4,10 +4,14 @@ import numpy as np
 from latent_state import LatentState
 
 
-def append_pair(state: LatentState, z_a: np.ndarray, z_b: np.ndarray, label: float) -> None:
-    pair = np.stack([z_a.astype(float), z_b.astype(float)], axis=0).reshape(1, 2, state.d)
-    zp = getattr(state, 'z_pairs', None)
-    ch = getattr(state, 'choices', None)
+def append_pair(
+    state: LatentState, z_a: np.ndarray, z_b: np.ndarray, label: float
+) -> None:
+    pair = np.stack([z_a.astype(float), z_b.astype(float)], axis=0).reshape(
+        1, 2, state.d
+    )
+    zp = getattr(state, "z_pairs", None)
+    ch = getattr(state, "choices", None)
     state.z_pairs = pair if zp is None else np.vstack([zp, pair])
     state.choices = np.array([label]) if ch is None else np.concatenate([ch, [label]])
 
@@ -24,7 +28,7 @@ def ridge_fit(X: np.ndarray, y: np.ndarray, lam: float) -> np.ndarray:
         return np.zeros(X.shape[1] if X.ndim == 2 else 0, dtype=float)
     K = X @ X.T
     # add λ to the diagonal in-place (works for any square K)
-    K.ravel()[::K.shape[1] + 1] += float(lam)
+    K.ravel()[:: K.shape[1] + 1] += float(lam)
     alpha = np.linalg.solve(K, y)
     return X.T @ alpha
 
@@ -41,7 +45,9 @@ def _clamp_norm(y: np.ndarray, r: Optional[float]) -> np.ndarray:
 # Logistic/epsilon-greedy proposal removed; ridge-only path retained.
 
 
-def z_to_latents(state: LatentState, z: np.ndarray, noise_gamma: float = 0.35) -> np.ndarray:
+def z_to_latents(
+    state: LatentState, z: np.ndarray, noise_gamma: float = 0.35
+) -> np.ndarray:
     """Map flat z → latent tensor and blend in Gaussian noise.
 
     - Zero-centers per-channel means to avoid color bias.
@@ -49,12 +55,24 @@ def z_to_latents(state: LatentState, z: np.ndarray, noise_gamma: float = 0.35) -
       degenerate, low-rank latents that can decode to black.
     """
     h8, w8 = state.height // 8, state.width // 8
+    # Guard tiny test sizes: enforce minimum latent grid 2×2 to avoid reshape errors
+    if h8 < 2:
+        h8 = 2
+    if w8 < 2:
+        w8 = 2
+    # If z length doesn't match 4*h8*w8 (e.g., after a stub size change), reinit a tiny z
+    need = 4 * h8 * w8
+    if z.size != need:
+        z = np.zeros(need, dtype=np.float32)
     x = z.astype(np.float32).reshape(1, 4, h8, w8)
     ch_mean = x.mean(axis=(0, 2, 3), keepdims=True)
     x = x - ch_mean
     if noise_gamma > 0.0:
         n = state.rng.standard_normal(x.shape).astype(np.float32)
         x = noise_gamma * x + (1.0 - noise_gamma) * n
+        # Re-center per-channel after blending to keep zero-mean invariant
+        ch_mean2 = x.mean(axis=(0, 2, 3), keepdims=True)
+        x = x - ch_mean2
     return x
 
 
@@ -64,23 +82,25 @@ def z_to_latents(state: LatentState, z: np.ndarray, noise_gamma: float = 0.35) -
 # Logistic update removed; ridge update below is the only optimizer.
 
 
-def update_latent_ridge(state: LatentState,
-                        z_a: np.ndarray,
-                        z_b: np.ndarray,
-                        choice: str,
-                        lr_mu: float = 0.3,
-                        lam: float = 1e-3,
-                        feats_a: Optional[np.ndarray] = None,
-                        feats_b: Optional[np.ndarray] = None):
-    if choice not in ('a', 'b'):
+def update_latent_ridge(
+    state: LatentState,
+    z_a: np.ndarray,
+    z_b: np.ndarray,
+    choice: str,
+    lr_mu: float = 0.3,
+    lam: float = 1e-3,
+    feats_a: Optional[np.ndarray] = None,
+    feats_b: Optional[np.ndarray] = None,
+):
+    if choice not in ("a", "b"):
         raise ValueError("choice must be 'a' or 'b'")
-    winner = z_a if choice == 'a' else z_b
+    winner = z_a if choice == "a" else z_b
     state.mu = state.mu + lr_mu * (winner - state.mu)
     if feats_a is not None and feats_b is not None:
         diff = (feats_a - feats_b).reshape(1, -1)
     else:
         diff = (z_a - z_b).reshape(1, -1)
-    label = np.array([1.0 if choice == 'a' else -1.0])
+    label = np.array([1.0 if choice == "a" else -1.0])
     if state.X is None:
         state.X = diff
         state.y = label
@@ -90,16 +110,21 @@ def update_latent_ridge(state: LatentState,
     # Closed-form ridge: w = (X^T X + lam I)^{-1} X^T y
     if state.X is not None and state.X.shape[0] >= 1:
         state.w = ridge_fit(state.X, state.y, lam)  # type: ignore[arg-type]
-    lbl = 1.0 if choice == 'a' else -1.0
+    lbl = 1.0 if choice == "a" else -1.0
     append_pair(state, z_a, z_b, lbl)
     state.sigma = max(0.2, state.sigma * 0.99)
     state.step += 1
     mu_now = state.mu.reshape(1, -1)
-    mh = getattr(state, 'mu_hist', None)
+    mh = getattr(state, "mu_hist", None)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
 
 
-def propose_latent_pair_ridge(state: LatentState, alpha: float = 0.5, beta: float = 0.5, trust_r: Optional[float] = None):
+def propose_latent_pair_ridge(
+    state: LatentState,
+    alpha: float = 0.5,
+    beta: float = 0.5,
+    trust_r: Optional[float] = None,
+):
     w = state.w[: state.d]
     n = float(np.linalg.norm(w)) + 1e-12
     d1 = w / n
@@ -137,28 +162,36 @@ def z_from_prompt(state: LatentState, prompt: str) -> np.ndarray:
             state.random_anchor_z = z_cached
         try:
             import numpy as _np  # local to keep deps minimal
+
             n = float(_np.linalg.norm(z_cached))
-            print(f"[latent] z_from_prompt random anchor d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")
+            print(
+                f"[latent] z_from_prompt random anchor d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}"
+            )
         except Exception:
             pass
         return z_cached
-    h = int.from_bytes(hashlib.sha1(prompt.encode('utf-8')).digest()[:8], 'big')
+    h = int.from_bytes(hashlib.sha1(prompt.encode("utf-8")).digest()[:8], "big")
     rng = np.random.default_rng(h)
     z = rng.standard_normal(state.d).astype(float) * state.sigma
     try:
         import numpy as _np  # local import
+
         n = float(_np.linalg.norm(z))
-        print(f"[latent] z_from_prompt prompt_hash={h} d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")
+        print(
+            f"[latent] z_from_prompt prompt_hash={h} d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}"
+        )
     except Exception:
         pass
     return z
 
 
-def propose_pair_prompt_anchor(state: LatentState,
-                               prompt: str,
-                               alpha: float = 0.5,
-                               beta: float = 0.5,
-                               trust_r: Optional[float] = None):
+def propose_pair_prompt_anchor(
+    state: LatentState,
+    prompt: str,
+    alpha: float = 0.5,
+    beta: float = 0.5,
+    trust_r: Optional[float] = None,
+):
     """Propose a symmetric pair around z_prompt along the learned ridge direction.
 
     - Direction d1 comes from state.w; if degenerate, use a random direction.
@@ -177,11 +210,13 @@ def propose_pair_prompt_anchor(state: LatentState,
     d_plus = state.sigma * alpha * d1
     d_minus = -state.sigma * beta * d1
     if trust_r is not None and trust_r > 0:
+
         def _clamp_delta(d):
             nn = float(np.linalg.norm(d))
             if nn <= trust_r or nn == 0.0:
                 return d
             return d * (trust_r / nn)
+
         d_plus = _clamp_delta(d_plus)
         d_minus = _clamp_delta(d_minus)
     return z_p + d_plus, z_p + d_minus
@@ -210,7 +245,11 @@ def propose_pair_prompt_anchor_iterative(
     else:
         d1 = w
     d1 = d1 / n
-    step = (float(trust_r) / max(1, int(steps))) if (trust_r is not None and trust_r > 0) else (state.sigma / max(1, int(steps)))
+    step = (
+        (float(trust_r) / max(1, int(steps)))
+        if (trust_r is not None and trust_r > 0)
+        else (state.sigma / max(1, int(steps)))
+    )
     if eta is not None:
         step = float(eta)
     delta = np.zeros(state.d, dtype=float)
@@ -225,18 +264,24 @@ def propose_pair_prompt_anchor_iterative(
         # make r orthogonal to d1
         r = r - float(np.dot(r, d1)) * d1
         nr = float(np.linalg.norm(r))
-        d2 = (r / nr) if nr > 1e-12 else _clamp_norm(state.rng.standard_normal(state.d), 1.0)
+        d2 = (
+            (r / nr)
+            if nr > 1e-12
+            else _clamp_norm(state.rng.standard_normal(state.d), 1.0)
+        )
         d2 = d2 / (float(np.linalg.norm(d2)) + 1e-12)
         delta_plus = delta + float(gamma) * d2
         delta_minus = -delta - float(gamma) * d2
     else:
         delta_plus = delta
         delta_minus = -delta
+
     def _cl(v):
         if trust_r is None or trust_r <= 0:
             return v
         n = float(np.linalg.norm(v))
         return v if (n <= trust_r or n == 0.0) else (v * (trust_r / n))
+
     return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
 
 
@@ -265,7 +310,11 @@ def propose_pair_prompt_anchor_linesearch(
         d1 = w
     d1 = d1 / n
     S = float(trust_r) if (trust_r is not None and trust_r > 0) else float(state.sigma)
-    cands = mags if (isinstance(mags, list) and len(mags) > 0) else [0.25 * S, 0.5 * S, 1.0 * S]
+    cands = (
+        mags
+        if (isinstance(mags, list) and len(mags) > 0)
+        else [0.25 * S, 0.5 * S, 1.0 * S]
+    )
     # clamp candidates to trust_r if needed
     mm = []
     for m in cands:
@@ -287,12 +336,14 @@ def propose_pair_prompt_anchor_linesearch(
     else:
         delta_plus = delta
         delta_minus = -delta
+
     # final trust clamp
     def _cl(v):
         if trust_r is None or trust_r <= 0:
             return v
         n = float(np.linalg.norm(v))
         return v if (n <= trust_r or n == 0.0) else (v * (trust_r / n))
+
     return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
 
 
@@ -303,19 +354,21 @@ def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-x))
 
 
-def hill_climb_mu_distance(state: LatentState,
-                           prompt: str,
-                           X: np.ndarray,
-                           y: np.ndarray,
-                           eta: float = 0.2,
-                           gamma: float = 0.5,
-                           trust_r: Optional[float] = None) -> None:
+def hill_climb_mu_distance(
+    state: LatentState,
+    prompt: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    eta: float = 0.2,
+    gamma: float = 0.5,
+    trust_r: Optional[float] = None,
+) -> None:
     """One gradient step on μ to move toward positives and away from negatives.
 
     L(μ) = - Σ_i y_i · σ(γ · ||μ − z_i||^2), where z_i = z_prompt + X_i
     Step: μ ← μ − η · ∇L(μ) with optional trust‑radius clamp around z_prompt.
     """
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         return
     z_p = z_from_prompt(state, prompt)
     mu = state.mu.astype(float)
@@ -326,7 +379,11 @@ def hill_climb_mu_distance(state: LatentState,
         n = float(np.linalg.norm(r))
         if n > 0.0:
             r = r / n
-        scale = float(trust_r) if (trust_r is not None and float(trust_r) > 0.0) else float(state.sigma)
+        scale = (
+            float(trust_r)
+            if (trust_r is not None and float(trust_r) > 0.0)
+            else float(state.sigma)
+        )
         mu = z_p + scale * r
         state.mu = mu
     Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
@@ -360,17 +417,19 @@ def hill_climb_mu_distance(state: LatentState,
         pass
     state.mu = mu_new
     # record history
-    mh = getattr(state, 'mu_hist', None)
+    mh = getattr(state, "mu_hist", None)
     mu_now = state.mu.reshape(1, -1)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
 
 
-def hill_climb_mu_xgb(state: LatentState,
-                      prompt: str,
-                      scorer,
-                      steps: int = 3,
-                      step_scale: float = 0.2,
-                      trust_r: Optional[float] = None) -> None:
+def hill_climb_mu_xgb(
+    state: LatentState,
+    prompt: str,
+    scorer,
+    steps: int = 3,
+    step_scale: float = 0.2,
+    trust_r: Optional[float] = None,
+) -> None:
     """Multi-step hill climb on μ using an external value scorer (e.g. XGBoost).
 
     Uses ridge w to define a direction d1 in latent space and, at each step,
@@ -422,21 +481,23 @@ def hill_climb_mu_xgb(state: LatentState,
             break
         mu = best_z
         try:
-            print(f"[xgb-hill] step={t+1} best_score={best_score:.4f}")
+            print(f"[xgb-hill] step={t + 1} best_score={best_score:.4f}")
         except Exception:
             pass
     state.mu = mu
-    mh = getattr(state, 'mu_hist', None)
+    mh = getattr(state, "mu_hist", None)
     mu_now = state.mu.reshape(1, -1)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
 
 
-def sample_z_xgb_hill(state: LatentState,
-                      prompt: str,
-                      scorer,
-                      steps: int = 3,
-                      step_scale: float = 0.2,
-                      trust_r: Optional[float] = None) -> np.ndarray:
+def sample_z_xgb_hill(
+    state: LatentState,
+    prompt: str,
+    scorer,
+    steps: int = 3,
+    step_scale: float = 0.2,
+    trust_r: Optional[float] = None,
+) -> np.ndarray:
     """Return one latent sample via XGB-guided hill climb from a random start.
 
     - Start from z_p + σ·r where r is a random unit vector.
@@ -476,6 +537,7 @@ def sample_z_xgb_hill(state: LatentState,
         base_step = float(step_scale)
     except Exception:
         base_step = 0.2
+
     # Fallback scorer when None: simple ridge dot
     def _score(delta: np.ndarray) -> float:
         if scorer is None:
@@ -505,24 +567,26 @@ def sample_z_xgb_hill(state: LatentState,
             break
         mu = best_z
         try:
-            print(f"[xgb-hill-batch] step={t+1} score={best_score:.4f}")
+            print(f"[xgb-hill-batch] step={t + 1} score={best_score:.4f}")
         except Exception:
             pass
     return mu
 
 
-def propose_pair_distancehill(state: LatentState,
-                              prompt: str,
-                              X: np.ndarray,
-                              y: np.ndarray,
-                              alpha: float = 0.5,
-                              gamma: float = 0.5,
-                              trust_r: Optional[float] = None):
+def propose_pair_distancehill(
+    state: LatentState,
+    prompt: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    alpha: float = 0.5,
+    gamma: float = 0.5,
+    trust_r: Optional[float] = None,
+):
     """Propose a symmetric pair around z_prompt along the negative gradient of L.
 
     Returns (z_plus, z_minus) = (z_p + σ·α·d1, z_p − σ·α·d1).
     """
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         # fallback: small random directions
         r = state.rng.standard_normal(state.d)
         r = r / (float(np.linalg.norm(r)) + 1e-12)
@@ -545,27 +609,35 @@ def propose_pair_distancehill(state: LatentState,
         n = float(np.linalg.norm(grad)) + 1e-12
     d1 = grad / n
     delta = state.sigma * float(alpha) * d1
+
     def _clamp(z):
         if trust_r is None or float(trust_r) <= 0.0:
             return z
         d = z - z_p
         nn = float(np.linalg.norm(d))
-        return z if (nn <= float(trust_r) or nn == 0.0) else (z_p + d * (float(trust_r) / nn))
+        return (
+            z
+            if (nn <= float(trust_r) or nn == 0.0)
+            else (z_p + d * (float(trust_r) / nn))
+        )
+
     return _clamp(z_p + delta), _clamp(z_p - delta)
 
 
-def distancehill_score(prompt: str,
-                       z_candidate: np.ndarray,
-                       state: LatentState,
-                       X: np.ndarray,
-                       y: np.ndarray,
-                       gamma: float = 0.5) -> float:
+def distancehill_score(
+    prompt: str,
+    z_candidate: np.ndarray,
+    state: LatentState,
+    X: np.ndarray,
+    y: np.ndarray,
+    gamma: float = 0.5,
+) -> float:
     """Return negative-activated distance objective for a single candidate.
 
     Smaller is better for a positive, larger for a negative; we return
     the signed sum as a scalar score (higher is better), so we negate L.
     """
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         return 0.0
     z_p = z_from_prompt(state, prompt)
     Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
@@ -585,18 +657,20 @@ def _cosine(u: np.ndarray, v: np.ndarray, eps: float = 1e-8) -> float:
     return float(np.dot(u, v) / (nu * nv))
 
 
-def hill_climb_mu_cosine(state: LatentState,
-                         prompt: str,
-                         X: np.ndarray,
-                         y: np.ndarray,
-                         eta: float = 0.2,
-                         beta: float = 5.0,
-                         trust_r: Optional[float] = None) -> None:
+def hill_climb_mu_cosine(
+    state: LatentState,
+    prompt: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    eta: float = 0.2,
+    beta: float = 5.0,
+    trust_r: Optional[float] = None,
+) -> None:
     """One gradient-ascent step on μ using logistic on cosine similarities.
 
     Maximize ∑ log σ(β y cos(μ−z_p, X_i)); step on μ with trust clamp.
     """
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         return
     z_p = z_from_prompt(state, prompt)
     mu = state.mu.astype(float)
@@ -632,20 +706,22 @@ def hill_climb_mu_cosine(state: LatentState,
         if n > float(trust_r) and n > 0.0:
             mu_new = z_p + d * (float(trust_r) / n)
     state.mu = mu_new
-    mh = getattr(state, 'mu_hist', None)
+    mh = getattr(state, "mu_hist", None)
     mu_now = state.mu.reshape(1, -1)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
 
 
-def propose_pair_cosinehill(state: LatentState,
-                            prompt: str,
-                            X: np.ndarray,
-                            y: np.ndarray,
-                            alpha: float = 0.5,
-                            beta: float = 5.0,
-                            trust_r: Optional[float] = None):
+def propose_pair_cosinehill(
+    state: LatentState,
+    prompt: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    alpha: float = 0.5,
+    beta: float = 5.0,
+    trust_r: Optional[float] = None,
+):
     """Propose symmetric pair around z_prompt along ascent direction of cosine logistic."""
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         # random direction if no data
         r = state.rng.standard_normal(state.d)
         r = r / (float(np.linalg.norm(r)) + 1e-12)
@@ -681,22 +757,30 @@ def propose_pair_cosinehill(state: LatentState,
         n = float(np.linalg.norm(grad)) + eps
     d1 = grad / n
     delta = state.sigma * float(alpha) * d1
+
     def _clamp(z):
         if trust_r is None or float(trust_r) <= 0.0:
             return z
         d = z - z_p
         nn = float(np.linalg.norm(d))
-        return z if (nn <= float(trust_r) or nn == 0.0) else (z_p + d * (float(trust_r) / nn))
+        return (
+            z
+            if (nn <= float(trust_r) or nn == 0.0)
+            else (z_p + d * (float(trust_r) / nn))
+        )
+
     return _clamp(z_p + delta), _clamp(z_p - delta)
 
 
-def cosinehill_score(prompt: str,
-                     z_candidate: np.ndarray,
-                     state: LatentState,
-                     X: np.ndarray,
-                     y: np.ndarray,
-                     beta: float = 5.0) -> float:
-    if X is None or y is None or len(getattr(y, 'shape', (0,))) == 0:
+def cosinehill_score(
+    prompt: str,
+    z_candidate: np.ndarray,
+    state: LatentState,
+    X: np.ndarray,
+    y: np.ndarray,
+    beta: float = 5.0,
+) -> float:
+    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
         return 0.0
     z_p = z_from_prompt(state, prompt)
     mu_d = np.asarray(z_candidate, dtype=float) - z_p

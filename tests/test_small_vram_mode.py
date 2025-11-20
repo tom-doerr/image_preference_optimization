@@ -8,7 +8,7 @@ class Session(dict):
 
 
 def stub_streamlit_small_vram():
-    st = types.ModuleType('streamlit')
+    st = types.ModuleType("streamlit")
     st.session_state = Session()
     st.set_page_config = lambda **_: None
     st.title = lambda *_, **__: None
@@ -20,38 +20,53 @@ def stub_streamlit_small_vram():
     st.button = lambda *_, **__: False
     st.checkbox = lambda *_, **__: False
     st.image = lambda *_, **__: None
+
     class Sidebar:
         @staticmethod
         def selectbox(label, *args, **kwargs):
-            return 'black-forest-labs/FLUX.1-schnell'
+            return "black-forest-labs/FLUX.1-schnell"
+
         @staticmethod
         def header(*_, **__):
             return None
+
         @staticmethod
         def subheader(*_, **__):
             return None
+
         @staticmethod
         def download_button(*_, **__):
             return None
+
         @staticmethod
         def file_uploader(*_, **__):
             return None
+
         @staticmethod
         def button(*_, **__):
             return False
+
         @staticmethod
         def slider(*_, **__):
             return 1.0
+
         @staticmethod
         def text_input(*_, **__):
-            return ''
+            return ""
+
         @staticmethod
         def checkbox(label, *_, **__):
-            return True if '7 GB VRAM mode' in label else False
+            return True if "7 GB VRAM mode" in label else False
+
     st.sidebar = Sidebar()
+
     class Col:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
     st.columns = lambda n: (Col(), Col())
     st.write = lambda *_, **__: None
     st.experimental_rerun = lambda: None
@@ -60,8 +75,8 @@ def stub_streamlit_small_vram():
 
 class TestSmallVramMode(unittest.TestCase):
     def test_small_vram_profile_removed(self):
-        self.skipTest('7 GB VRAM mode removed from UI; adjust size/steps manually')
+        self.skipTest("7 GB VRAM mode removed from UI; adjust size/steps manually")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

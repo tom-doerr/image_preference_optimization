@@ -8,8 +8,8 @@ class Session(dict):
     __setattr__ = dict.__setitem__
 
 
-def stub_streamlit(approach='ridge'):
-    st = types.ModuleType('streamlit')
+def stub_streamlit(approach="ridge"):
+    st = types.ModuleType("streamlit")
     st.session_state = Session()
     st.set_page_config = lambda **_: None
     st.title = lambda *_, **__: None
@@ -21,38 +21,55 @@ def stub_streamlit(approach='ridge'):
     st.button = lambda *_, **__: False
     st.checkbox = lambda *_, **__: False
     st.image = lambda *_, **__: None
+
     class Sidebar:
         @staticmethod
         def selectbox(label, *args, **kwargs):
-            return approach if 'Approach' in label else 'black-forest-labs/FLUX.1-schnell'
+            return (
+                approach if "Approach" in label else "black-forest-labs/FLUX.1-schnell"
+            )
+
         @staticmethod
         def header(*_, **__):
             return None
+
         @staticmethod
         def subheader(*_, **__):
             return None
+
         @staticmethod
         def download_button(*_, **__):
             return None
+
         @staticmethod
         def file_uploader(*_, **__):
             return None
+
         @staticmethod
         def button(*_, **__):
             return False
+
         @staticmethod
         def slider(*_, **__):
             return 1.0
+
         @staticmethod
         def text_input(*_, **__):
-            return ''
+            return ""
+
         @staticmethod
         def checkbox(*_, **__):
             return False
+
     st.sidebar = Sidebar()
+
     class Col:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
     st.columns = lambda n: (Col(), Col())
     st.write = lambda *_, **__: None
     st.experimental_rerun = lambda: None
@@ -63,17 +80,19 @@ class TestE2ERidgeFlow(unittest.TestCase):
     def test_ridge_end_to_end(self):
         # Pair UI removed; directly test update_latent_ridge on a fresh state.
         import latent_opt as lo
+
         d = 64
         import numpy as _np
+
         z_a = _np.ones(d)
         z_b = -_np.ones(d)
         st = lo.init_latent_state(width=32, height=32, d=d, seed=0)
         before_step = st.step
-        lo.update_latent_ridge(st, z_a, z_b, 'a', feats_a=z_a, feats_b=z_b)
+        lo.update_latent_ridge(st, z_a, z_b, "a", feats_a=z_a, feats_b=z_b)
         self.assertEqual(st.step, before_step + 1)
         # w should have non-zero norm after update
         self.assertGreater(float(np.linalg.norm(st.w)), 0.0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

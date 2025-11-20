@@ -7,7 +7,14 @@ import numpy as np
 
 class BatchKeysUniqueTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "latent_logic", "value_scorer", "flux_local", "persistence"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "latent_logic",
+            "value_scorer",
+            "flux_local",
+            "persistence",
+        ):
             sys.modules.pop(m, None)
 
     def test_keys_change_each_render(self):
@@ -24,7 +31,9 @@ class BatchKeysUniqueTest(unittest.TestCase):
         st.button = button
         st.sidebar.button = button
         st.session_state.prompt = "dup-keys"
-        st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0))
+        st.session_state.lstate = types.SimpleNamespace(
+            width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0)
+        )
         st.session_state.steps = 3
         st.session_state.guidance_eff = 0.0
         st.session_state.cur_labels = [None, None]
@@ -36,10 +45,22 @@ class BatchKeysUniqueTest(unittest.TestCase):
         ll.z_from_prompt = lambda lstate, prompt: np.zeros(lstate.d)
         ll.z_to_latents = lambda z, lstate: np.zeros((1, 1, 2, 2))
         ll.sample_z_xgb_hill = lambda *a, **k: np.zeros(st.session_state.lstate.d)
-        ll.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor_iterative = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        ll.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        ll.propose_latent_pair_ridge = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor_iterative = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        ll.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
         ll.update_latent_ridge = lambda *a, **k: None
         sys.modules["latent_logic"] = ll
 

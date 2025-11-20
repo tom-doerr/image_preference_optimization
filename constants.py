@@ -26,6 +26,7 @@ class Config:
     DEFAULT_STEPS: int = 6
     DEFAULT_GUIDANCE: float = 3.5
 
+
 # UI/generation tuning
 DECODE_TIMEOUT_S = 3.0
 
@@ -37,7 +38,7 @@ DEFAULT_LR_MU = 0.3
 DEFAULT_GAMMA_ORTH = 0.2
 DEFAULT_ITER_STEPS = 10
 DEFAULT_QUEUE_SIZE = 6
-DEFAULT_BATCH_SIZE = 25
+DEFAULT_BATCH_SIZE = 4
 
 # Scoring defaults (avoid scattered literals)
 DISTANCEHILL_GAMMA = 0.5
@@ -94,3 +95,13 @@ class Keys:
     # Latent anchor/images keys
     USE_RANDOM_ANCHOR = "use_random_anchor"
     MU_IMAGE = "mu_image"
+    # UI computed display values
+    ROWS_DISPLAY = "rows_display"
+    # Last action toast line
+    LAST_ACTION_TEXT = "last_action_text"
+    LAST_ACTION_TS = "last_action_ts"
+    # Image-match page state
+    IMATCH_TARGET = "imatch_target"
+    IMATCH_MU = "imatch_mu"
+    IMATCH_LAST_IMG = "imatch_last_img"
+    IMATCH_LAST_MSE = "imatch_last_mse"

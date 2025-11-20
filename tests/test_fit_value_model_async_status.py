@@ -11,6 +11,7 @@ class FitValueModelAsyncStatusTest(unittest.TestCase):
 
     def test_async_flag_sets_status_and_cache(self):
         from tests.helpers.st_streamlit import Session
+
         ss = Session()
         ss.xgb_train_async = True
         ss.xgb_cache = {}

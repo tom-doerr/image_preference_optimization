@@ -10,7 +10,7 @@ class TestRidgeRank(unittest.TestCase):
         z_a = np.zeros(st.d)
         z_a[0] = 1.0
         z_b = -z_a.copy()
-        update_latent_ridge(st, z_a, z_b, 'a', lr_mu=0.0, lam=1e-2)
+        update_latent_ridge(st, z_a, z_b, "a", lr_mu=0.0, lam=1e-2)
         self.assertGreater(st.w[0], 0)
 
     def test_propose_ridge_hillclimb(self):
@@ -26,5 +26,5 @@ class TestRidgeRank(unittest.TestCase):
         self.assertAlmostEqual(float(np.dot(d1, d2)), 0.0, places=6)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

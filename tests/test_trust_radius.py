@@ -15,5 +15,5 @@ class TestTrustRadius(unittest.TestCase):
     # Logistic path removed; ridge-only tests remain.
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

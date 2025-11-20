@@ -10,5 +10,5 @@ class TestDefaultSize(unittest.TestCase):
         self.assertEqual(st.d, 4 * (st.height // 8) * (st.width // 8))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

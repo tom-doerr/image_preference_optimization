@@ -19,6 +19,5 @@ class TestNoiseBlendInLatents(unittest.TestCase):
         self.assertTrue(np.allclose(l1, l2))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

@@ -9,7 +9,14 @@ from latent_opt import init_latent_state
 
 class BatchXGBAutofitTest(unittest.TestCase):
     def tearDown(self):
-        for name in ("streamlit", "persistence", "xgb_value", "batch_ui", "value_scorer", "latent_logic"):
+        for name in (
+            "streamlit",
+            "persistence",
+            "xgb_value",
+            "batch_ui",
+            "value_scorer",
+            "latent_logic",
+        ):
             sys.modules.pop(name, None)
 
     def test_new_batch_autofits_xgb_when_dataset_available(self):
@@ -49,7 +56,10 @@ class BatchXGBAutofitTest(unittest.TestCase):
         from value_scorer import get_value_scorer_with_status
 
         scorer, status = get_value_scorer_with_status(
-            "XGBoost", st.session_state.lstate, st.session_state.prompt, st.session_state
+            "XGBoost",
+            st.session_state.lstate,
+            st.session_state.prompt,
+            st.session_state,
         )
         self.assertEqual(status, "ok")
         # scorer should be callable and produce a non-zero score on the dataset.

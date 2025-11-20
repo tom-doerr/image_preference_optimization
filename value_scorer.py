@@ -4,139 +4,155 @@ from typing import Callable, Any, Tuple
 import numpy as np
 
 __all__ = [
-    'get_value_scorer',
-    'get_value_scorer_with_status',
+    "get_value_scorer",
+    "get_value_scorer_with_status",
 ]
 
 
-def get_value_scorer_with_status(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> Tuple[Callable[[np.ndarray], float], str]:
-    """Return a callable f(fvec) -> score based on selected value model.
+def _snapshot_w(lstate: Any) -> np.ndarray | None:
+    """Return a copy of w[:d] or None when unavailable."""
+    try:
+        _w_raw = getattr(lstate, "w", None)
+        if _w_raw is None:
+            return None
+        d = int(getattr(lstate, "d", len(_w_raw)))
+        return np.asarray(_w_raw[:d], dtype=float).copy()
+    except Exception:
+        return None
 
-    - Ridge: dot(w, fvec)
-    - XGBoost: uses cached model in session_state.xgb_cache; if unavailable, returns 0
-    - DistanceHill: distancehill_score over z = z_p + fvec if dataset exists, else 0
-    - CosineHill: cosinehill_score over z = z_p + fvec if dataset exists, else 0
-    """
-    from latent_logic import z_from_prompt  # local import for tests
-    from persistence import get_dataset_for_prompt_or_session
 
-    z_p = z_from_prompt(lstate, prompt)
-    # Snapshot w on read to avoid observing a partially-swapped array when
-    # Ridge trains asynchronously. Keep it minimal: copy only the used slice.
-    _w_raw = getattr(lstate, "w", None)
-    w = None if _w_raw is None else np.asarray(_w_raw[: getattr(lstate, 'd', 0)], dtype=float).copy()
+def _build_ridge_scorer(lstate: Any) -> Tuple[Callable[[np.ndarray], float], str]:
+    w = _snapshot_w(lstate)
 
-    def _ridge(fvec):
+    def _ridge(fvec: np.ndarray) -> float:
         if w is None or w.size == 0:
             return 0.0
         return float(np.dot(w, np.asarray(fvec, dtype=float)))
 
-    def _zero(_fvec):
+    try:
+        nrm = float(np.linalg.norm(w)) if w is not None else 0.0
+        return _ridge, ("ok" if nrm > 0.0 else "ridge_untrained")
+    except Exception:
+        return _ridge, "ridge_untrained"
+
+
+def _build_xgb_scorer(
+    vm_choice: str, lstate: Any, prompt: str, session_state: Any
+) -> Tuple[Callable[[np.ndarray], float], str]:
+    def _zero(_fvec: np.ndarray) -> float:
         return 0.0
 
-    choice = str(vm_choice or "Ridge")
-    # Ridge is always available; status is based on whether w is non-zero.
-    if choice == "Ridge":
-        status = "ridge_untrained"
-        try:
-            nrm = float(np.linalg.norm(w)) if w is not None else 0.0
-            if nrm > 0.0:
-                status = "ok"
-        except Exception:
-            status = "ridge_untrained"
-        return _ridge, status
-
-    choice = str(vm_choice or "Ridge")
-    if choice == "XGBoost":
-        try:
-            cache = getattr(session_state, "xgb_cache", {}) or {}
-            fut = getattr(session_state, "xgb_fit_future", None)
-            if fut is not None and not getattr(fut, "done", lambda: False)() and cache.get("model") is None:
-                return _zero, "xgb_training"
-            mdl = cache.get("model")
-            if mdl is None:
-                # Extra context so it's clear why XGB is unavailable.
-                try:
-                    from persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
-                    Xd, yd = _get_ds(prompt, session_state)
-                    rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
-                    d_lat = getattr(lstate, "d", "?")
-                    print(f"[xgb] scorer unavailable: no cached model "
-                          f"(vm={choice}, dataset_rows={rows}, d={d_lat})")
-                except Exception:
-                    try:
-                        print("[xgb] scorer unavailable: no cached model")
-                    except Exception:
-                        pass
-                return _zero, "xgb_unavailable"
-            from xgb_value import score_xgb_proba  # type: ignore
+    try:
+        cache = getattr(session_state, "xgb_cache", {}) or {}
+        fut = getattr(session_state, "xgb_fit_future", None)
+        if (
+            fut is not None
+            and not getattr(fut, "done", lambda: False)()
+            and cache.get("model") is None
+        ):
+            return _zero, "xgb_training"
+        mdl = cache.get("model")
+        if mdl is None:
             try:
-                n = int(cache.get("n") or 0)
-                print(f"[xgb] using cached model rows={n} d={getattr(lstate, 'd', '?')}")
+                from xgb_value import get_cached_scorer  # type: ignore
+
+                scorer = get_cached_scorer(prompt, session_state)
+                if scorer is not None:
+                    return scorer, "ok"
             except Exception:
                 pass
-
-            def _xgb(fvec):
-                return float(score_xgb_proba(mdl, np.asarray(fvec, dtype=float)))
-
-            return _xgb, "ok"
-        except Exception:
+        if mdl is None:
             try:
-                print("[xgb] scorer error; returning 0 for all scores")
+                from persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
+
+                Xd, _ = _get_ds(prompt, session_state)
+                rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
+                d_lat = getattr(lstate, "d", "?")
+                print(
+                    f"[xgb] scorer unavailable: no cached model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
+                )
             except Exception:
-                pass
-            return _zero, "xgb_error"
+                print("[xgb] scorer unavailable: no cached model")
+            return _zero, "xgb_unavailable"
+        from xgb_value import score_xgb_proba  # type: ignore
 
-    if choice == "DistanceHill":
         try:
-            X, y = get_dataset_for_prompt_or_session(prompt, session_state)
-            if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
-                try:
-                    print("[dist] scorer unavailable: empty dataset")
-                except Exception:
-                    pass
-                return _zero, "dist_empty"
-            from latent_logic import distancehill_score  # local import
+            n = int(cache.get("n") or 0)
+            print(f"[xgb] using cached model rows={n} d={getattr(lstate, 'd', '?')}")
+        except Exception:
+            pass
 
-            def _dist(fvec):
+        def _xgb(fvec: np.ndarray) -> float:
+            return float(score_xgb_proba(mdl, np.asarray(fvec, dtype=float)))
+
+        return _xgb, "ok"
+    except Exception:
+        print("[xgb] scorer error; returning 0 for all scores")
+        return _zero, "xgb_error"
+
+
+def _build_dist_scorer(
+    kind: str, lstate: Any, prompt: str, session_state: Any
+) -> Tuple[Callable[[np.ndarray], float], str]:
+    def _zero(_fvec: np.ndarray) -> float:
+        return 0.0
+
+    try:
+        from persistence import get_dataset_for_prompt_or_session
+
+        X, y = get_dataset_for_prompt_or_session(prompt, session_state)
+        if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
+            print(f"[{kind}] scorer unavailable: empty dataset")
+            return _zero, f"{'dist' if kind == 'dist' else 'cos'}_empty"
+        from latent_logic import z_from_prompt
+
+        z_p = z_from_prompt(lstate, prompt)
+        if kind == "dist":
+            from latent_logic import distancehill_score
+
+            def _dist(fvec: np.ndarray) -> float:
                 zc = z_p + np.asarray(fvec, dtype=float)
                 return float(distancehill_score(prompt, zc, lstate, X, y, gamma=0.5))
 
             return _dist, "ok"
-        except Exception:
-            try:
-                print("[dist] scorer error; returning 0 for all scores")
-            except Exception:
-                pass
-            return _zero, "dist_error"
+        else:
+            from latent_logic import cosinehill_score
 
-    if choice == "CosineHill":
-        try:
-            X, y = get_dataset_for_prompt_or_session(prompt, session_state)
-            if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
-                try:
-                    print("[cos] scorer unavailable: empty dataset")
-                except Exception:
-                    pass
-                return _zero, "cos_empty"
-            from latent_logic import cosinehill_score  # local import
-
-            def _cos(fvec):
+            def _cos(fvec: np.ndarray) -> float:
                 zc = z_p + np.asarray(fvec, dtype=float)
                 return float(cosinehill_score(prompt, zc, lstate, X, y, beta=5.0))
 
             return _cos, "ok"
-        except Exception:
-            try:
-                print("[cos] scorer error; returning 0 for all scores")
-            except Exception:
-                pass
-            return _zero, "cos_error"
-
-    return _ridge, "ridge_untrained"
+    except Exception:
+        print(f"[{kind}] scorer error; returning 0 for all scores")
+        return _zero, f"{'dist' if kind == 'dist' else 'cos'}_error"
 
 
-def get_value_scorer(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> Callable[[np.ndarray], float]:
+def get_value_scorer_with_status(
+    vm_choice: str, lstate: Any, prompt: str, session_state: Any
+) -> Tuple[Callable[[np.ndarray], float], str]:
+    """Return a callable f(fvec) -> score and a status string.
+
+    Split into small builders per value model to keep this dispatcher simple.
+    """
+    choice = str(vm_choice or "Ridge")
+    if choice == "Ridge":
+        return _build_ridge_scorer(lstate)
+    if choice == "XGBoost":
+        return _build_xgb_scorer(choice, lstate, prompt, session_state)
+    if choice == "DistanceHill":
+        return _build_dist_scorer("dist", lstate, prompt, session_state)
+    if choice == "CosineHill":
+        return _build_dist_scorer("cos", lstate, prompt, session_state)
+    # Fallback: Ridge semantics
+    return _build_ridge_scorer(lstate)
+
+
+def get_value_scorer(
+    vm_choice: str, lstate: Any, prompt: str, session_state: Any
+) -> Callable[[np.ndarray], float]:
     """Backward-compatible wrapper returning only the scorer."""
-    scorer, _status = get_value_scorer_with_status(vm_choice, lstate, prompt, session_state)
+    scorer, _status = get_value_scorer_with_status(
+        vm_choice, lstate, prompt, session_state
+    )
     return scorer

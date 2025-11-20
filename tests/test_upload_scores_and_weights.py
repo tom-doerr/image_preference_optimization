@@ -7,7 +7,14 @@ import numpy as np
 
 class UploadScoresWeightsTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("app", "streamlit", "persistence", "latent_logic", "value_scorer", "flux_local"):
+        for m in (
+            "app",
+            "streamlit",
+            "persistence",
+            "latent_logic",
+            "value_scorer",
+            "flux_local",
+        ):
             sys.modules.pop(m, None)
 
     def test_upload_shows_score_and_weight(self):
@@ -33,16 +40,32 @@ class UploadScoresWeightsTest(unittest.TestCase):
         p = types.ModuleType("persistence")
         p.append_dataset_row = lambda *a, **k: 0
         p.save_sample_image = lambda *a, **k: None
-        p.get_dataset_for_prompt_or_session = lambda *a, **k: (np.zeros((1, 4)), np.array([1.0]))
+        p.get_dataset_for_prompt_or_session = lambda *a, **k: (
+            np.zeros((1, 4)),
+            np.array([1.0]),
+        )
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.export_state_bytes = lambda state, prompt: b""
         p.dataset_rows_for_prompt = lambda prompt: 0
-        p.dataset_stats_for_prompt = lambda prompt: {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": []}
-        p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}
+        p.dataset_stats_for_prompt = lambda prompt: {
+            "rows": 0,
+            "pos": 0,
+            "neg": 0,
+            "d": 0,
+            "recent_labels": [],
+        }
+        p.read_metadata = lambda path: {
+            "app_version": None,
+            "created_at": None,
+            "prompt": None,
+        }
         sys.modules["persistence"] = p
 
         vl = types.ModuleType("value_scorer")
-        vl.get_value_scorer_with_status = lambda vmc, lstate, prompt, ss: (lambda f: 0.5, "ok")
+        vl.get_value_scorer_with_status = lambda vmc, lstate, prompt, ss: (
+            lambda f: 0.5,
+            "ok",
+        )
         sys.modules["value_scorer"] = vl
 
         ll = types.ModuleType("latent_logic")
@@ -58,13 +81,28 @@ class UploadScoresWeightsTest(unittest.TestCase):
         lo.save_state = lambda *a, **k: None
         lo.init_latent_state = lambda *a, **k: st.session_state.lstate
         lo.load_state = lambda *a, **k: st.session_state.lstate
-        lo.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        lo.propose_pair_prompt_anchor = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        lo.propose_pair_prompt_anchor_iterative = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
-        lo.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_latent_pair_ridge = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        lo.propose_pair_prompt_anchor = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        lo.propose_pair_prompt_anchor_iterative = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
+        lo.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
         lo.update_latent_ridge = lambda *a, **k: None
         lo.dumps_state = lambda *a, **k: b""
-        lo.propose_next_pair = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_next_pair = lambda *a, **k: (
+            np.zeros(st.session_state.lstate.d),
+            np.zeros(st.session_state.lstate.d),
+        )
         lo.state_summary = lambda *a, **k: {
             "pairs": 0,
             "choices": 0,
@@ -89,8 +127,10 @@ class UploadScoresWeightsTest(unittest.TestCase):
         class DummyUpload:
             def __init__(self):
                 self.name = "u.png"
+
             def read(self):
                 return b""
+
         st.sidebar.file_uploader = lambda *a, **k: [DummyUpload()]
         st.sidebar.selectbox = lambda *a, **k: "Upload latents"
 

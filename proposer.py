@@ -12,7 +12,7 @@ from latent_state import LatentState
 
 @dataclass
 class ProposerOpts:
-    mode: str = "line"          # 'line' or 'iter'
+    mode: str = "line"  # 'line' or 'iter'
     trust_r: Optional[float] = None
     gamma: float = 0.0
     steps: int = 3
@@ -44,9 +44,16 @@ def propose_next_pair(
         eta = opts.eta
     if str(mode).lower() == "iter":
         return propose_pair_prompt_anchor_iterative(
-            state, prompt, steps=int(max(1, steps)), eta=eta, trust_r=trust_r, gamma=gamma
+            state,
+            prompt,
+            steps=int(max(1, steps)),
+            eta=eta,
+            trust_r=trust_r,
+            gamma=gamma,
         )
-    return propose_pair_prompt_anchor_linesearch(state, prompt, trust_r=trust_r, gamma=gamma)
+    return propose_pair_prompt_anchor_linesearch(
+        state, prompt, trust_r=trust_r, gamma=gamma
+    )
 
 
 def build_proposer_opts(
@@ -59,6 +66,16 @@ def build_proposer_opts(
 
     Keeps the logic for choosing 'iter' vs 'line' in one place.
     """
-    mode = "iter" if (int(iter_steps) > 1 or (iter_eta is not None and float(iter_eta) > 0.0)) else "line"
+    mode = (
+        "iter"
+        if (int(iter_steps) > 1 or (iter_eta is not None and float(iter_eta) > 0.0))
+        else "line"
+    )
     eta = float(iter_eta) if (iter_eta is not None and float(iter_eta) > 0.0) else None
-    return ProposerOpts(mode=mode, trust_r=trust_r, gamma=float(gamma_orth), steps=int(iter_steps), eta=eta)
+    return ProposerOpts(
+        mode=mode,
+        trust_r=trust_r,
+        gamma=float(gamma_orth),
+        steps=int(iter_steps),
+        eta=eta,
+    )

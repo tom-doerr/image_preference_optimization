@@ -35,11 +35,13 @@ def propose_pair(state: State) -> Tuple[np.ndarray, np.ndarray]:
     return a, b
 
 
-def update(state: State, a: np.ndarray, b: np.ndarray, choice: str, lr: float = 0.5) -> None:
+def update(
+    state: State, a: np.ndarray, b: np.ndarray, choice: str, lr: float = 0.5
+) -> None:
     diff = a - b
-    if choice == 'a':
+    if choice == "a":
         state.w += lr * diff
-    elif choice == 'b':
+    elif choice == "b":
         state.w -= lr * diff
     else:
         raise ValueError("choice must be 'a' or 'b'")

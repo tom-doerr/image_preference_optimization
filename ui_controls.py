@@ -1,5 +1,5 @@
 from typing import Tuple, Optional
-from constants import DEFAULT_ITER_STEPS
+from constants import DEFAULT_ITER_STEPS, DEFAULT_BATCH_SIZE
 
 
 def _sb_num(st):
@@ -49,24 +49,34 @@ def build_pair_controls(st, expanded: bool = False):
     except Exception:
         pass
     alpha = sld(
-        "Alpha (ridge d1)", value=0.5, step=0.05,
-        help="Scale step along d1 (∥ w; value-gradient)."
+        "Alpha (ridge d1)",
+        value=0.5,
+        step=0.05,
+        help="Scale step along d1 (∥ w; value-gradient).",
     )
     beta = sld(
-        "Beta (ridge d2)", value=0.5, step=0.05,
-        help="Scale step along d2 (⟂ d1; orthogonal explore)."
+        "Beta (ridge d2)",
+        value=0.5,
+        step=0.05,
+        help="Scale step along d2 (⟂ d1; orthogonal explore).",
     )
     trust_r = sld(
-        "Trust radius (||y||)", value=2.5, step=0.1,
-        help="Clamp proposal offset norm ‖y‖ ≤ r around anchor."
+        "Trust radius (||y||)",
+        value=2.5,
+        step=0.1,
+        help="Clamp proposal offset norm ‖y‖ ≤ r around anchor.",
     )
     lr_mu_ui = sld(
-        "Step size (lr_μ)", value=0.3, step=0.01,
-        help="How far μ moves toward the winner per click."
+        "Step size (lr_μ)",
+        value=0.3,
+        step=0.01,
+        help="How far μ moves toward the winner per click.",
     )
     gamma_orth = sld(
-        "Orth explore (γ)", value=0.2, step=0.05,
-        help="Add small orthogonal component (⊥ d1) to avoid stagnation."
+        "Orth explore (γ)",
+        value=0.2,
+        step=0.05,
+        help="Add small orthogonal component (⊥ d1) to avoid stagnation.",
     )
     # Optimization steps (latent) are now driven by a numeric input in app.py;
     # here we simply read the shared session_state value and pass it through.
@@ -91,12 +101,20 @@ def build_pair_controls(st, expanded: bool = False):
     iter_eta = eta_default
     if ctx is not None:
         ctx.__exit__(None, None, None)
-    return float(alpha), float(beta), float(trust_r), float(lr_mu_ui), float(gamma_orth), int(iter_steps), float(iter_eta)
+    return (
+        float(alpha),
+        float(beta),
+        float(trust_r),
+        float(lr_mu_ui),
+        float(gamma_orth),
+        int(iter_steps),
+        float(iter_eta),
+    )
 
 
 def build_batch_controls(st, expanded: bool = False) -> int:
     sld = _sb_sld(st)
-    batch_size = sld("Batch size", value=25, step=1)
+    batch_size = sld("Batch size", value=DEFAULT_BATCH_SIZE, step=1)
     return int(batch_size)
 
 
@@ -127,6 +145,7 @@ def build_mode_select(st) -> Tuple[Optional[str], bool, bool]:
                 selected_mode = None
         except Exception:
             selected_mode = None
+
     # Legacy toggles (keep for tests)
     def _legacy():
         cm = st.sidebar.checkbox("Batch curation mode", value=False)
@@ -140,5 +159,9 @@ def build_mode_select(st) -> Tuple[Optional[str], bool, bool]:
         cm, aq = _legacy()
 
     if selected_mode is not None:
-        return selected_mode, (selected_mode == gen_opts[1]), (selected_mode == gen_opts[2])
+        return (
+            selected_mode,
+            (selected_mode == gen_opts[1]),
+            (selected_mode == gen_opts[2]),
+        )
     return selected_mode, cm, aq

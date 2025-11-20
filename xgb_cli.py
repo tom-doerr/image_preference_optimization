@@ -48,12 +48,18 @@ def train_xgb_for_prompt(
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Train XGBoost on the current prompt dataset.")
-    ap.add_argument("--prompt", required=True, help="Prompt string used for dataset hashing")
+    ap = argparse.ArgumentParser(
+        description="Train XGBoost on the current prompt dataset."
+    )
+    ap.add_argument(
+        "--prompt", required=True, help="Prompt string used for dataset hashing"
+    )
     ap.add_argument("--n-estimators", type=int, default=50, help="Number of trees")
     ap.add_argument("--max-depth", type=int, default=3, help="Tree depth")
     ap.add_argument("--no-save", action="store_true", help="Do not write a model file")
-    ap.add_argument("--model-dir", default=".", help="Output directory for the model file")
+    ap.add_argument(
+        "--model-dir", default=".", help="Output directory for the model file"
+    )
     args = ap.parse_args(argv)
     train_xgb_for_prompt(
         args.prompt,
@@ -69,6 +75,7 @@ if __name__ == "__main__":
     sys.exit(main())
 try:
     from rich_cli import enable_color_print as _enable_color
+
     _enable_color()
 except Exception:
     pass

@@ -27,6 +27,7 @@ class TestSchedulerSetTimestepsDevice(unittest.TestCase):
     def test_run_pipe_passes_cuda_device(self):
         import importlib
         import flux_local
+
         importlib.reload(flux_local)
         flux_local.PIPE = DummyPipe()
         try:
@@ -35,9 +36,8 @@ class TestSchedulerSetTimestepsDevice(unittest.TestCase):
             # The dummy returns None image; we care about scheduler call
             pass
         calls = flux_local.PIPE.scheduler._calls
-        self.assertTrue(any(dev == 'cuda' for (_n, dev) in calls))
+        self.assertTrue(any(dev == "cuda" for (_n, dev) in calls))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

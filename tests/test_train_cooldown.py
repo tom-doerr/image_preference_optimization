@@ -9,7 +9,15 @@ from tests.helpers.st_streamlit import stub_basic
 
 class TestTrainCooldown(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "persistence", "latent_logic", "value_model", "flux_local", "value_scorer"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "persistence",
+            "latent_logic",
+            "value_model",
+            "flux_local",
+            "value_scorer",
+        ):
             sys.modules.pop(m, None)
 
     def test_cooldown_skips_fit_when_recent(self):
@@ -21,10 +29,17 @@ class TestTrainCooldown(unittest.TestCase):
         st.session_state.cur_batch = [np.zeros(4)]
         st.session_state.cur_labels = [None]
         st.session_state.lstate = types.SimpleNamespace(
-            width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0), w=np.zeros(4)
+            width=64,
+            height=64,
+            d=4,
+            sigma=1.0,
+            rng=np.random.default_rng(0),
+            w=np.zeros(4),
         )
         # Set a recent train timestamp inside the cooldown window
-        st.session_state.last_train_at = (datetime.now(timezone.utc) - timedelta(seconds=2)).isoformat(timespec="seconds")
+        st.session_state.last_train_at = (
+            datetime.now(timezone.utc) - timedelta(seconds=2)
+        ).isoformat(timespec="seconds")
         st.session_state.min_train_interval_s = 10.0
         st.session_state.vm_choice = "XGBoost"
         st.session_state.xgb_train_async = True
@@ -70,7 +85,9 @@ class TestTrainCooldown(unittest.TestCase):
 
         batch_ui._curation_train_and_next()
 
-        self.assertEqual(len(vm.fit_calls), 0, "fit_value_model should be skipped during cooldown")
+        self.assertEqual(
+            len(vm.fit_calls), 0, "fit_value_model should be skipped during cooldown"
+        )
 
 
 if __name__ == "__main__":

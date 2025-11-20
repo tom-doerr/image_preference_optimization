@@ -10,13 +10,13 @@ class TestStateSummary(unittest.TestCase):
         st.w[:] = 0.5
         st.step = 3
         s = state_summary(st)
-        self.assertEqual(s['width'], 320)
-        self.assertEqual(s['height'], 256)
-        self.assertEqual(s['d'], 4 * (256//8) * (320//8))
-        self.assertEqual(s['step'], 3)
-        self.assertAlmostEqual(s['mu_norm'], float(np.linalg.norm(np.ones(st.d))))
-        self.assertAlmostEqual(s['w_norm'], float(np.linalg.norm(np.full(st.d,0.5))))
+        self.assertEqual(s["width"], 320)
+        self.assertEqual(s["height"], 256)
+        self.assertEqual(s["d"], 4 * (256 // 8) * (320 // 8))
+        self.assertEqual(s["step"], 3)
+        self.assertAlmostEqual(s["mu_norm"], float(np.linalg.norm(np.ones(st.d))))
+        self.assertAlmostEqual(s["w_norm"], float(np.linalg.norm(np.full(st.d, 0.5))))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

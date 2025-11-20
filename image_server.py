@@ -17,7 +17,9 @@ def _server_url(path: str) -> str:
 
 def _post_json(url: str, payload: dict) -> dict:
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=60) as resp:  # nosec - URL comes from trusted config
         body = resp.read()
     return json.loads(body.decode("utf-8"))
@@ -26,6 +28,7 @@ def _post_json(url: str, payload: dict) -> dict:
 def _image_from_b64_png(b64: str) -> Any:
     try:
         from PIL import Image  # type: ignore
+
         buf = io.BytesIO(base64.b64decode(b64))
         return Image.open(buf)
     except Exception:
@@ -33,7 +36,9 @@ def _image_from_b64_png(b64: str) -> Any:
         return base64.b64decode(b64)
 
 
-def generate_image(prompt: str, width: int, height: int, steps: int, guidance: float) -> Any:
+def generate_image(
+    prompt: str, width: int, height: int, steps: int, guidance: float
+) -> Any:
     payload = {
         "prompt": prompt,
         "width": int(width),
@@ -47,10 +52,13 @@ def generate_image(prompt: str, width: int, height: int, steps: int, guidance: f
     return _image_from_b64_png(out["image"])  # expects base64 PNG
 
 
-def generate_image_latents(prompt: str, latents, width: int, height: int, steps: int, guidance: float) -> Any:
+def generate_image_latents(
+    prompt: str, latents, width: int, height: int, steps: int, guidance: float
+) -> Any:
     # Accept numpy or torch tensors; convert to nested lists for JSON
     try:
         import numpy as np  # type: ignore
+
         if hasattr(latents, "detach"):
             latents = latents.detach().cpu().numpy()
         arr = np.asarray(latents, dtype=float)
@@ -77,4 +85,3 @@ def generate_image_latents(prompt: str, latents, width: int, height: int, steps:
     if not isinstance(out, dict) or "image" not in out:
         raise RuntimeError("image_server: invalid response for /generate_latents")
     return _image_from_b64_png(out["image"])  # expects base64 PNG
-

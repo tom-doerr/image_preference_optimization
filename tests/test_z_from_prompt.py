@@ -18,6 +18,5 @@ class TestZFromPrompt(unittest.TestCase):
         self.assertGreater(float(np.linalg.norm(z1 - z2)), 1e-6)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

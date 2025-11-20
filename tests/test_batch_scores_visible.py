@@ -7,7 +7,14 @@ import numpy as np
 
 class BatchScoresVisibleTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "latent_logic", "value_scorer", "persistence", "flux_local"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "latent_logic",
+            "value_scorer",
+            "persistence",
+            "flux_local",
+        ):
             sys.modules.pop(m, None)
 
     def test_scores_render_per_item(self):
@@ -32,8 +39,13 @@ class BatchScoresVisibleTest(unittest.TestCase):
         sys.modules["latent_logic"] = ll
 
         vs = types.ModuleType("value_scorer")
-        vs.get_value_scorer_with_status = lambda vmc, lstate, prompt, ss: (lambda f: float(np.sum(f)), "ok")
-        vs.get_value_scorer = lambda vmc, lstate, prompt, ss: (lambda f: float(np.sum(f)))
+        vs.get_value_scorer_with_status = lambda vmc, lstate, prompt, ss: (
+            lambda f: float(np.sum(f)),
+            "ok",
+        )
+        vs.get_value_scorer = lambda vmc, lstate, prompt, ss: (
+            lambda f: float(np.sum(f))
+        )
         sys.modules["value_scorer"] = vs
 
         fl = types.ModuleType("flux_local")

@@ -15,6 +15,5 @@ class TestSmokeRidgeProposal(unittest.TestCase):
         self.assertLessEqual(float(np.linalg.norm(z2)), 1.000001)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

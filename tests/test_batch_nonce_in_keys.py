@@ -6,7 +6,14 @@ import numpy as np
 
 class BatchNonceKeysTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("batch_ui", "streamlit", "latent_logic", "persistence", "value_scorer", "flux_local"):
+        for m in (
+            "batch_ui",
+            "streamlit",
+            "latent_logic",
+            "persistence",
+            "value_scorer",
+            "flux_local",
+        ):
             sys.modules.pop(m, None)
 
     def test_keys_include_nonce(self):
@@ -23,7 +30,9 @@ class BatchNonceKeysTest(unittest.TestCase):
         st.button = button
         st.sidebar.button = button
         st.session_state.prompt = "nonce-keys"
-        st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0))
+        st.session_state.lstate = types.SimpleNamespace(
+            width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0)
+        )
         st.session_state.steps = 3
         st.session_state.guidance_eff = 0.0
         st.session_state.cur_labels = [None, None]
@@ -57,7 +66,9 @@ class BatchNonceKeysTest(unittest.TestCase):
         batch_ui._render_batch_ui()
 
         # Keys should contain the batch nonce so Good/Bad buttons are unique across batches.
-        self.assertTrue(any(f"_{st.session_state.cur_batch_nonce}_" in k for k in pressed))
+        self.assertTrue(
+            any(f"_{st.session_state.cur_batch_nonce}_" in k for k in pressed)
+        )
 
 
 if __name__ == "__main__":
