@@ -606,18 +606,55 @@ try:
                     st.sidebar.write(f"Value scorer: {_vs_line}")
                 except Exception:
                     pass
+                # Minimal Ridge status line (running/ok/idle)
+                try:
+                    import numpy as _np
+                    fut_r = st.session_state.get(Keys.RIDGE_FIT_FUTURE)
+                    running_r = bool(fut_r is not None and not getattr(fut_r, "done", lambda: False)())
+                    w_now = getattr(lstate, "w", None)
+                    wn = float(_np.linalg.norm(w_now)) if w_now is not None else 0.0
+                    status_r = "running" if running_r else ("ok" if wn > 0.0 else "idle")
+                    st.sidebar.write(f"Ridge training: {status_r}")
+                    if fut_r is not None and getattr(fut_r, "done", lambda: False)():
+                        st.session_state.pop(Keys.RIDGE_FIT_FUTURE, None)
+                except Exception:
+                    pass
         except TypeError:
             st.sidebar.write(f"Train score: {_train_score}")
             st.sidebar.write(f"CV score: {_cv_score}")
             st.sidebar.write(f"Last CV: {_last_cv}")
             st.sidebar.write(f"Last train: {_last_train}")
             st.sidebar.write(f"Value scorer: {_vs_line}")
+            try:
+                import numpy as _np
+                fut_r = st.session_state.get(Keys.RIDGE_FIT_FUTURE)
+                running_r = bool(fut_r is not None and not getattr(fut_r, "done", lambda: False)())
+                w_now = getattr(lstate, "w", None)
+                wn = float(_np.linalg.norm(w_now)) if w_now is not None else 0.0
+                status_r = "running" if running_r else ("ok" if wn > 0.0 else "idle")
+                st.sidebar.write(f"Ridge training: {status_r}")
+                if fut_r is not None and getattr(fut_r, "done", lambda: False)():
+                    st.session_state.pop(Keys.RIDGE_FIT_FUTURE, None)
+            except Exception:
+                pass
     else:
         st.sidebar.write(f"Train score: {_train_score}")
         st.sidebar.write(f"CV score: {_cv_score}")
         st.sidebar.write(f"Last CV: {_last_cv}")
         st.sidebar.write(f"Last train: {_last_train}")
         st.sidebar.write(f"Value scorer: {_vs_line}")
+        try:
+            import numpy as _np
+            fut_r = st.session_state.get(Keys.RIDGE_FIT_FUTURE)
+            running_r = bool(fut_r is not None and not getattr(fut_r, "done", lambda: False)())
+            w_now = getattr(lstate, "w", None)
+            wn = float(_np.linalg.norm(w_now)) if w_now is not None else 0.0
+            status_r = "running" if running_r else ("ok" if wn > 0.0 else "idle")
+            st.sidebar.write(f"Ridge training: {status_r}")
+            if fut_r is not None and getattr(fut_r, "done", lambda: False)():
+                st.session_state.pop(Keys.RIDGE_FIT_FUTURE, None)
+        except Exception:
+            pass
     # Tiny visibility line for XGBoost readiness
     try:
         if vm_choice == "XGBoost":

@@ -21,12 +21,15 @@ def get_value_scorer_with_status(vm_choice: str, lstate: Any, prompt: str, sessi
     from persistence import get_dataset_for_prompt_or_session
 
     z_p = z_from_prompt(lstate, prompt)
-    w = getattr(lstate, "w", None)
+    # Snapshot w on read to avoid observing a partially-swapped array when
+    # Ridge trains asynchronously. Keep it minimal: copy only the used slice.
+    _w_raw = getattr(lstate, "w", None)
+    w = None if _w_raw is None else np.asarray(_w_raw[: getattr(lstate, 'd', 0)], dtype=float).copy()
 
     def _ridge(fvec):
-        if w is None:
+        if w is None or w.size == 0:
             return 0.0
-        return float(np.dot(w[: lstate.d], np.asarray(fvec, dtype=float)))
+        return float(np.dot(w, np.asarray(fvec, dtype=float)))
 
     def _zero(_fvec):
         return 0.0

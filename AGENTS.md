@@ -987,6 +987,8 @@ Architecture notes (Nov 20, 2025):
 - Keys: continue migrating magic strings to `constants.Keys` for hot paths (sizes/steps/guidance, queue/batch, VM choice, CV cache). Leave test stubs that rely on simple strings untouched for now.
 - Decode boundary: `flux_local` vs `image_server` is behind globals; consider a tiny `DecodeBackend` shim with two implementations to make the boundary explicit (only if needed).
 - Async queue latency: both decodes and training share a single-worker ThreadPool; queue UI blocks on `future.result()`. Result: after labeling, training can occupy the worker and delay the next visible decode. Remedies: schedule decode before training, split executors (train vs decode), or render a non-blocking placeholder when `future.done()` is False.
+Read‑guard (Nov 20, 2025):
+- Added a minimal copy‑on‑read for `lstate.w` in hot readers (`value_scorer`, `ui_metrics`, and the pair sidebar in `ui`). This avoids any chance of observing a partially swapped `w` when Ridge fits run asynchronously. We still swap‑assign under a tiny lock on write.
 
 New learnings (Nov 20, 2025, now):
 - Default Ridge training is async (`ridge_train_async=True`) to avoid UI stalls; toggleable in the sidebar.
@@ -995,5 +997,6 @@ New learnings (Nov 20, 2025, now):
 - Keys: continued gradual sweep across hot paths via `constants.Keys`; remaining legacy string keys are left intentionally for test stubs and will be migrated incrementally.
 - Logging: app/batch/queue/value_model/flux_local route messages through `ipo` logger (stdout prints kept for tests). `IPO_LOG_LEVEL` env and a sidebar toggle control verbosity; sidebar expander tails `ipo.debug.log`.
 - Dataset rows auto‑refresh: the “Dataset rows” metric now renders inside a `st.fragment` (when available) and calls `st.autorefresh(interval=1000)` inside the fragment, so only that metric updates once per second instead of the whole sidebar rerunning.
+- Ridge status in sidebar: “Train results” now shows `Ridge training: running/ok/idle` based on `Keys.RIDGE_FIT_FUTURE` and ‖w‖. Minimal visibility without adding new state.
 Fix (Nov 20, 2025):
 - Resolved an IndentationError in value_model.py observed in a user run. Normalized the logger/setup block and verified imports with `python -m py_compile value_model.py app.py batch_ui.py queue_ui.py` (clean).

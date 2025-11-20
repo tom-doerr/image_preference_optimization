@@ -16,9 +16,9 @@ def compute_step_scores(
     """Compute per-step scores along d1. Returns None when unfitted/unavailable."""
     try:
         from latent_logic import z_from_prompt  # type: ignore
-        # Gather weights and scorer status
-        w = getattr(lstate, 'w', None)
-        w = w[: lstate.d] if w is not None else None
+        # Gather weights (snapshot on read) and scorer status
+        _w_raw = getattr(lstate, 'w', None)
+        w = None if _w_raw is None else np.asarray(_w_raw[: getattr(lstate, 'd', 0)], dtype=float).copy()
         n = float(np.linalg.norm(w)) if w is not None else 0.0
         scorer = None
         status = "ok"
@@ -55,9 +55,9 @@ def compute_step_scores(
                 if scorer is not None:
                     s = float(scorer(zc - z_p))
                 else:
-                    s = float(np.dot(lstate.w[: lstate.d], (zc - z_p)))
+                    s = float(np.dot(w, (zc - z_p)))
             except Exception:
-                s = float(np.dot(lstate.w[: lstate.d], (zc - z_p)))
+                s = float(np.dot(w, (zc - z_p)))
             scores.append(s)
         return scores
     except Exception:

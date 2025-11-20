@@ -34,7 +34,9 @@ def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
 
 def render_pair_sidebar(lstate, prompt: str, z_a: np.ndarray, z_b: np.ndarray, lr_mu_val: float, value_scorer=None) -> None:
     import streamlit as st  # ensure we use the currently stubbed module in tests
-    w = lstate.w
+    import numpy as _np
+    w_raw = getattr(lstate, 'w', None)
+    w = _np.asarray(w_raw[: getattr(lstate, 'd', 0)], dtype=float).copy() if w_raw is not None else _np.zeros(getattr(lstate, 'd', 0), dtype=float)
     m = pair_metrics(w, z_a, z_b)
     st.sidebar.subheader("Vector info (current pair)")
     sidebar_metric_rows(

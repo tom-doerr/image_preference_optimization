@@ -82,3 +82,6 @@ Proposed minimal fixes (pick one):
 - 141a: Reorder the queue label path to refill/schedule the next decode before scheduling training (keeps one pool; improves responsiveness).
 - 141b: Use a separate executor for training vs decode (CPU-only training runs in parallel; PIPE stays serialized by PIPE_LOCK). Very small change.
 - 141c: In queue UI, if future.done() is False, show “decoding…” and return without blocking; the fragment will render the image on the next rerun.
+
+Update (Nov 20, 2025): Ridge status visibility
+- The Train results section now shows “Ridge training: running/ok/idle” by checking the async future (`Keys.RIDGE_FIT_FUTURE`) and the current ‖w‖. No extra switches; purely informational.
