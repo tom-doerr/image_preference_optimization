@@ -189,8 +189,8 @@ def _init_pair_for_state(new_state) -> None:
 
 
 def _reset_derived_state(new_state) -> None:
-    st.session_state.images = (None, None)
-    st.session_state.mu_image = None
+    st.session_state[Keys.IMAGES] = (None, None)
+    st.session_state[Keys.MU_IMAGE] = None
     if getattr(new_state, 'mu_hist', None) is not None and new_state.mu_hist.size > 0:
         st.session_state.mu_history = [m.copy() for m in new_state.mu_hist]
     else:
@@ -209,15 +209,15 @@ def _apply_state(new_state) -> None:
     """Apply a freshly loaded/created state to session and reset derived caches."""
     st.session_state.lstate = new_state
     try:
-        use_rand = bool(getattr(st.session_state, "use_random_anchor", False))
+        use_rand = bool(getattr(st.session_state, Keys.USE_RANDOM_ANCHOR, False))
         setattr(new_state, "use_random_anchor", use_rand)
         setattr(new_state, "random_anchor_z", None)
     except Exception:
         pass
     _init_pair_for_state(new_state)
     _reset_derived_state(new_state)
-    st.session_state.images = (None, None)
-    st.session_state.mu_image = None
+    st.session_state[Keys.IMAGES] = (None, None)
+    st.session_state[Keys.MU_IMAGE] = None
     if getattr(new_state, 'mu_hist', None) is not None and new_state.mu_hist.size > 0:
         st.session_state.mu_history = [m.copy() for m in new_state.mu_hist]
     else:
@@ -300,7 +300,7 @@ except Exception:
 
 # Optional: random latent anchor instead of prompt-derived anchor
 try:
-    _rand_anchor_default = bool(getattr(st.session_state, "use_random_anchor", True))
+    _rand_anchor_default = bool(getattr(st.session_state, Keys.USE_RANDOM_ANCHOR, True))
 except Exception:
     _rand_anchor_default = True
 try:
@@ -311,7 +311,7 @@ except Exception:
     _rand_anchor_cb = _rand_anchor_default
 try:
     use_random_anchor = bool(_rand_anchor_cb)
-    st.session_state["use_random_anchor"] = use_random_anchor
+    st.session_state[Keys.USE_RANDOM_ANCHOR] = use_random_anchor
     setattr(lstate, "use_random_anchor", use_random_anchor)
     # Reset cached random anchor when toggled on so a fresh one is drawn.
     if use_random_anchor:
@@ -373,15 +373,7 @@ try:
         # refuse to use rows whose feature dim does not match the current latent dim.
         from persistence import get_dataset_for_prompt_or_session as _get_ds
         X_, y_ = _get_ds(base_prompt, st.session_state)
-        if X_ is not None and y_ is not None and getattr(X_, "shape", (0, 0))[0] > 0:
-            try:
-                d_x = int(getattr(X_, "shape", (0, 0))[1])
-                d_lat = int(getattr(lstate, "d", d_x))
-                if d_x != d_lat:
-                    st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
-                    X_, y_ = None, None
-            except Exception:
-                X_, y_ = None, None
+        # get_dataset_for_prompt_or_session already guards against dim mismatches
         # Lazy auto-fit: if we have a usable dataset but no value model yet,
         # delegate to value_model.ensure_fitted so there is a single place
         # that decides when Ridge/XGB trains.
@@ -742,8 +734,8 @@ except Exception:
     pass
 width, height, steps, guidance, _apply_clicked = build_size_controls(st, lstate)
 try:
-    st.session_state['steps'] = int(steps)
-    st.session_state['guidance'] = float(guidance)
+    st.session_state[Keys.STEPS] = int(steps)
+    st.session_state[Keys.GUIDANCE] = float(guidance)
 except Exception:
     pass
 if _apply_clicked:
@@ -821,7 +813,7 @@ def _render_advanced_controls():
 # In compact mode, tuck advanced controls into an expander; otherwise render inline
 _adv_expander = None
 try:
-    if bool(st.session_state.get('sidebar_compact', False)) and callable(getattr(st.sidebar, 'expander', None)):
+    if bool(st.session_state.get(Keys.SIDEBAR_COMPACT, False)) and callable(getattr(st.sidebar, 'expander', None)):
         _adv_expander = st.sidebar.expander("Advanced", expanded=False)
 except Exception:
     _adv_expander = None
@@ -1071,12 +1063,12 @@ def generate_pair():
         pass
     _pair_generate()
     try:
-        imgs = st.session_state.get('images')
+        imgs = st.session_state.get(Keys.IMAGES)
         if not imgs or imgs[0] is None or imgs[1] is None:
             # Minimal fallback for test stubs: use text-only path if available
             if callable(generate_flux_image):
                 img = generate_flux_image(base_prompt, width=lstate.width, height=lstate.height, steps=Config.DEFAULT_STEPS, guidance=Config.DEFAULT_GUIDANCE)
-                st.session_state.images = (img, img)
+                st.session_state[Keys.IMAGES] = (img, img)
     except Exception:
         pass
 
@@ -1169,7 +1161,13 @@ def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
 
 def _queue_fill_up_to() -> None:
     import queue_ui as _q
-    return _q._queue_fill_up_to()
+    _q._queue_fill_up_to()
+    # Materialize list in session state for stubbed tests that may lazily wrap state
+    try:
+        q = list(st.session_state.get('queue') or [])
+        st.session_state['queue'] = q
+    except Exception:
+        pass
 
 
 def _queue_label(idx: int, label: int) -> None:
@@ -1335,7 +1333,7 @@ if st.button("Reset", type="secondary"):
 
 st.caption(f"Persistence: {st.session_state.state_path}{' (loaded)' if os.path.exists(st.session_state.state_path) else ''}")
 # Footer: recent prompt states (hash + truncated text)
-recent = st.session_state.get('recent_prompts', [])
+recent = st.session_state.get(Keys.RECENT_PROMPTS, [])
 if recent:
     def _hash_of(p: str) -> str:
         return hashlib.sha1(p.encode('utf-8')).hexdigest()[:10]

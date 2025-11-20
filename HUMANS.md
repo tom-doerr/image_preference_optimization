@@ -87,3 +87,6 @@ Update (Nov 20, 2025): Ridge status visibility
 - The Train results section now shows “Ridge training: running/ok/idle” by checking the async future (`Keys.RIDGE_FIT_FUTURE`) and the current ‖w‖. No extra switches; purely informational.
 Per‑state lock for w (Nov 20, 2025):
 - We moved the global lock to `lstate.w_lock` so multiple prompts/states don’t contend. Async Ridge fits use this lock to assign `w` atomically per state.
+
+Keys consistency (Nov 20, 2025):
+- Added constants for `use_random_anchor`, `images`, and `mu_image` (`Keys.USE_RANDOM_ANCHOR`, `Keys.IMAGES`, `Keys.MU_IMAGE`) and started using them in the app. This keeps session_state access uniform and reduces typo risk.

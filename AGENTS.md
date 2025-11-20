@@ -540,6 +540,10 @@ New learnings (Nov 18, 2025):
  
 New learnings (Nov 20, 2025):
 - Consolidation: removed unused `ui_sidebar.py` and the duplicate import in `app.py`; kept a single sidebar construction path via helpers in `app.py` + `ui.py`. Radon improved and the sidebar code is easier to follow.
+- Consolidation (queue/batch + dataset):
+  - Reused `_sample_around_prompt` across Batch and Queue to avoid duplicated RNG math.
+  - Moved dataset dimension mismatch handling into `persistence.get_dataset_for_prompt_or_session`; callers no longer repeat the guard. Sidebar notices still work via `Keys.DATASET_DIM_MISMATCH`.
+  - Added a tiny materialization in `app._queue_fill_up_to()` so stubs see a concrete `queue` list (fixes flaky test state exposure without altering behavior).
 - Sidebar cleanup: grouped “Train results” expander (Train/CV/Last train/Scorer status); removed “Images status”.
 - Dataset is folder‑only: all rows read/written under `data/<hash>/<row>/sample.npz`. Aggregated `dataset_*.npz` is ignored.
 - “Dataset rows” autorefreshes every 1s; added dim‑scoped count “Rows (this d)”. Dropped “Rows (all)”.
@@ -1001,5 +1005,6 @@ New learnings (Nov 20, 2025, now):
 - Logging: app/batch/queue/value_model/flux_local route messages through `ipo` logger (stdout prints kept for tests). `IPO_LOG_LEVEL` env and a sidebar toggle control verbosity; sidebar expander tails `ipo.debug.log`.
 - Dataset rows auto‑refresh: the “Dataset rows” metric now renders inside a `st.fragment` (when available) and calls `st.autorefresh(interval=1000)` inside the fragment, so only that metric updates once per second instead of the whole sidebar rerunning.
 - Ridge status in sidebar: “Train results” now shows `Ridge training: running/ok/idle` based on `Keys.RIDGE_FIT_FUTURE` and ‖w‖. Minimal visibility without adding new state.
+- Keys additions (Nov 20, 2025): added `Keys.USE_RANDOM_ANCHOR`, `Keys.IMAGES`, and `Keys.MU_IMAGE`. App now uses these where applicable; future refactors can rely on consistent Keys everywhere.
 Fix (Nov 20, 2025):
 - Resolved an IndentationError in value_model.py observed in a user run. Normalized the logger/setup block and verified imports with `python -m py_compile value_model.py app.py batch_ui.py queue_ui.py` (clean).

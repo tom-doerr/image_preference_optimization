@@ -45,15 +45,7 @@ def _queue_add_one() -> None:
         vmc = st.session_state.get(Keys.VM_CHOICE, 'DistanceHill')
         pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
         Xd, yd = get_dataset_for_prompt_or_session(prompt, st.session_state)
-        if Xd is not None and yd is not None and getattr(Xd, "shape", (0,))[0] > 0:
-            try:
-                d_x = int(getattr(Xd, "shape", (0, 0))[1])
-                d_lat = int(getattr(lstate, "d", d_x))
-                if d_x != d_lat:
-                    st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
-                    Xd, yd = None, None
-            except Exception:
-                Xd, yd = None, None
+        # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
         raw_alpha = getattr(st.session_state, 'alpha', 0.5)
         a = float(raw_alpha if raw_alpha is not None else 0.5)
         if pp == 'DistanceHill':

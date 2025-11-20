@@ -56,8 +56,10 @@ def dataset_rows_all_for_prompt(prompt: str) -> int:
 def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[object | None, object | None]:
     """Return (X, y) from per-sample folders only (no NPZ fallback).
 
-    Reads rows from data/<hash>/*/sample.npz and concatenates them. If the
-    folder is missing or empty, returns (None, None).
+    - Reads rows from data/<hash>/*/sample.npz and concatenates them.
+    - If session_state.lstate exists and feature dim != lstate.d, return (None, None)
+      and record the mismatch in session_state['dataset_dim_mismatch'].
+    - If the folder is missing or empty, returns (None, None).
     """
     X = y = None
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
@@ -80,6 +82,21 @@ def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[objec
             if xs:
                 X = np.vstack(xs)
                 y = np.concatenate(ys)
+                # Dim guard: ignore datasets that don't match current latent dim
+                try:
+                    lstate = getattr(session_state, 'lstate', None)
+                    if lstate is not None and getattr(X, 'ndim', 2) == 2:
+                        d_x = int(X.shape[1])
+                        d_lat = int(getattr(lstate, 'd', d_x))
+                        if d_x != d_lat:
+                            try:
+                                from constants import Keys as _K
+                                session_state[_K.DATASET_DIM_MISMATCH] = (d_x, d_lat)
+                            except Exception:
+                                session_state['dataset_dim_mismatch'] = (d_x, d_lat)
+                            return None, None
+                except Exception:
+                    pass
                 try:
                     print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from data/{h}")
                 except Exception:

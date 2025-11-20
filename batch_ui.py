@@ -191,17 +191,7 @@ def _curation_train_and_next() -> None:
     st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
     st.session_state.pop(Keys.XGB_TRAIN_STATUS, None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
-    if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
-        # Guard against resolution changes: ignore datasets whose feature dim
-        # does not match the current latent dimension.
-        try:
-            d_x = int(getattr(X, 'shape', (0, 0))[1])
-            d_lat = int(getattr(lstate, 'd', d_x))
-            if d_x != d_lat:
-                st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
-                X, y = None, None
-        except Exception:
-            X, y = None, None
+    # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
@@ -237,15 +227,7 @@ def _refit_from_dataset_keep_batch() -> None:
     st.session_state.pop("xgb_fit_future", None)
     st.session_state.pop("xgb_train_status", None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
-    if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
-        try:
-            d_x = int(getattr(X, 'shape', (0, 0))[1])
-            d_lat = int(getattr(lstate, 'd', d_x))
-            if d_x != d_lat:
-                st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
-                X, y = None, None
-        except Exception:
-            X, y = None, None
+    # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
