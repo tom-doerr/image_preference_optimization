@@ -821,29 +821,21 @@ try:
             except Exception:
                 scorer_status = "unknown"
             st.sidebar.write(f"Value scorer status: {scorer_status}")
-            # CV lines (kept visible)
+            # CV lines (from cache, no per-render compute)
             try:
-                from persistence import get_dataset_for_prompt_or_session as _get_ds_vm
-                from metrics import ridge_cv_accuracy as _rcv_vm, xgb_cv_accuracy as _xcv_vm
-                Xv, yv = _get_ds_vm(base_prompt, st.session_state)
-                if Xv is not None and yv is not None and len(yv) >= 4:
-                    import numpy as _np
-                    n_rows_vm = int(len(yv))
-                    if vm == "XGBoost":
-                        try:
-                            k_xgb = min(3, n_rows_vm)
-                            cv_xgb = float(_xcv_vm(Xv, yv, k_xgb))
-                            if not _np.isnan(cv_xgb):
-                                st.sidebar.write(f"CV (XGBoost): {cv_xgb*100:.0f}% (k={k_xgb})")
-                        except Exception:
-                            pass
-                    try:
-                        k_ridge = min(5, n_rows_vm)
-                        cv_r = float(_rcv_vm(Xv, yv, lam=float(st.session_state.get('reg_lambda', 1e-3)), k=k_ridge))
-                        if not _np.isnan(cv_r):
-                            st.sidebar.write(f"CV (Ridge): {cv_r*100:.0f}% (k={k_ridge})")
-                    except Exception:
-                        pass
+                cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+                ridge_line = "CV (Ridge): n/a"
+                xgb_line = "CV (XGBoost): n/a"
+                if isinstance(cv_cache, dict):
+                    r = cv_cache.get("Ridge") or {}
+                    x = cv_cache.get("XGBoost") or {}
+                    if "acc" in r and "k" in r:
+                        ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
+                    if "acc" in x and "k" in x:
+                        xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
+                if vm == "XGBoost":
+                    st.sidebar.write(xgb_line)
+                st.sidebar.write(ridge_line)
             except Exception:
                 pass
             # Details tucked behind a sub-expander to reduce clutter
