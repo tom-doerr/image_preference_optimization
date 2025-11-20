@@ -709,32 +709,6 @@ if not hasattr(st.sidebar, 'write'):
 if not hasattr(st.sidebar, 'metric'):
     st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
 
-# Data counters at the very top of the sidebar
-try:
-    _info_top = state_summary(lstate)
-    st.sidebar.subheader("Interaction data (in-memory)")
-    rows = [("Pairs", f"{_info_top['pairs_logged']}"), ("Choices", f"{_info_top['choices_logged']}")]
-    # Simple train score over logged pairs using current w
-    try:
-        X = getattr(lstate, 'X', None)
-        y = getattr(lstate, 'y', None)
-        if X is not None and y is not None and len(y) > 0:
-            pred = X @ lstate.w
-            acc = float(np.mean((pred >= 0) == (y > 0)))
-            rows.append(("Train score", f"{acc*100:.0f}%"))
-        else:
-            rows.append(("Train score", "n/a"))
-    except Exception:
-        rows.append(("Train score", "n/a"))
-    # Dataset rows (from saved NPZ)
-    try:
-        rows.append(("Dataset rows", str(dataset_rows_for_prompt(base_prompt))))
-    except Exception:
-        rows.append(("Dataset rows", "n/a"))
-    sidebar_metric_rows(rows, per_row=2)
-except Exception:
-    pass
-
 # Training data details (collapsed)
 try:
     # Explain how we build z and latents
