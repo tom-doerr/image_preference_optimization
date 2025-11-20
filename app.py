@@ -151,7 +151,7 @@ def _image_fragment(img, caption: str, v_label: str | None = None, v_val: float 
 # Apply fragment decorator dynamically if available
 _frag = getattr(st, 'fragment', None)
 try:
-    _use_frags = bool(getattr(st.session_state, 'use_fragments', True))
+    _use_frags = bool(getattr(st.session_state, Keys.USE_FRAGMENTS, True))
 except Exception:
     _use_frags = True
 if _use_frags and callable(_frag):
@@ -161,7 +161,7 @@ def _init_pair_for_state(new_state) -> None:
     try:
         # Proposer is tied to the Value model to simplify UI:
         # CosineHill when selected, otherwise DistanceHill.
-        vmc = st.session_state.get('vm_choice', 'DistanceHill')
+        vmc = st.session_state.get(Keys.VM_CHOICE, 'DistanceHill')
         pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
         if pp == 'DistanceHill':
             from persistence import get_dataset_for_prompt_or_session
@@ -179,9 +179,9 @@ def _init_pair_for_state(new_state) -> None:
         # Log proposer used
         try:
             from datetime import datetime, timezone
-            log = st.session_state.get('pair_log') or []
+            log = st.session_state.get(Keys.PAIR_LOG) or []
             log.append({'when': datetime.now(timezone.utc).isoformat(timespec='seconds'), 'proposer': str(pp)})
-            st.session_state.pair_log = log
+            st.session_state[Keys.PAIR_LOG] = log
         except Exception:
             pass
     except Exception:
@@ -332,7 +332,7 @@ try:
         from ui import sidebar_metric
         # Prefer live session rows; fall back to disk
         try:
-            rows_live = int(len(st.session_state.get("dataset_y", []) or []))
+            rows_live = int(len(st.session_state.get(Keys.DATASET_Y, []) or []))
         except Exception:
             rows_live = 0
         try:
@@ -378,7 +378,7 @@ try:
                 d_x = int(getattr(X_, "shape", (0, 0))[1])
                 d_lat = int(getattr(lstate, "d", d_x))
                 if d_x != d_lat:
-                    st.session_state["dataset_dim_mismatch"] = (d_x, d_lat)
+                    st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
                     X_, y_ = None, None
             except Exception:
                 X_, y_ = None, None
@@ -388,7 +388,7 @@ try:
         if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] > 0:
             try:
                 from value_model import ensure_fitted as _ensure_fitted
-                lam_auto = float(st.session_state.get("reg_lambda", 1e-3))
+                lam_auto = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
                 _ensure_fitted(vm_choice, lstate, X_, y_, lam_auto, st.session_state)
             except Exception:
                 pass
@@ -400,7 +400,7 @@ try:
             # Prefer XGB when selected and a model is cached
             _use_xgb_now = (vm_choice == "XGBoost")
             try:
-                cache = st.session_state.get('xgb_cache') or {}
+                cache = st.session_state.get(Keys.XGB_CACHE) or {}
                 mdl = cache.get('model')
             except Exception:
                 mdl = None
@@ -527,17 +527,17 @@ try:
     try:
         min_train_interval = getattr(st.sidebar, "number_input", _sb_num)(
             "Min seconds between trains",
-            value=float(st.session_state.get("min_train_interval_s", 0.0)), step=1.0, format="%.0f"
+            value=float(st.session_state.get(Keys.MIN_TRAIN_INTERVAL_S, 0.0)), step=1.0, format="%.0f"
         )
-        st.session_state["min_train_interval_s"] = float(min_train_interval)
+        st.session_state[Keys.MIN_TRAIN_INTERVAL_S] = float(min_train_interval)
     except Exception:
         pass
     # Toggle: retrain when new labels are written (default: on)
     try:
         tr_cb = getattr(st.sidebar, "checkbox", lambda *a, **k: True)(
-            "Train on new data", value=bool(st.session_state.get('train_on_new_data', True))
+            "Train on new data", value=bool(st.session_state.get(Keys.TRAIN_ON_NEW_DATA, True))
         )
-        st.session_state['train_on_new_data'] = bool(tr_cb)
+        st.session_state[Keys.TRAIN_ON_NEW_DATA] = bool(tr_cb)
     except Exception:
         pass
     # Async training toggles
@@ -551,33 +551,33 @@ try:
     # XGBoost-only settings: simple hyperparams + CV folds to trade noise vs runtime.
     if vm_choice == "XGBoost":
         try:
-            async_train_cb = getattr(st.sidebar, "checkbox", lambda *a, **k: st.session_state.get("xgb_train_async", True))(
-                "Train XGBoost async", value=bool(st.session_state.get("xgb_train_async", True))
+            async_train_cb = getattr(st.sidebar, "checkbox", lambda *a, **k: st.session_state.get(Keys.XGB_TRAIN_ASYNC, True))(
+                "Train XGBoost async", value=bool(st.session_state.get(Keys.XGB_TRAIN_ASYNC, True))
             )
-            st.session_state["xgb_train_async"] = bool(async_train_cb)
+            st.session_state[Keys.XGB_TRAIN_ASYNC] = bool(async_train_cb)
         except Exception:
             pass
         try:
             n_estim = int(_sb_num("XGB n_estimators",
-                                  value=int(st.session_state.get("xgb_n_estimators", 50)), step=10))
-            st.session_state["xgb_n_estimators"] = n_estim
+                                  value=int(st.session_state.get(Keys.XGB_N_ESTIMATORS, 50)), step=10))
+            st.session_state[Keys.XGB_N_ESTIMATORS] = n_estim
         except Exception:
             pass
         try:
             max_depth = int(_sb_num("XGB max_depth",
-                                    value=int(st.session_state.get("xgb_max_depth", 3)), step=1))
-            st.session_state["xgb_max_depth"] = max_depth
+                                    value=int(st.session_state.get(Keys.XGB_MAX_DEPTH, 3)), step=1))
+            st.session_state[Keys.XGB_MAX_DEPTH] = max_depth
         except Exception:
             pass
         try:
             k_pref = int(_sb_num("CV folds (XGB)",
-                                 value=int(st.session_state.get("xgb_cv_folds", 3)), step=1))
-            st.session_state["xgb_cv_folds"] = k_pref
+                                 value=int(st.session_state.get(Keys.XGB_CV_FOLDS, 3)), step=1))
+            st.session_state[Keys.XGB_CV_FOLDS] = k_pref
         except Exception:
             pass
     else:
         # Hide async toggle in non-XGB modes to reduce clutter
-        st.session_state["xgb_train_async"] = False
+        st.session_state[Keys.XGB_TRAIN_ASYNC] = False
     try:
         _last_cv = str(st.session_state.get(Keys.CV_LAST_AT)) if st.session_state.get(Keys.CV_LAST_AT) else 'n/a'
     except Exception:
@@ -686,9 +686,9 @@ try:
     try:
         if _vm_type == "Ridge":
             lam_top = _sb_num("Ridge λ (edit)",
-                              value=float(st.session_state.get('reg_lambda', 0.0)),
+                              value=float(st.session_state.get(Keys.REG_LAMBDA, 0.0)),
                               step=1e-3, format="%.6f")
-            st.session_state['reg_lambda'] = float(lam_top)
+            st.session_state[Keys.REG_LAMBDA] = float(lam_top)
     except Exception:
         pass
     sidebar_metric_rows([( "Value model", _vm_type), ("Settings", _vm_settings)], per_row=2)
@@ -710,17 +710,17 @@ st.sidebar.header("Model & decode settings")
 try:
     # Fragment toggle for image tiles
     use_frags = bool(getattr(st.sidebar, 'checkbox', lambda *a, **k: True)(
-        "Use fragments (isolate image tiles)", value=bool(st.session_state.get('use_fragments', True))
+        "Use fragments (isolate image tiles)", value=bool(st.session_state.get(Keys.USE_FRAGMENTS, True))
     ))
-    st.session_state['use_fragments'] = use_frags
+    st.session_state[Keys.USE_FRAGMENTS] = use_frags
     use_srv = bool(getattr(st.sidebar, 'checkbox', lambda *a, **k: False)(
-        "Use image server", value=bool(st.session_state.get('use_image_server', False))
+        "Use image server", value=bool(st.session_state.get(Keys.USE_IMAGE_SERVER, False))
     ))
-    st.session_state['use_image_server'] = use_srv
+    st.session_state[Keys.USE_IMAGE_SERVER] = use_srv
     srv_url = getattr(st.sidebar, 'text_input', lambda *a, **k: os.getenv('IMAGE_SERVER_URL', ''))(
-        "Image server URL", value=str(st.session_state.get('image_server_url', os.getenv('IMAGE_SERVER_URL', '')))
+        "Image server URL", value=str(st.session_state.get(Keys.IMAGE_SERVER_URL, os.getenv('IMAGE_SERVER_URL', '')))
     )
-    st.session_state['image_server_url'] = srv_url
+    st.session_state[Keys.IMAGE_SERVER_URL] = srv_url
     try:
         import flux_local as _fl
         _uis = getattr(_fl, 'use_image_server', None)

@@ -48,7 +48,14 @@ __all__ = [
 
 def _lstate_and_prompt() -> Tuple[Any, str]:
     import streamlit as st
-    lstate = st.session_state.lstate
+    lstate = getattr(st.session_state, 'lstate', None)
+    if lstate is None:
+        try:
+            from latent_state import init_latent_state as _init
+            lstate = _init()
+            st.session_state.lstate = lstate
+        except Exception:
+            pass
     prompt = getattr(st.session_state, 'prompt', None)
     if not prompt:
         from constants import DEFAULT_PROMPT
@@ -339,13 +346,9 @@ def _render_batch_ui() -> None:
                     except Exception:
                         pass
                 else:
-                    # Non-XGB modes: simple fresh random sample around prompt anchor.
+                    # Non-XGB modes: reuse the shared helper to keep logic DRY.
                     try:
-                        from latent_logic import z_from_prompt as _zfp
-                        z_p_local = _zfp(lstate, prompt)
-                        r = lstate.rng.standard_normal(lstate.d)
-                        r = r / (np.linalg.norm(r) + 1e-12)
-                        z_i = z_p_local + lstate.sigma * 0.8 * r
+                        z_i = _sample_around_prompt(scale=0.8)
                     except Exception:
                         z_i = cur_batch[i]
 

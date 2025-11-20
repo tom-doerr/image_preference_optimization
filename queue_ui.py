@@ -66,11 +66,16 @@ def _queue_add_one() -> None:
             from app import _proposer_opts  # reuse app's opts builder
             za, _ = propose_next_pair(lstate, prompt, opts=_proposer_opts())
     except Exception:
-        from latent_logic import z_from_prompt
-        z_p = z_from_prompt(lstate, prompt)
-        r = lstate.rng.standard_normal(lstate.d)
-        r = r / (np.linalg.norm(r) + 1e-12)
-        za = z_p + lstate.sigma * 0.8 * r
+        # Reuse batch helper to keep sampling logic in one place
+        try:
+            from batch_ui import _sample_around_prompt as _sap  # local import to avoid cycles
+            za = _sap(scale=0.8)
+        except Exception:
+            from latent_logic import z_from_prompt
+            z_p = z_from_prompt(lstate, prompt)
+            r = lstate.rng.standard_normal(lstate.d)
+            r = r / (np.linalg.norm(r) + 1e-12)
+            za = z_p + lstate.sigma * 0.8 * r
     lat = z_to_latents(lstate, za)
     fut = bg.schedule_decode_latents(prompt, lat, lstate.width, lstate.height, steps, guidance_eff)
     item = {'z': za, 'future': fut, 'label': None}
