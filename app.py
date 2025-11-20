@@ -278,9 +278,14 @@ try:
     st.sidebar.subheader("Training data & scores")
     # Dataset rows from persisted NPZ
     try:
-        _rows_cnt = int(dataset_rows_for_prompt(base_prompt))
+        rows_disk = int(dataset_rows_for_prompt(base_prompt))
     except Exception:
-        _rows_cnt = 0
+        rows_disk = 0
+    try:
+        rows_live = int(len(st.session_state.get("dataset_y", []) or []))
+    except Exception:
+        rows_live = 0
+    _rows_cnt = max(rows_disk, rows_live)
     # Train score using selected value model (Ridge/XGBoost)
     try:
         # Prefer on-disk dataset; fall back to in-memory X/y if present, but
