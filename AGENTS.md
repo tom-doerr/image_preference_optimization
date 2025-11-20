@@ -95,9 +95,10 @@ DistanceHill controls (Nov 18, 2025, later):
 - Switched Distance hill-climbing controls from sliders to numeric inputs for precise edits:
   - Alpha, Beta, Trust radius, Step size (lr_μ), Orth explore (γ), Optimization steps, and Iterative step (eta).
 - Keeps UI minimal while allowing exact values; tests rely on session state rather than widget type, so no changes needed there.
+ - Batch size default increased to 25 (slider range 2–64) to match the preferred batch workflow; queue defaults remain unchanged.
 
 Performance + UX (Nov 18, 2025, late):
-- Optimization steps (latent): default set to 10; no hard maximum (number_input without max).
+- Optimization steps (latent): default set to 10; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) defaults to 0.1 instead of 0.0 so the iterative proposer is active by default.
 - Added lightweight performance telemetry:
   - flux_local._run_pipe prints "[perf] PIPE call took X.XXX s …" and records `dur_s` in `get_last_call()`.
   - Batch labeling logs per-click durations (good/bad) in the Streamlit CLI.
@@ -120,8 +121,23 @@ Scheduler guard (Nov 18, 2025, later):
 - Test: `tests/test_scheduler_prepare.py` uses a dummy pipe/scheduler to assert the guard prevents the crash.
 
 New learnings (Nov 19, 2025):
-- Async decode helper availability varies in tests that stub the `background` module. To keep UI code minimal and tests reliable, `batch_ui` now uses a tiny inline default when `background.result_or_sync_after` is missing. This is a test-only accommodation; production still uses the real helper.
-- Action: added the inline default and re-ran the suite; the e2e low-std debug test now passes locally.
+- Async decode helper availability varies in tests that stub the `background` module. Batch curation no longer depends on it; images are decoded synchronously per item so they always appear on the first render.
+- `background.result_or_sync_after` is now only used in its own unit tests; batch/queue UIs keep their logic minimal and let `generate_flux_image_latents` run directly when an image is needed.
+- Added lightweight CLI prints to track what the UI is doing without extra UI elements:
+  - `[autorun]` and `[prompt]` lines when the prompt image is generated (model/size/steps/guidance) including total ms for the call.
+  - `[batch]` lines when a new batch is created (ms to sample candidates) and when each batch item is decoded (item index and ms).
+  - `[queue]` lines when items are added/fill up (including fill time), when labels are applied, and when the visible queue item is decoded and shown (ms for `future.result()`).
+  - `[pipe]` lines before every Diffusers `PIPE(**kwargs)` call and on model reuse/load in `flux_local` (including model-load seconds) so hangs inside the pipeline or during model loading are visible in the CLI.
+  - `[train]` lines when value model training starts (vm_choice, rows, dim, λ) plus the existing `[perf] train` timing; together they bracket Ridge/XGBoost updates.
+  - `[mode]` lines when we dispatch into Batch vs Async queue and when `generate_pair()` is called, to correlate UI actions with backend work.
+
+Maintainability (Nov 19, 2025):
+- Centralized the “should we fit Ridge?” decision in `value_model._uses_ridge(vm_choice)`; `fit_value_model` now skips the heavy ridge solve when the active value model is DistanceHill or CosineHill.
+- Updated image calls to use `width="stretch"` instead of the deprecated `use_container_width=True` for main images; this keeps the layout stable and removes Streamlit warnings in logs.
+- Batch caching was removed again: `batch_ui` now always decodes each item on render so per-image fragments stay simple and behavior is easier to reason about. If perf is an issue we can reintroduce a tiny cache, but for now we keep it explicit.
+- XGBoost CV is fully centralized in `metrics.xgb_cv_accuracy`; both the Data block and Value model expander call this helper instead of duplicating fold logic.
+- `value_model.ensure_fitted` now also auto-fits when the selected value model is XGBoost and no cached model exists, even if `w` was restored from disk. This fixes “XGBoost (xgb_unavailable)” after reload while keeping training decisions in one place.
+- Batch tiles are wrapped in `st.fragment` (when available) so each image + buttons lives in its own fragment; latent sampling, decode, and label-side effects are scoped per tile. Tests still pass because we guard the fragment usage behind `getattr(st, "fragment", None)`.
 
 Keep in mind:
 - Prefer one call site for Diffusers: all decode paths go through `flux_local._run_pipe` so scheduler/device guards live in one place.
@@ -497,7 +513,7 @@ Decision (120e):
 - App now references `Config.DEFAULT_STEPS` and `Config.DEFAULT_GUIDANCE`; defaults remain 6 steps and 3.5 guidance. Tests unchanged and pass.
 
 New e2e tests (Nov 18, 2025):
-- `tests/e2e/test_e2e_predicted_values_and_iterations.py`: imports the app with stubs and asserts that predicted values (V(left)/V(right)) and the iterations line render on import.
+- `tests/e2e/test_e2e_predicted_values_and_iterations.py`: (now skipped) previously asserted predicted values (V(left)/V(right)) and an iterations line; the pair-based vector panel has since been removed in favor of Batch-only metrics.
 - `tests/e2e/test_e2e_prefer_left_increments.py`: emulates a single preference by calling `app.update_latent_ridge(...)` on the current pair and checks that `lstate.step` increments. Uses a unique prompt and clears `mu_hist` to avoid NPZ collisions.
 - `tests/e2e/test_e2e_pair_content_gpu.py` (opt‑in via `E2E_GPU=1` or `SMOKE_GPU=1`): decodes a real A/B pair on GPU and asserts both images have variance and are not identical.
 - `tests/e2e/test_e2e_async_queue_single_visible.py`: ensures only one queue item is rendered in Async mode while background prefill runs.
@@ -524,6 +540,7 @@ New learnings (Nov 18, 2025):
  
 UI fragments (Nov 18, 2025, late):
 - Wrapped each displayed image (Prompt, Left, Right, Batch/Queue items) in `st.fragment` to scope reruns and reduce unnecessary re-execution. Kept buttons outside the fragments to preserve interaction semantics. Minimal change; improves responsiveness.
+- Streamlit deprecation: `use_container_width` has been phased out for main images; we now pass `width=\"stretch\"` to `st.image` in the app, batch, and queue UIs to avoid warnings and keep layout consistent.
 
 Explain latents (Nov 18, 2025, late):
 - Added a concise “Latent creation” explainer in the sidebar:
@@ -542,11 +559,41 @@ Model selection removal (Nov 18, 2025, 128b):
 Train score (Nov 18, 2025):
 - The “Data” block now includes a simple training score computed on logged pairs using the current ridge weights `w` (accuracy of `sign(Xw)` vs labels). Shown as “Train score”. If no data yet, displays “n/a”. Test: `tests/test_sidebar_train_score.py`.
 
+New learnings (Nov 19, 2025, late):
+- Sidebar “Train score” now prefers the disk-backed dataset for the current prompt (via `persistence.get_dataset_for_prompt_or_session`) and only falls back to `lstate.X/y` when no saved data exists. This keeps the score aligned with “Dataset rows”.
+- The “Step scores” sidebar panel now uses the unified `value_scorer.get_value_scorer` helper for Ridge/XGBoost/DistanceHill/CosineHill, instead of re‑implementing per‑mode scoring. This makes step values reflect the active value model and ensures XGBoost paths transparently fall back to Ridge when no XGB model is cached.
+
+New learnings (Nov 19, 2025, later):
+- Batch sampling in XGBoost mode is now guided by a tiny multi-step hill climb per image: `_curation_new_batch` calls `latent_logic.sample_z_xgb_hill` for each item when `vm_choice == "XGBoost"`. Each sample starts from a new random vector around the anchor and climbs along the Ridge direction while XGBoost (or the Ridge fallback) scores candidates; if Ridge weights are missing/zero or scoring fails, we fall back to the previous random-around-anchor sampler.
+- We added a small unit test `tests/test_sample_z_xgb_hill.py` that verifies `sample_z_xgb_hill` moves the latent in the expected direction when the scorer prefers larger values in a specific coordinate. This keeps the helper minimal but exercised.
+- `_curation_init_batch` now always calls `_curation_new_batch`, so every page reload or mode entry creates a completely fresh batch of latents instead of reusing any existing `cur_batch`. Good/Bad clicks still regenerate a new batch as before.
+
+XGBoost eval logging (Nov 19, 2025, later):
+- `xgb_value.score_xgb_proba` now prints a tiny log for every XGBoost evaluation: `[xgb] eval d=<dim> ‖f‖=<norm> proba=<p>]`. This covers per-image captions, step-score panels, hill-climb μ, and train-score computations, since they all route through the same helper. Extra logs are acceptable here and make it easier to see when and how often XGB is queried.
+
+Dim-mismatch guard (Nov 19, 2025, later):
+- When loading training data via `get_dataset_for_prompt_or_session`, we now refuse to use datasets whose feature dimension `d` does not match the current latent dimension `lstate.d`. Batch training (`_curation_train_and_next`), refits, queue proposers, and the Data sidebar all set `session_state['dataset_dim_mismatch'] = (d_dataset, d_latent)` when this happens.
+- The sidebar “Data” block shows a clear message in that case: `Dataset recorded at different resolution (d=…) – current latent dim d=…; ignoring saved dataset for training.` In-memory `lstate.X/y` from the current session are still used when available, so you can safely change resolution without accidentally training on stale 512×512 data.
+
+CV scorer (Nov 19, 2025, later):
+- In XGBoost mode, the sidebar “CV score” now uses a small XGBoost-based K-fold CV instead of Ridge: we shuffle indices deterministically, split into up to `k` folds (configurable via `CV folds (XGB)` in the Data block, clamped to 2–5), train a tiny XGB model per fold via `xgb_value.fit_xgb_classifier`, score with `score_xgb_proba`, and average the per-fold accuracies. The label shows this explicitly as “(k=K, XGB, nested)”. In all other modes we keep the simple Ridge-based CV via `metrics.ridge_cv_accuracy`.
+
+CV comparison (Nov 19, 2025, later):
+- The “Value model” expander now shows both `CV (XGBoost)` and `CV (Ridge)` lines when XGBoost is active, computed on the same dataset. This makes it easy to see how the non-linear XGB critic compares to the linear Ridge baseline on the current data without digging into logs.
+
+Lazy auto-fit (Nov 19, 2025, later):
+- Introduced `value_model.ensure_fitted(vm_choice, lstate, X, y, lam, session_state)` as the single place that decides when Ridge/XGBoost should train lazily. The Data block and Batch/Queue training now delegate to this helper.
+- On import, if a usable dataset exists for the current prompt but no value model has been fitted yet (‖w‖≈0 and no XGB cache), `ensure_fitted` performs one lazy fit so V-values and Train/CV scores become meaningful immediately, without waiting for a new Good/Bad click. Subsequent clicks still call `fit_value_model` explicitly via the batch/queue paths.
+
+Value scorer fallbacks (Nov 19, 2025, later):
+- `value_scorer.get_value_scorer` no longer falls back to Ridge when a non-Ridge value model is unavailable. For XGBoost, DistanceHill, and CosineHill, missing models or empty datasets now return a scorer that always yields 0 and log a small `[xgb]/[dist]/[cos] scorer unavailable/error` line, instead of silently switching to Ridge. Ridge remains the only path that uses `dot(w, fvec)` by design.
+- Added `value_scorer.get_value_scorer_with_status(...)` which returns both a scorer and a short status string (`\"ok\"`, `\"xgb_unavailable\"`, `\"dist_empty\"`, etc.). The Value model sidebar expander now shows `Value scorer status: <status>` so it’s obvious when XGB/DH/Cosine are effectively inactive (always 0) versus trained.
+
 Prompt encode caching (Nov 18, 2025):
 - For sd‑turbo we cache prompt embeddings per (model, prompt, CFG>0) and pass `prompt_embeds`/`negative_prompt_embeds` to Diffusers. Cuts CPU by avoiding re-tokenization each rerun. Test: `tests/test_prompt_encode_cache.py`.
 
 UI tweak (Nov 18, 2025):
-- Sidebar Environment panel is wrapped in a collapsed expander by default (click to open). This keeps the sidebar compact.
+- Sidebar Environment panel is wrapped in a collapsed expander by default (click to open). This keeps the sidebar compact, and headings are now clearer: “Mode & value model”, “Training data & scores”, “Model & decode settings”, “Latent optimization”, “Hill-climb μ”, “State persistence”, and “Latent state”. We also removed the top-of-page caption (“Latent preference optimizer (local GPU).”) and a stray “Model selection” string to keep the layout clean.
 CPU load notes (Nov 18, 2025):
 - Reduced unnecessary work on rerun: prompt image is now regenerated only when missing or the prompt changes (previously it regenerated every rerun). This lowers CPU/GPU churn from Streamlit’s reactive reruns.
 - XGBoost value function retrains only when the sample count increases; cached in `session_state` to avoid per-render training.
@@ -600,6 +647,7 @@ Dataset versioning (Nov 18, 2025):
 Batch labeling (Nov 18, 2025):
 - Bei „Good/Bad“ im Batch wird jetzt der gesamte Batch neu erzeugt (statt nur das angeklickte Item zu ersetzen). Das hält den Flow konsistent und vermeidet halb‑alten Batch‑Zustand. Test: `tests/test_batch_label_refreshes_full_batch.py` (mind. zwei Items ändern sich).
  - Zusätzlich: Nach jedem neuen Sample wird das Value‑Modell unmittelbar neu trainiert (Refit aus Dataset) – sowohl im Batch‑Klickpfad als auch in Queue/Pair (dort ohnehin vorhanden). Timestamp „Last train“ wird aktualisiert. Test: `tests/test_batch_click_trains_sets_timestamp.py`.
+- Neue Option: „Best-of batch (one winner)“ im Batch-Modus. Ein Klick auf „Choose i“ markiert das gewählte Bild als +1 und alle übrigen im aktuellen Batch als −1, schreibt alle Labels ins Dataset und erzeugt danach einen frischen Batch. Test: `tests/test_batch_best_of_mode.py`.
 
 Ridge‑λ Bedienung (Nov 18, 2025):
 - Neben dem bisherigen Slider gibt es zwei numerische Eingaben (oben im Value‑Block und bei den Regler‑Controls). Beide schreiben nach `st.session_state['reg_lambda']`; Slider bleibt für Testkompatibilität.
@@ -659,3 +707,76 @@ Module map (Nov 18, 2025):
 
 Make targets:
 - `make test` runs the full suite; `make test-fast` runs unit slices; `make mypy` checks typed modules.
+- `make commit` runs `git commit -am "wip"`; `make push` runs `git push`. These are convenience shorthands and assume your current branch/remote are already set up.
+
+Eta control (Nov 19, 2025):
+- Iterative step (eta) now has a single source of truth in session_state['iter_eta'] shared between the Pair-controls slider and the numeric input.
+- Tests: tests/test_slider_help.py ensures the slider default is >0 and that the numeric input updates session_state and is reflected back in the slider default.
+
+New learnings (Nov 19, 2025, later):
+- Step sizes (lr_μ / eta) are currently user-controlled via sidebar sliders/inputs; there is no built-in randomization. Making step sizes random per update would require an explicit code change (e.g., sampling from a range in the proposer or hill-climb helpers), which we have not added yet to keep behavior deterministic for debugging.
+- Batch images are no longer cached per latent index (`cur_batch_images` was removed). Each rerun decodes all items in the current batch afresh so sidebar changes and latent tweaks immediately show up in the images, at the cost of a bit more decode work.
+- Batch init now drops a stale `cur_batch` if its latent dimension no longer matches the current `LatentState.d` (e.g., after changing Width/Height). This prevents reshape errors in `z_to_latents` when the resolution is changed and ensures new batches use the updated size.
+- Step-size sliders were made finer: `Step size (lr_μ)` now uses step=0.01 (min still 0.0, max 1.0) and the `Iterative step (eta)` slider also uses step=0.01. Numeric inputs for hill-climb already supported 0.01 granularity. Tests (`test_slider_help`, `test_default_steps`, `test_ui_controls_fallbacks`) remain green.
+
+Layout tweak (Nov 19, 2025, later):
+- Batch curation images are now rendered in horizontal rows using `st.columns` (5 items per row by default) instead of a purely vertical list. This keeps large batches (e.g., size 25) more readable while preserving simple code: `_render_batch_ui` still decodes one image per latent and renders `Item i` with the existing Good/Bad/Choose buttons inside each column.
+- Streamlit test stubs (`tests/helpers/st_streamlit.py`) were updated so `st.columns(n)` returns `n` column context managers instead of a fixed pair, keeping tests aligned with the new layout.
+- Targeted test: `tests/test_batch_ui_background_fallback.py` continues to pass and confirms at least one batch item image is rendered with caption `Item 0`.
+
+Page layout (Nov 19, 2025, later):
+- Switched the app to Streamlit’s wide layout: `st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")` in `app.py`. This gives more horizontal space for the batch grid + sidebar. Tests stub `set_page_config`, so unit behavior is unchanged.
+
+Prompt-only image removal (Nov 19, 2025, later):
+- The top-level “Prompt-only generation” UI (subheader, button, and image) has been removed from `app.py` to simplify the page and avoid extra decodes the user doesn’t use. We still keep the prompt anchor `z_prompt` conceptually, but no longer render a separate prompt-only image.
+- Autorun now only calls `set_model(selected_model)`; it does not decode a prompt-only image. Batch mode still auto-generates its first curation batch on import.
+- State still carries `session_state.prompt_image` (initialized to `None`) for backward compatibility and tests, but it is never filled with an image in normal runs. Updated tests: `tests/test_generate_from_prompt_button.py` now asserts `prompt_image` stays `None`, and `tests/test_autorun_prompt_first.py` verifies import initializes state without triggering a prompt-only decode.
+
+Prompt input location (Nov 19, 2025, later):
+- The prompt text input now lives in the sidebar instead of the main page: `base_prompt = st.sidebar.text_input("Prompt", value=st.session_state.prompt)` (via a small `_sb_txt` helper). This keeps all controls (mode, value model, prompt, size, steps) in one vertical column.
+- Streamlit stubs were updated so `st.sidebar.text_input` delegates to the top-level `st.text_input`, which means existing tests that patch `st.text_input` continue to drive the prompt value correctly.
+
+Vast.ai deploy note (Nov 19, 2025, later):
+- Deploying to Vast.ai is straightforward because the repo already has a Dockerfile and docker-compose setup. The usual flow is: clone the repo on the Vast instance, ensure Docker is installed, run `docker compose up --build`, and expose port 8501. After local changes, push to a remote and `git pull` + rebuild on Vast. No code changes are needed specifically for Vast; the main friction points are GPU selection, opening the port, and (optionally) providing a Hugging Face token.
+
+Dataset helper simplification (Nov 19, 2025, later):
+- `persistence.get_dataset_for_prompt_or_session(prompt, session_state)` now only reads the persisted dataset NPZ for the given prompt. The previous fallback to `session_state.dataset_X/Y` was removed to keep behavior explicit and avoid hidden coupling to in-memory state. If no `dataset_<hash>.npz` exists, it simply returns `(None, None)`.
+- Batch/queue training, value scorers, and sidebar metrics all rely on this helper, so they now consistently use on-disk data. In-memory `dataset_X/Y` is still maintained by `_curation_add` for tests/inspection, but it is not used as a training fallback anymore.
+- Tests updated: `tests/test_persistence_get_dataset_helper.py` now asserts that the helper returns `(None, None)` when no file exists (even if `dataset_X/Y` is set) and that it reads from disk after `append_dataset_row(...)`. `tests/test_iter_step_scores_sidebar.py` now creates a tiny on-disk dataset via `append_dataset_row` for its prompt before rendering scores.
+
+Per-sample data folders (Nov 19, 2025, later):
+- Each call to `append_dataset_row(prompt, feat, label)` still appends to `dataset_<hash>.npz`, but it also writes a per-sample NPZ under `data/<hash>/<row_idx>/sample.npz`, where `<hash>=sha1(prompt)[:10]` and `<row_idx>` is 1-based, zero-padded (`000001`, `000002`, …). This keeps a simple per-sample view while preserving the aggregate dataset file.
+- When an image is available at labeling time (Batch/Queue modes), `_curation_add` now calls `persistence.save_sample_image(prompt, row_idx, img)` so each sample folder also gets an `image.png` alongside `sample.npz`. Best-of-batch only saves the image for the chosen winner; the other samples in that batch store features/labels only.
+- New test `tests/test_data_folder_samples.py` verifies that `append_dataset_row` creates the `data/<hash>/<row_idx>/sample.npz` structure and that features/labels are stored as expected.
+
+Scheduler guard update (Nov 19, 2025, later):
+- LCMScheduler occasionally raised `ValueError: Number of inference steps is 'None', you need to run 'set_timesteps'` even though we called `set_timesteps(...)`. To harden `_run_pipe`, we now explicitly set `scheduler.num_inference_steps = steps` when this attribute is missing/None, right after calling `set_timesteps`, and still guard `_step_index` as before.
+- Tests `tests/test_scheduler_prepare.py` and `tests/test_scheduler_sigma_alignment.py` still pass with this change; the intent is to keep parallelism minimal (single PIPE_LOCK) but avoid fragile scheduler internals causing crashes in the middle of a batch decode.
+
+XGBoost logging (Nov 19, 2025, later):
+- `value_model.fit_value_model` now prints lightweight XGB training info when `vm_choice == 'XGBoost'`: `[xgb] train start rows=... d=... pos=... neg=...` before fitting and `[xgb] train done ... took ... ms` afterward. This rides on the existing train timing and avoids altering control flow.
+- `value_scorer.get_value_scorer` logs `[xgb] using cached model rows=... d=...` the first time it returns an XGB-based scorer so it’s clear when we’re actually using the cached model instead of falling back to Ridge.
+- New test `tests/test_xgb_logging.py` stubs `xgb_value` and asserts that the XGB training prints fire and that the stubbed `fit_xgb_classifier` is called with the expected row count.
+
+Dataset logging (Nov 19, 2025, later):
+- `persistence.get_dataset_for_prompt_or_session` now logs where training data comes from: when per-sample folders are present it prints `[data] loaded <rows> rows d=<d> from data/<hash>`, when it falls back to `dataset_<hash>.npz` it prints `[data] loaded <rows> rows d=<d> from dataset_<hash>.npz`, and if neither exists it prints `[data] no dataset for prompt=...`. This helps explain "Dataset rows" / "Train score: n/a" states during debugging.
+- Ridge training also logs its fit: after updating `lstate.w`, `value_model.fit_value_model` prints `[ridge] fit rows=<n> d=<d> lam=<lam> ||w||=<norm>`, which shows how many samples contributed and whether the weight vector is non-trivial.
+
+New learnings (Nov 20, 2025):
+- Batch sampling in XGBoost mode now auto-fits the XGB cache from the on-disk dataset before sampling, and we only run the XGB hill-climb when the scorer status is `ok`. This removes the repeated `[xgb-hill-batch] step=... score=0.0000` spam when no model is cached. Test added: `tests/test_batch_xgb_autofit.py`.
+- XGBoost training now defaults to the background executor (`xgb_train_async=True` by default) to keep UI clicks responsive; ridge stays synchronous. Tests added: `tests/test_xgb_train_async_default.py` to lock the default.
+- Sidebar clarity: added “XGBoost active: yes/no” derived from the scorer status so users can see when XGB is actually in use. Test: `tests/test_xgb_active_note.py`.
+- UI tweak: Batch size controls were moved near the top of the sidebar (right after the mode/value selectors) for quicker access. Imports cleaned accordingly.
+- Async XGB training now tracks its Future in session_state; while running we show “XGBoost active: training…”. We no longer auto-rerun on completion; the sidebar shows the update info.
+- Added a sidebar checkbox “Train XGBoost async” (default True) to toggle background training; only shown when Value model is XGBoost to keep the sidebar clean.
+- OOM guard: `_run_pipe` retries on CUDA OOM up to `RETRY_ON_OOM` times (env var, default 0) with a 1s pause and `torch.cuda.empty_cache()`.
+- After each fit completes, we record rows/λ and show a one-off “Updated XGBoost (rows=N)” line in the sidebar (cleared on next render).
+- Batch controls are always visible (no expander) and batch buttons include a nonce to avoid Streamlit key collisions; XGB scoring is skipped while an async fit is running and the cache is empty.
+- No page reruns on XGB fit completion; we just show sidebar status/toast once.
+- Sidebar cleanup: removed the Paths/Dataset browser/Manage states panels to reduce clutter.
+- Debug panel now shows `RETRY_ON_OOM` and includes a checkbox to toggle it (sets the env var live).
+- New "Upload latents" mode: sidebar file uploader maps images to latents, decodes them, and lets you label Good/Bad into the dataset without reloads.
+  - Uploaded originals are saved under `data/<prompt_hash>/uploads/upload_<nonce>_<idx>.png`.
+- Streamlit stub now returns the requested default for `checkbox` so async XGB stays on by default in tests; avoids false negatives in `test_xgb_train_async_default`.
+- Upload mode now has a per-image weight slider (0.1–2.0); Good/Bad applies ±weight to the stored label so stronger/weaker votes are possible without extra clicks.
+- Added a “Train value model” selector (XGBoost or Ridge) so you can choose the training backend independently of the active scorer; fit calls honor this choice across batch/auto-fit paths.

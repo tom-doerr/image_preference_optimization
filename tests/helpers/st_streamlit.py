@@ -13,7 +13,20 @@ def _common(st):
     st.subheader = lambda *_, **__: None
     st.text_input = lambda *_, value="": value
     st.number_input = lambda *_, value=None, **__: value
-    st.slider = lambda *_, value=None, **__: value
+
+    def _slider(*args, **kwargs):
+        # Support both slider(label, min, max, value, step, ...)
+        # and slider(..., value=...), returning the configured default.
+        if 'value' in kwargs:
+            return kwargs['value']
+        # args: (label, min, max, value, [step, ...])
+        if len(args) >= 4:
+            return args[3]
+        if len(args) >= 3:
+            return args[2]
+        return None
+
+    st.slider = _slider
     st.image = lambda *_, **__: None
     st.write = lambda *_, **__: None
     st.experimental_rerun = lambda: None
@@ -23,14 +36,17 @@ def _common(st):
         subheader = staticmethod(lambda *a, **k: None)
         download_button = staticmethod(lambda *a, **k: None)
         file_uploader = staticmethod(lambda *a, **k: None)
-        text_input = staticmethod(lambda *a, **k: '')
-        checkbox = staticmethod(lambda *a, **k: False)
+        @staticmethod
+        def text_input(*args, value="", **kwargs):
+            # Delegate to top-level text_input so tests can patch it.
+            return st.text_input(*args, value=value, **kwargs)
+        checkbox = staticmethod(lambda *a, **k: k.get("value", False))
         button = staticmethod(lambda *a, **k: False)
     st.sidebar = Sidebar()
     class Col:
         def __enter__(self): return self
         def __exit__(self, *a): return False
-    st.columns = lambda n: (Col(), Col())
+    st.columns = lambda n: tuple(Col() for _ in range(max(1, int(n or 1))))
     return st
 
 
@@ -42,7 +58,10 @@ def stub_basic(pre_images=False):
         st.session_state.mu_image = 'ok-image'
     _common(st)
     st.button = lambda *_, **__: False
-    st.sidebar.write = lambda *a, **k: None
+    # Capture sidebar writes so tests that rely on text dumping (e.g., Latent dim)
+    # can see them.
+    st.sidebar_writes = []
+    st.sidebar.write = lambda *a, **k: st.sidebar_writes.append(str(a[0]) if a else "")
     return st
 
 
