@@ -337,7 +337,6 @@ def _render_batch_ui() -> None:
         cols = getattr(st, 'columns', lambda x: [None] * x)(row_end - row_start)
         for col_idx, i in enumerate(range(row_start, row_end)):
             col = cols[col_idx] if cols and len(cols) > col_idx else None
-
             def _render_item() -> None:
                 # Create the vector for this image immediately before decode so
                 # each tile uses a freshly sampled latent under the current
