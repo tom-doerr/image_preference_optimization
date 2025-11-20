@@ -242,6 +242,8 @@ Nov 20, 2025 — Notes for humans
   - Async queue items now show the predicted value in the caption. Test: `tests/test_async_queue_value_caption.py`.
 - Scheduler steps guard
   - If `steps=None` is passed to latents decode we default to 20 and still call `set_timesteps`; test: `tests/test_flux_latents_steps_default.py` (stubs PIPE and asserts timesteps are set).
+- Scheduler timesteps coverage
+  - `_run_pipe` now has explicit coverage to ensure timesteps and `_step_index` are set before calling the pipe. Test: `tests/test_run_pipe_sets_timesteps.py`.
 - Async queue value captions: queue images now render `Item i • Value: …` just like batch tiles. Test: `tests/test_async_queue_value_caption.py`.
 
 - Streamlit DuplicateElementKey errors (e.g., `good_1_10_24`).
