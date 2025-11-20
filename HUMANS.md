@@ -59,3 +59,23 @@ Questions back to you:
 1) Do you want Ridge fits always async, or prefer the previous synchronous default?
 2) Shall we expose a small “Fast ridge” mode (subsample dims or rows) for very high‑res runs?
 3) OK to remove remaining inline sidebar extras from `app.py` entirely now that `ui_sidebar` covers them?
+
+Note (Nov 20, 2025):
+- Dataset rows metric now runs in a fragment with a 1s autorefresh; this limits reruns to that small block. It prefers live in‑session rows over disk and shows a tiny spinner to indicate liveness.
+Q (Nov 20, 2025): Why does the next image in Async mode take long to appear?
+
+A: Two main reasons in our current design:
+- Single shared background pool: background.get_executor() is a single-worker ThreadPool used for both decodes and training. After a label, _queue_label() calls _curation_train_and_next(), which schedules training (Ridge/XGB) onto that same pool before the queue refills. While training runs, decode futures wait in line.
+- Blocking wait in queue UI: the visible item calls future.result(), so the fragment blocks until that decode completes (and until any earlier queued jobs finish).
+
+Contributing factors: large width/height or higher steps, per-sample image/NPZ writes, and XGBoost training when enabled. PIPE calls are serialized by a lock (good), so overlapping decode tasks won’t speed up image readiness either.
+
+Quick mitigations (no code):
+- Temporarily turn off async training (uncheck “Train Ridge async” / “Train XGBoost async”), or set a positive “Min seconds between trains” so decode gets priority.
+- Lower Steps or size for Async mode, or use Batch mode when you want instant next images.
+- Watch the Debug logs; [queue] and [perf] lines make any wait cause obvious.
+
+Proposed minimal fixes (pick one):
+- 141a: Reorder the queue label path to refill/schedule the next decode before scheduling training (keeps one pool; improves responsiveness).
+- 141b: Use a separate executor for training vs decode (CPU-only training runs in parallel; PIPE stays serialized by PIPE_LOCK). Very small change.
+- 141c: In queue UI, if future.done() is False, show “decoding…” and return without blocking; the fragment will render the image on the next rerun.

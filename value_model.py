@@ -71,6 +71,7 @@ def fit_value_model(
     - Records last_train_at and last_train_ms in session_state.
     """
     t0 = _time.perf_counter()
+    scheduled_async = False
     _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
 
     # Optional XGB cache refresh
@@ -84,7 +85,6 @@ def fit_value_model(
                 yy = np.asarray(y).astype(int)
                 pos = int((yy > 0).sum())
                 neg = int((yy < 0).sum())
-                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
                 cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
                 last_n = int(cache.get('n') or 0)
                 # Read simple hyperparams from session_state; default to 50/3.
@@ -97,11 +97,42 @@ def fit_value_model(
                 except Exception:
                     max_depth = 3
                 if cache.get('model') is None or last_n != n:
-                    t_x = _time.perf_counter()
-                    mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                    session_state.xgb_cache = {'model': mdl, 'n': n}
-                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                    # Honor async toggle for XGB fits
+                    do_async_xgb = bool(getattr(session_state, Keys.XGB_TRAIN_ASYNC, True))
+                    if do_async_xgb:
+                        try:
+                            from background import get_executor  # lazy import
+                            def _fit_xgb_bg():
+                                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                                t_x = _time.perf_counter()
+                                mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                                session_state.xgb_cache = {'model': mdl, 'n': n}
+                                dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                                _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                                try:
+                                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+                                    session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
+                                except Exception:
+                                    pass
+                                return True
+                            fut = get_executor().submit(_fit_xgb_bg)
+                            session_state[Keys.XGB_FIT_FUTURE] = fut
+                            scheduled_async = True
+                        except Exception:
+                            # Fallback to sync if executor missing
+                            _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                            t_x = _time.perf_counter()
+                            mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                            session_state.xgb_cache = {'model': mdl, 'n': n}
+                            dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                            _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                    else:
+                        _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                        t_x = _time.perf_counter()
+                        mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                        session_state.xgb_cache = {'model': mdl, 'n': n}
+                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                        _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
         except Exception:
             pass
 
@@ -131,6 +162,7 @@ def fit_value_model(
                         return True
                     fut = get_executor().submit(_fit_ridge_bg)
                     session_state[Keys.RIDGE_FIT_FUTURE] = fut
+                    scheduled_async = True
                 except Exception:
                     # If background executor not available, fall back to sync
                     w_new = ridge_fit(X, y, float(lam))
@@ -144,6 +176,14 @@ def fit_value_model(
                 _log(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
         except Exception:
             pass
+
+    # If any part was scheduled asynchronously, return early to avoid blocking.
+    if scheduled_async:
+        try:
+            session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        except Exception:
+            pass
+        return
 
     # Training bookkeeping
     try:

@@ -326,34 +326,49 @@ except Exception:
 
 # Pair proposer dropdown removed; proposer is derived from Value model.
 
-# Quick data strip
+"""Top-of-sidebar: Training data & scores (rows metric auto-refreshes in a fragment)."""
 try:
     st.sidebar.subheader("Training data & scores")
-    # Periodic 1s refresh for lightweight liveness (if available)
-    try:
-        _ar = getattr(st, 'autorefresh', None)
-        if callable(_ar):
-            _ar(interval=1000, key='rows_auto_refresh')
-    except Exception:
-        pass
-    # Dataset rows from folder samples
-    try:
-        rows_disk = int(dataset_rows_for_prompt(base_prompt))
-    except Exception:
-        rows_disk = 0
-    try:
-        rows_live = int(len(st.session_state.get("dataset_y", []) or []))
-    except Exception:
-        rows_live = 0
-    _rows_cnt = max(rows_disk, rows_live)
-    # Tiny spinner artifact to show liveness next to Dataset rows.
-    try:
-        import time as _time
-        _spin = "|/-\\"
-        _art = _spin[int(_time.time()) % len(_spin)]
-        _rows_display = f"{_rows_cnt} {_art}"
-    except Exception:
-        _rows_display = str(_rows_cnt)
+
+    def _rows_metric_only() -> None:
+        from ui import sidebar_metric
+        # Prefer live session rows; fall back to disk
+        try:
+            rows_live = int(len(st.session_state.get("dataset_y", []) or []))
+        except Exception:
+            rows_live = 0
+        try:
+            rows_disk = int(dataset_rows_for_prompt(base_prompt))
+        except Exception:
+            rows_disk = 0
+        n_rows = max(rows_live, rows_disk)
+        # Small spinner to show liveness
+        try:
+            import time as _time
+            _spin = "|/-\\"
+            _art = _spin[int(_time.time()) % len(_spin)]
+            disp = f"{n_rows} {_art}"
+        except Exception:
+            disp = str(n_rows)
+        sidebar_metric("Dataset rows", disp)
+        # Scope refresh to this fragment when available
+        try:
+            _ar = getattr(st, 'autorefresh', None)
+            if callable(_ar):
+                _ar(interval=1000, key='rows_auto_refresh')
+        except Exception:
+            pass
+
+    # Wrap rows metric in a fragment when available
+    _frag = getattr(st, 'fragment', None)
+    use_frags = bool(getattr(st.session_state, 'use_fragments', True))
+    if use_frags and callable(_frag):
+        try:
+            _frag(_rows_metric_only)()
+        except TypeError:
+            _rows_metric_only()
+    else:
+        _rows_metric_only()
     # Train score using selected value model (Ridge/XGBoost)
     try:
         # Prefer on-disk dataset; fall back to in-memory X/y if present, but
@@ -501,7 +516,9 @@ try:
     except Exception:
         _vm_type, _vm_settings = "Ridge", "λ=1e-3"
 
-    sidebar_metric_rows([("Dataset rows", _rows_display), ("Train score", _train_score)], per_row=2)
+    # Keep Train score alongside rows; render as a simple metric to avoid
+    # tying it to the fragment refresh cadence.
+    sidebar_metric_rows([( "Train score", _train_score)], per_row=1)
     # Dimension-scoped rows only (simplify sidebar)
     try:
         from persistence import dataset_rows_for_prompt_dim as _rows_dim

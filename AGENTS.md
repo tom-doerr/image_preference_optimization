@@ -539,6 +539,19 @@ New learnings (Nov 18, 2025):
  - Safety checker: to prevent spurious blacked-out frames, we disable the pipeline safety checker after load (set `safety_checker=None`, `feature_extractor=None`, and config flag where available). Minimal, avoids false positives in local testing.
  
 New learnings (Nov 20, 2025):
+- Sidebar cleanup: grouped “Train results” expander (Train/CV/Last train/Scorer status); removed “Images status”.
+- Dataset is folder‑only: all rows read/written under `data/<hash>/<row>/sample.npz`. Aggregated `dataset_*.npz` is ignored.
+- “Dataset rows” autorefreshes every 1s; added dim‑scoped count “Rows (this d)”. Dropped “Rows (all)”.
+- Step scores panel: shows n/a when unfitted; inline truncation (first 8), tiles (first 4). Tests cover unfitted and non‑zero Ridge.
+- Value under each image: Batch/Queue tiles show a small value caption using the active scorer.
+- Toasts: saves, good/bad, size apply, and training emit `st.toast` when available (fall back to sidebar write in tests).
+- Image server option: `Use image server` + URL; Flux client delegates to `image_server.py`. Minimal HTTP server lives in `scripts/image_server_app.py` with `/health`.
+- Vast.ai helper: `scripts/vast_auto.py` can find/rent and start image server + app with an `onstart` command.
+- Fragments toggle: `Use fragments (isolate image tiles)` checkbox wraps per‑image UI in `st.fragment` when available.
+- Rich CLI: colored logs via `rich_cli.enable_color_print()`; honor `RICH_CLI=0` to disable. We pass `markup=False` to keep bracket tags verbatim.
+- Controls: removed min/max constraints from common number inputs (Ridge λ, eta/steps, XGB params, Tail lines). Tests updated accordingly.
+- Training toggle: `Train on new data` checkbox (default on) gates refits after labeling.
+- Ruff clean and small fixes (e.g., missing import in `queue_ui.py`). Radon checked; larger refactors postponed to keep code minimal.
 - XGBoost training is now launched via `fit_value_model` only; `_curation_train_and_next` no longer submits its own executor. Async/sync is controlled solely by `xgb_train_async`, so training no longer triggers page reloads and keeps the prior scorer active until the new model lands.
 - Batch Good/Bad keys include the batch nonce to avoid Streamlit duplicate key errors under fragments. Test `tests/test_batch_keys_unique.py` stays green.
 - Added regression test `tests/test_train_async_single_submit.py` to ensure a single training submission per click when async mode is on.
@@ -973,6 +986,7 @@ Architecture notes (Nov 20, 2025):
 - Exception handling: many try/except passes in UI paths hide bugs. Where feasible, log exceptions to `ipo` at DEBUG and let tests catch failures. Avoid fallback behavior unless explicitly requested.
 - Keys: continue migrating magic strings to `constants.Keys` for hot paths (sizes/steps/guidance, queue/batch, VM choice, CV cache). Leave test stubs that rely on simple strings untouched for now.
 - Decode boundary: `flux_local` vs `image_server` is behind globals; consider a tiny `DecodeBackend` shim with two implementations to make the boundary explicit (only if needed).
+- Async queue latency: both decodes and training share a single-worker ThreadPool; queue UI blocks on `future.result()`. Result: after labeling, training can occupy the worker and delay the next visible decode. Remedies: schedule decode before training, split executors (train vs decode), or render a non-blocking placeholder when `future.done()` is False.
 
 New learnings (Nov 20, 2025, now):
 - Default Ridge training is async (`ridge_train_async=True`) to avoid UI stalls; toggleable in the sidebar.
@@ -980,3 +994,4 @@ New learnings (Nov 20, 2025, now):
 - Batch UI resets a small per-render `btn_seq` counter so Streamlit button keys remain unique across reruns (fixes `StreamlitDuplicateElementKey` for Good/Bad keys).
 - Keys: continued gradual sweep across hot paths via `constants.Keys`; remaining legacy string keys are left intentionally for test stubs and will be migrated incrementally.
 - Logging: app/batch/queue/value_model/flux_local route messages through `ipo` logger (stdout prints kept for tests). `IPO_LOG_LEVEL` env and a sidebar toggle control verbosity; sidebar expander tails `ipo.debug.log`.
+- Dataset rows auto‑refresh: the “Dataset rows” metric now renders inside a `st.fragment` (when available) and calls `st.autorefresh(interval=1000)` inside the fragment, so only that metric updates once per second instead of the whole sidebar rerunning.
