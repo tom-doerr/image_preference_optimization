@@ -16,14 +16,13 @@ from constants import (
     MODEL_CHOICES,
 )
 from constants import Config, Keys
-from env_info import get_env_summary
-from ui import sidebar_metric_rows, env_panel, perf_panel
+from ui import sidebar_metric_rows
 import batch_ui as _batch_ui
 from ui_metrics import render_iter_step_scores, render_mu_value_history
 from ui_controls import build_batch_controls, build_queue_controls, build_size_controls, build_pair_controls
 from persistence import state_path_for_prompt, export_state_bytes, dataset_rows_for_prompt, dataset_stats_for_prompt
 import background as bg
-from persistence_ui import render_persistence_controls, render_metadata_panel
+from persistence_ui import render_persistence_controls
 from latent_opt import (
     init_latent_state,
     propose_next_pair,
@@ -31,7 +30,6 @@ from latent_opt import (
     update_latent_ridge,
     save_state,
     load_state,
-    state_summary,
     propose_latent_pair_ridge,
 )
 from value_model import fit_value_model
@@ -730,7 +728,8 @@ try:
             _uis(use_srv, srv_url)
         # Optional health check when server is enabled
         if use_srv and srv_url:
-            import json as _json, urllib.request as _url
+            import json as _json
+            import urllib.request as _url
             try:
                 with _url.urlopen(srv_url.rstrip('/') + '/health', timeout=2) as r:  # nosec - user-provided URL
                     ok = bool(_json.loads(r.read().decode('utf-8')).get('ok'))
@@ -1061,8 +1060,6 @@ def render_sidebar_tail():
 
 # Render the sidebar tail now that mode and controls are resolved
 render_sidebar_tail()
-from ui_sidebar import render_sidebar_extras  # minimal import; avoids cyclics at top
-render_sidebar_extras(st, lstate, base_prompt, is_turbo, guidance_eff, selected_model)
 
 ## imports moved to top
 

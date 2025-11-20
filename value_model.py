@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time as _time
 from datetime import datetime, timezone
-import threading as _threading
 import logging as _logging
 from typing import Any
 
@@ -44,8 +43,7 @@ def _log(msg: str, level: str = "info") -> None:
     except Exception:
         pass
 
-# Guard lstate.w swap-assigns when Ridge async is enabled
-W_LOCK = _threading.Lock()
+# Per-state lock lives on LatentState (lstate.w_lock). Keep no global lock.
 
 
 def _uses_ridge(choice: str) -> bool:
@@ -149,7 +147,18 @@ def fit_value_model(
                     def _fit_ridge_bg():
                         t_r = _time.perf_counter()
                         w_new = ridge_fit(X, y, float(lam))
-                        with W_LOCK:
+                        lock = getattr(lstate, 'w_lock', None)
+                        if lock is None:
+                            try:
+                                import threading as _threading  # lazy
+                                lock = _threading.Lock()
+                                setattr(lstate, 'w_lock', lock)
+                            except Exception:
+                                lock = None
+                        if lock is not None:
+                            with lock:
+                                lstate.w = w_new
+                        else:
                             lstate.w = w_new
                         try:
                             nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
@@ -167,11 +176,19 @@ def fit_value_model(
                 except Exception:
                     # If background executor not available, fall back to sync
                     w_new = ridge_fit(X, y, float(lam))
-                    with W_LOCK:
+                    lock = getattr(lstate, 'w_lock', None)
+                    if lock is not None:
+                        with lock:
+                            lstate.w = w_new
+                    else:
                         lstate.w = w_new
             else:
                 w_new = ridge_fit(X, y, float(lam))
-                with W_LOCK:
+                lock = getattr(lstate, 'w_lock', None)
+                if lock is not None:
+                    with lock:
+                        lstate.w = w_new
+                else:
                     lstate.w = w_new
                 nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
                 _log(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")

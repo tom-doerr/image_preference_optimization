@@ -81,3 +81,13 @@ class Keys:
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
     XGB_CV_FOLDS = "xgb_cv_folds"
+    # Additional app keys for consistency
+    MIN_TRAIN_INTERVAL_S = "min_train_interval_s"
+    RECENT_PROMPTS = "recent_prompts"
+    PAIR_LOG = "pair_log"
+    CUR_BATCH_NONCE = "cur_batch_nonce"
+    DATASET_Y = "dataset_y"
+    DATASET_X = "dataset_X"
+    TRAIN_ON_NEW_DATA = "train_on_new_data"
+    IMAGES = "images"
+    GAMMA_ORTH = "gamma_orth"

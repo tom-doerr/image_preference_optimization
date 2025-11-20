@@ -1,9 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Any, Mapping
 import numpy as np
 import os
 import io
 from constants import Config
+import threading as _threading
 
 
 @dataclass
@@ -21,6 +22,8 @@ class LatentState:
     z_pairs: Optional[np.ndarray] = None
     choices: Optional[np.ndarray] = None
     mu_hist: Optional[np.ndarray] = None
+    # Per-state lock for async updates to w
+    w_lock: Any = field(default_factory=_threading.Lock, repr=False, compare=False)
 
 
 def init_latent_state(width: int = Config.DEFAULT_WIDTH, height: int = Config.DEFAULT_HEIGHT, d: int = 0, seed: Optional[int] = 0) -> LatentState:

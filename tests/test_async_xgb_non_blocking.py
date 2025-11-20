@@ -40,9 +40,7 @@ class TestAsyncXGBNonBlocking(unittest.TestCase):
         sys.modules['xgb_value'] = xv
 
         import value_model as vm
-        t0 = time.perf_counter()
         vm.fit_value_model('XGBoost', lstate, X, y, lam=1e-3, session_state=ss)
-        dt = time.perf_counter() - t0
 
         # Non-blocking: future should be present and not done immediately
         fut = ss.get('xgb_fit_future')

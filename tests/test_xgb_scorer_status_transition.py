@@ -32,7 +32,6 @@ class TestXGBStatusTransition(unittest.TestCase):
 
         # Seed a tiny dataset in folder storage so trainer has data
         from persistence import append_dataset_row
-        z_p = np.zeros(lstate.d, dtype=np.float32)
         for sgn in (+1, -1, +1, -1):
             f = (np.random.randn(1, lstate.d)).astype(np.float32)
             append_dataset_row(prompt, f, float(sgn))
@@ -72,4 +71,3 @@ class TestXGBStatusTransition(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

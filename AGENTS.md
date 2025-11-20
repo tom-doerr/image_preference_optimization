@@ -539,6 +539,7 @@ New learnings (Nov 18, 2025):
  - Safety checker: to prevent spurious blacked-out frames, we disable the pipeline safety checker after load (set `safety_checker=None`, `feature_extractor=None`, and config flag where available). Minimal, avoids false positives in local testing.
  
 New learnings (Nov 20, 2025):
+- Consolidation: removed unused `ui_sidebar.py` and the duplicate import in `app.py`; kept a single sidebar construction path via helpers in `app.py` + `ui.py`. Radon improved and the sidebar code is easier to follow.
 - Sidebar cleanup: grouped “Train results” expander (Train/CV/Last train/Scorer status); removed “Images status”.
 - Dataset is folder‑only: all rows read/written under `data/<hash>/<row>/sample.npz`. Aggregated `dataset_*.npz` is ignored.
 - “Dataset rows” autorefreshes every 1s; added dim‑scoped count “Rows (this d)”. Dropped “Rows (all)”.
@@ -989,6 +990,8 @@ Architecture notes (Nov 20, 2025):
 - Async queue latency: both decodes and training share a single-worker ThreadPool; queue UI blocks on `future.result()`. Result: after labeling, training can occupy the worker and delay the next visible decode. Remedies: schedule decode before training, split executors (train vs decode), or render a non-blocking placeholder when `future.done()` is False.
 Read‑guard (Nov 20, 2025):
 - Added a minimal copy‑on‑read for `lstate.w` in hot readers (`value_scorer`, `ui_metrics`, and the pair sidebar in `ui`). This avoids any chance of observing a partially swapped `w` when Ridge fits run asynchronously. We still swap‑assign under a tiny lock on write.
+Per‑state lock (Nov 20, 2025):
+- Moved the global `W_LOCK` to `LatentState.w_lock` (per‑state). Writers in `value_model.fit_value_model` now use `lstate.w_lock` to swap‑assign `w`. This allows independent training flows per prompt without unnecessary contention.
 
 New learnings (Nov 20, 2025, now):
 - Default Ridge training is async (`ridge_train_async=True`) to avoid UI stalls; toggleable in the sidebar.
