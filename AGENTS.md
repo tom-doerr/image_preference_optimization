@@ -543,6 +543,8 @@ New learnings (Nov 20, 2025):
 - Batch Good/Bad keys include the batch nonce to avoid Streamlit duplicate key errors under fragments. Test `tests/test_batch_keys_unique.py` stays green.
 - Added regression test `tests/test_train_async_single_submit.py` to ensure a single training submission per click when async mode is on.
 - Added tests: `tests/test_batch_nonce_in_keys.py` (nonce in button keys), `tests/test_fit_value_model_async_status.py` (async status/cache set), `tests/test_dataset_rows_dim_mismatch_reset.py` (dataset append resets on dim mismatch).
+- Consolidated value model selection: training now follows the single “Value model” dropdown (no separate “Train value model” picker). Sidebar stays simpler; tests updated.
+- Training now shows a toast immediately when it starts so users see work kicked off without a rerun. Test: `tests/test_train_toast_on_start.py`.
 - Missing import caused "Step scores" to not render. `ui_metrics.render_iter_step_scores` used `z_from_prompt` without importing it, hit a `NameError`, and silently returned due to a broad `try/except` guard. Fix: add `from latent_logic import z_from_prompt` locally in that function.
 - Added a focused test `tests/test_iter_step_scores_sidebar.py` that stubs Streamlit, sets a non‑zero `w`, calls the renderer, and asserts a consolidated "Step scores: ..." line appears.
 - Rationale: minimal change, no fallbacks, keeps deps local to the function to preserve test stubbing.
