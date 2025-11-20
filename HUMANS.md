@@ -62,6 +62,9 @@ Questions back to you:
 
 Note (Nov 20, 2025):
 - Dataset rows metric now runs in a fragment with a 1s autorefresh; this limits reruns to that small block. It prefers live in‑session rows over disk and shows a tiny spinner to indicate liveness.
+
+Fix (Nov 20, 2025): IndentationError in value_model.py
+- The import/logger init block had inconsistent indentation in the earlier file on your box. I normalized the block and verified with `python -m py_compile value_model.py app.py batch_ui.py queue_ui.py` (no errors). If you still see the error, please restart the Streamlit process to clear old bytecode and reload the module.
 Q (Nov 20, 2025): Why does the next image in Async mode take long to appear?
 
 A: Two main reasons in our current design:

@@ -995,3 +995,5 @@ New learnings (Nov 20, 2025, now):
 - Keys: continued gradual sweep across hot paths via `constants.Keys`; remaining legacy string keys are left intentionally for test stubs and will be migrated incrementally.
 - Logging: app/batch/queue/value_model/flux_local route messages through `ipo` logger (stdout prints kept for tests). `IPO_LOG_LEVEL` env and a sidebar toggle control verbosity; sidebar expander tails `ipo.debug.log`.
 - Dataset rows auto‑refresh: the “Dataset rows” metric now renders inside a `st.fragment` (when available) and calls `st.autorefresh(interval=1000)` inside the fragment, so only that metric updates once per second instead of the whole sidebar rerunning.
+Fix (Nov 20, 2025):
+- Resolved an IndentationError in value_model.py observed in a user run. Normalized the logger/setup block and verified imports with `python -m py_compile value_model.py app.py batch_ui.py queue_ui.py` (clean).

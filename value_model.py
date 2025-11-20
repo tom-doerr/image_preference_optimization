@@ -141,7 +141,8 @@ def fit_value_model(
     if _uses_ridge(choice):
         try:
             from latent_logic import ridge_fit  # local import keeps import time low
-            do_async_ridge = bool(getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False))
+            # Force Ridge async when vm_choice is XGBoost to avoid UI stalls
+            do_async_ridge = bool(getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False) or choice == 'XGBoost')
             if do_async_ridge:
                 try:
                     from background import get_executor  # lazy import
