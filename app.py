@@ -33,7 +33,7 @@ from queue_ui import (
 )
 from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, dataset_stats_for_prompt
 import background as bg
-from persistence_ui import render_persistence_controls, render_metadata_panel, render_paths_panel, render_dataset_viewer
+from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
     init_latent_state,
     propose_next_pair,

@@ -786,3 +786,4 @@ New learnings (Nov 20, 2025):
 - Dataset rows metric now uses the max of on-disk rows and in-memory `dataset_y` length, so it increments on every label without needing a rerun; test `tests/test_dataset_rows_live.py` covers this.
 - Sidebar duplication trimmed: dataset rows / train score / value model / settings are shown once via metric rows; only mismatch warnings remain as plain text.
 - Removed explicit `st.rerun()` calls after Good/Bad/queue Accept/Reject clicks to avoid double page reloads during async training; rely on Streamlit’s natural rerun per interaction. This keeps the UI steady while still saving labels and refreshing metrics.
+- Removed Paths/Dataset browser panels from the sidebar to keep it shorter; corresponding test now asserts they stay hidden.

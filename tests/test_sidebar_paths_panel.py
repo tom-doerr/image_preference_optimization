@@ -2,8 +2,6 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_with_writes
-from persistence import state_path_for_prompt, dataset_path_for_prompt
-from constants import DEFAULT_PROMPT
 
 
 class TestSidebarPathsPanel(unittest.TestCase):
@@ -21,13 +19,11 @@ class TestSidebarPathsPanel(unittest.TestCase):
             del sys.modules['app']
         import app  # noqa: F401
 
+        # Paths panel has been removed to keep the sidebar concise.
         out = "\n".join(writes)
-        sp = state_path_for_prompt(DEFAULT_PROMPT)
-        dp = dataset_path_for_prompt(DEFAULT_PROMPT)
-        self.assertIn(f"State path: {sp}", out)
-        self.assertIn(f"Dataset path: {dp}", out)
+        self.assertNotIn("State path:", out)
+        self.assertNotIn("Dataset path:", out)
 
 
 if __name__ == '__main__':
     unittest.main()
-
