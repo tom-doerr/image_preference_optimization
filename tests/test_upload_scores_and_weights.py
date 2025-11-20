@@ -36,7 +36,6 @@ class UploadScoresWeightsTest(unittest.TestCase):
         p.get_dataset_for_prompt_or_session = lambda *a, **k: (np.zeros((1, 4)), np.array([1.0]))
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.export_state_bytes = lambda state, prompt: b""
-        p.dataset_path_for_prompt = lambda prompt: "dataset_dummy.npz"
         p.dataset_rows_for_prompt = lambda prompt: 0
         p.dataset_stats_for_prompt = lambda prompt: {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": []}
         p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}

@@ -24,7 +24,6 @@ class DatasetRowsLiveTest(unittest.TestCase):
         p.state_path_for_prompt = lambda prompt: "latent_state_dummy.npz"
         p.dataset_rows_for_prompt = lambda prompt: 1
         p.dataset_stats_for_prompt = lambda prompt: {"rows": 1, "pos": 1, "neg": 0, "d": 4, "recent_labels": []}
-        p.dataset_path_for_prompt = lambda prompt: "dataset_dummy.npz"
         p.export_state_bytes = lambda state, prompt: b""
         p.read_metadata = lambda path: {"app_version": None, "created_at": None, "prompt": None}
         p.get_dataset_for_prompt_or_session = lambda prompt, ss: (None, None)

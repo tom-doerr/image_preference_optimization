@@ -889,11 +889,21 @@ Updates (Nov 20, 2025):
 - CLI polish (Nov 20, 2025): Added `rich_cli.enable_color_print()` which colors lines starting with bracketed tags (e.g., `[pipe]`, `[perf]`, `[batch]`, `[xgb]`), while preserving the original text so greps/tests continue to match. Optional details line parses `key=value` tokens for readability. Env toggles:
   - `RICH_CLI=0` disables coloring.
   - `RICH_CLI_DETAILS=0` disables the parsed details line.
+- Legacy purge (Nov 20, 2025, late): removed `dataset_path_for_prompt` and any remaining aggregate dataset NPZ helpers. Training/counters/stats are folder-only (`data/<hash>/*/sample.npz`). Tests that imported or patched `dataset_path_for_prompt` were updated to stop referencing it.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
 - Keep UI minimal; prefer a single place for each decision (trainer fit, proposer opts, dataset access).
 - Tests favor folder datasets; don’t reintroduce aggregate NPZ reads.
+
+Architecture notes (Nov 20, 2025, further):
+- Import-time side effects: app.py still performs some work at import, but `render_sidebar_tail()` moved most of the sidebar rendering behind an explicit call. Continue to avoid top‑level actions so tests and stubs stay fast and deterministic.
+- Global state: `constants.Keys` reduced stringly‑typed session_state in hot paths; extend gradually to queue_ui/app for consistency.
+- Training orchestration: `value_model.train_and_record()` is now the single entry for UI‑triggered fits (cooldown + status). Keep UI toasts minimal; avoid duplicating status logic elsewhere.
+- Concurrency: Ridge async writes to `lstate.w` from a background thread when enabled. Streamlit is mostly single‑threaded, but this is still a shared‑state write; add a tiny lock or swap‑assign pattern if we observe races.
+- Logging: `value_model` now logs via the shared `ipo` logger and still prints for tests. Converge other modules (batch_ui/queue_ui/app) to the same logger over time.
+- Module size: app.py remains large. We already split helpers (`ui_controls.py`, `ui_metrics.py`, `persistence_ui.py`); consider a small `ui_sidebar.py` if we touch the sidebar again.
+- Decode backend: `flux_local` is the single gateway with a global PIPE and `PIPE_LOCK` — keep all decode paths going through it. If the image server grows, introduce a tiny decode interface without adding fallbacks.
 
 Keys constants (Nov 20, 2025):
 - Introduced `constants.Keys` for common `st.session_state` keys used in hot paths:
@@ -911,6 +921,14 @@ CV gating (Nov 20, 2025):
   - “CV score” (from cache for the active value model) and “Last CV”.
   - Under “Value model”, we always render the labels “CV (XGBoost): …” and “CV (Ridge): …” from the cache (or `n/a`). No per‑render training.
 - Rationale: eliminates expensive per‑render CV while keeping results visible on demand.
+
+Training policy flag (Nov 20, 2025):
+- Added `Keys.RIDGE_TRAIN_ASYNC` (default False). When True, Ridge fits run via `background.get_executor()` and update `lstate.w` in the background; a `Keys.RIDGE_FIT_FUTURE` is stored in session_state.
+- UI: added a tiny sidebar checkbox “Train Ridge async” near the Data block. Default remains off to keep behavior identical unless explicitly enabled.
+- Minimal change; XGBoost remains as before. Ridge continues to fit synchronously when the flag is off.
+
+Standardized logging (Nov 20, 2025):
+- `value_model` now routes messages through the shared `ipo` logger while still printing to stdout (keeps tests simple). When no handlers are configured, it adds a FileHandler to `ipo.debug.log` with a small formatter. Existing log lines are unchanged (e.g., `[train] …`, `[ridge] …`, `[xgb] …`, `[perf] …`).
 
 Vast.ai quickstart (Nov 20, 2025)
 - Choose a GPU box (3090/4090/A100) with Docker.

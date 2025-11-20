@@ -18,7 +18,6 @@ class TestDatasetRowsArtifact(unittest.TestCase):
 
         p = types.ModuleType('persistence')
         p.state_path_for_prompt = lambda prompt: 'latent_state_dummy.npz'
-        p.dataset_path_for_prompt = lambda prompt: 'dataset_dummy.npz'
         p.dataset_rows_for_prompt = lambda prompt: 7
         p.get_dataset_for_prompt_or_session = lambda *a, **k: (None, None)
         p.dataset_stats_for_prompt = lambda prompt: {"rows": 7, "pos": 4, "neg": 3, "d": 0, "recent_labels": [1,-1,1]}
@@ -41,4 +40,3 @@ class TestDatasetRowsArtifact(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

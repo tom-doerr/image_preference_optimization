@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time as _time
 from datetime import datetime, timezone
+import logging as _logging
 from typing import Any
 
 import numpy as np
@@ -12,6 +13,28 @@ __all__ = [
     'ensure_fitted',
     'train_and_record',
 ]
+
+LOGGER = _logging.getLogger("ipo")
+if not LOGGER.handlers:
+    try:
+        _h = _logging.FileHandler("ipo.debug.log")
+        _h.setFormatter(_logging.Formatter("%(asctime)s %(levelname)s value_model: %(message)s"))
+        LOGGER.addHandler(_h)
+        LOGGER.setLevel(_logging.INFO)
+    except Exception:
+        pass
+
+
+def _log(msg: str, level: str = "info") -> None:
+    """Log to stdout (tests) and ipo logger."""
+    try:
+        print(msg)
+    except Exception:
+        pass
+    try:
+        getattr(LOGGER, level, LOGGER.info)(msg)
+    except Exception:
+        pass
 
 
 def _uses_ridge(choice: str) -> bool:
@@ -37,10 +60,7 @@ def fit_value_model(
     - Records last_train_at and last_train_ms in session_state.
     """
     t0 = _time.perf_counter()
-    try:
-        print(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
-    except Exception:
-        pass
+    _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
 
     # Optional XGB cache refresh
     choice = str(vm_choice)
@@ -53,10 +73,7 @@ def fit_value_model(
                 yy = np.asarray(y).astype(int)
                 pos = int((yy > 0).sum())
                 neg = int((yy < 0).sum())
-                try:
-                    print(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-                except Exception:
-                    pass
+                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
                 cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
                 last_n = int(cache.get('n') or 0)
                 # Read simple hyperparams from session_state; default to 50/3.
@@ -72,11 +89,8 @@ def fit_value_model(
                     t_x = _time.perf_counter()
                     mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
                     session_state.xgb_cache = {'model': mdl, 'n': n}
-                    try:
-                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                        print(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                    except Exception:
-                        pass
+                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
         except Exception:
             pass
 
@@ -112,11 +126,8 @@ def fit_value_model(
             else:
                 w_new = ridge_fit(X, y, float(lam))
                 lstate.w = w_new
-                try:
-                    nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
-                    print(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
-                except Exception:
-                    pass
+                nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
+                _log(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
         except Exception:
             pass
 
@@ -127,7 +138,7 @@ def fit_value_model(
         pass
     try:
         session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t0) * 1000.0)
-        print(f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state[Keys.LAST_TRAIN_MS]:.1f} ms")
+        _log(f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state[Keys.LAST_TRAIN_MS]:.1f} ms")
     except Exception:
         pass
     # Mark async fit as done if we were running in background

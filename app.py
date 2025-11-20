@@ -284,7 +284,7 @@ try:
             _ar(interval=1000, key='rows_auto_refresh')
     except Exception:
         pass
-    # Dataset rows from persisted NPZ
+    # Dataset rows from folder samples
     try:
         rows_disk = int(dataset_rows_for_prompt(base_prompt))
     except Exception:
