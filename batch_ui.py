@@ -170,10 +170,8 @@ def _curation_train_and_next() -> None:
             lam_now = float(getattr(st.session_state, 'reg_lambda', 1e-3))
             vmc = st.session_state.get('vm_choice')
             vm_train = str(st.session_state.get('vm_train_choice', vmc))
-            # First ensure an initial fit when needed.
+            # First ensure an initial fit when needed; keep async inside fit_value_model
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
-            # Optionally move XGBoost training to a background thread so
-            # UI clicks are less likely to block. Ridge stays synchronous.
             async_train = bool(st.session_state.get("xgb_train_async", True))
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
@@ -188,18 +186,9 @@ def _curation_train_and_next() -> None:
                     if elapsed < min_wait:
                         st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
-            if vm_train == "XGBoost" and async_train:
-                try:
-                    from background import get_executor
-                    ex = get_executor()
-                    st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                    fut = ex.submit(fit_value_model, vm_train, lstate, X, y, lam_now, st.session_state)
-                    st.session_state["xgb_fit_future"] = fut
-                except Exception:
-                    fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
-            else:
-                st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            # fit_value_model handles async internally when vm_train==XGBoost and xgb_train_async is True.
+            fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
         except Exception:
             pass
     _curation_new_batch()
@@ -228,7 +217,6 @@ def _refit_from_dataset_keep_batch() -> None:
             vmc = st.session_state.get('vm_choice')
             vm_train = str(st.session_state.get('vm_train_choice', vmc))
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
-            async_train = bool(st.session_state.get("xgb_train_async", True))
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
             last_at = st.session_state.get("last_train_at")
@@ -242,18 +230,8 @@ def _refit_from_dataset_keep_batch() -> None:
                     if elapsed < min_wait:
                         st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
-            if vm_train == "XGBoost" and async_train:
-                try:
-                    from background import get_executor
-                    ex = get_executor()
-                    st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                    fut = ex.submit(fit_value_model, vm_train, lstate, X, y, lam_now, st.session_state)
-                    st.session_state["xgb_fit_future"] = fut
-                except Exception:
-                    fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
-            else:
-                st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
     except Exception:
         pass
 
@@ -409,17 +387,19 @@ def _render_batch_ui() -> None:
 
                     nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
+                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
+
                     def _good_clicked() -> bool:
                         if gcol is not None:
                             with gcol:
-                                return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{i}", width="stretch")
-                        return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{i}", width="stretch")
+                                return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{nonce}_{i}", width="stretch")
+                        return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{nonce}_{i}", width="stretch")
 
                     def _bad_clicked() -> bool:
                         if bcol is not None:
                             with bcol:
-                                return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{i}", width="stretch")
-                        return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{i}", width="stretch")
+                                return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{nonce}_{i}", width="stretch")
+                        return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{nonce}_{i}", width="stretch")
 
                     if _good_clicked():
                         t0g = _time.perf_counter()

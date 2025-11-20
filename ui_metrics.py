@@ -19,6 +19,8 @@ def render_iter_step_scores(
     latent_logic scorers or Ridge/XGB depending on `vm_choice`.
     """
     try:
+        # Minimal local import to avoid missing-name crash; keeps deps light.
+        from latent_logic import z_from_prompt  # type: ignore
         try:
             from persistence import get_dataset_for_prompt_or_session
             get_dataset_for_prompt_or_session(prompt, st.session_state)

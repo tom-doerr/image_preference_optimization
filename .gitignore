@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local run artifacts (datasets, checkpoints, backups)
+backups/
+data/
+dataset_*.npz
+latent_state_*.npz

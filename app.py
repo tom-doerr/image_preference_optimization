@@ -600,17 +600,8 @@ if st.sidebar.button(hill_label):
 # Value function option: controlled solely by the dropdown above
 use_xgb = (vm_choice == "XGBoost")
 
-# Legacy toggles (collapsed when dropdown exists) — kept to preserve tests
-def _legacy_mode_controls():
-    cm = st.sidebar.checkbox("Batch curation mode", value=False)
-    aq = st.sidebar.checkbox("Async queue mode", value=False)
-    return cm, aq
-
-if selected_gen_mode is not None and callable(getattr(st.sidebar, 'expander', None)):
-    with st.sidebar.expander("Advanced (legacy mode toggles)"):
-        curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
-else:
-    curation_mode_cb, async_queue_mode_cb = _legacy_mode_controls()
+# Legacy toggles removed to avoid duplicate mode controls in the sidebar.
+curation_mode_cb, async_queue_mode_cb = False, False
 
 try:
     # Best-of toggle applies only to Batch mode; keep state for tests when mode is unset.
