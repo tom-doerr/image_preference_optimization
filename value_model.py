@@ -46,6 +46,116 @@ def _log(msg: str, level: str = "info") -> None:
 # Per-state lock lives on LatentState (lstate.w_lock). Keep no global lock.
 
 
+def _maybe_fit_xgb(vm_choice: str, lstate: Any, X, y, lam: float, session_state: Any) -> bool:
+    scheduled = False
+    if str(vm_choice) != 'XGBoost':
+        return scheduled
+    try:
+        from xgb_value import fit_xgb_classifier  # type: ignore
+        n = int(getattr(X, 'shape', (0,))[0])
+        d = int(getattr(X, 'shape', (0, 0))[1]) if getattr(X, 'ndim', 2) == 2 else 0
+        if n <= 0 or len(set(np.asarray(y).astype(int).tolist())) <= 1:
+            return scheduled
+        yy = np.asarray(y).astype(int)
+        pos = int((yy > 0).sum())
+        neg = int((yy < 0).sum())
+        cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
+        last_n = int(cache.get('n') or 0)
+        try:
+            n_estim = int(getattr(session_state, 'xgb_n_estimators', session_state.get('xgb_n_estimators', 50)))
+        except Exception:
+            n_estim = 50
+        try:
+            max_depth = int(getattr(session_state, 'xgb_max_depth', session_state.get('xgb_max_depth', 3)))
+        except Exception:
+            max_depth = 3
+        if cache.get('model') is None or last_n != n:
+            do_async = bool(getattr(session_state, Keys.XGB_TRAIN_ASYNC, True))
+            if do_async:
+                try:
+                    from background import get_executor
+                    def _fit():
+                        _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                        t_x = _time.perf_counter()
+                        mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                        session_state.xgb_cache = {'model': mdl, 'n': n}
+                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                        _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                        try:
+                            session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+                            session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
+                        except Exception:
+                            pass
+                        return True
+                    fut = get_executor().submit(_fit)
+                    session_state[Keys.XGB_FIT_FUTURE] = fut
+                    scheduled = True
+                except Exception:
+                    _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                    t_x = _time.perf_counter()
+                    mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                    session_state.xgb_cache = {'model': mdl, 'n': n}
+                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+            else:
+                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                t_x = _time.perf_counter()
+                mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                session_state.xgb_cache = {'model': mdl, 'n': n}
+                dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+    except Exception:
+        pass
+    return scheduled
+
+
+def _maybe_fit_ridge(vm_choice: str, lstate: Any, X, y, lam: float, session_state: Any) -> bool:
+    scheduled = False
+    if not _uses_ridge(str(vm_choice)):
+        return scheduled
+    try:
+        from latent_logic import ridge_fit
+        do_async_ridge = bool(getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False) or str(vm_choice) == 'XGBoost')
+        if do_async_ridge:
+            try:
+                from background import get_executor
+                def _fit_bg():
+                    t_r = _time.perf_counter()
+                    w_new = ridge_fit(X, y, float(lam))
+                    # use lstate internal lock if present
+                    lock = getattr(lstate, 'w_lock', None)
+                    if lock is not None:
+                        with lock:
+                            lstate.w = w_new
+                    else:
+                        lstate.w = w_new
+                    try:
+                        nrm = float(np.linalg.norm(w_new[: getattr(lstate, 'd', w_new.shape[0])]))
+                        print(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f} (async)")
+                    except Exception:
+                        pass
+                    try:
+                        session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t_r) * 1000.0)
+                    except Exception:
+                        pass
+                    return True
+                fut = get_executor().submit(_fit_bg)
+                session_state[Keys.RIDGE_FIT_FUTURE] = fut
+                scheduled = True
+            except Exception:
+                lstate.w = ridge_fit(X, y, float(lam))
+        else:
+            lstate.w = ridge_fit(X, y, float(lam))
+            try:
+                nrm = float(np.linalg.norm(lstate.w[: getattr(lstate, 'd', lstate.w.shape[0])]))
+                _log(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return scheduled
+
+
 def _uses_ridge(choice: str) -> bool:
     """Return True when the selected value model should fit Ridge w."""
     c = str(choice)

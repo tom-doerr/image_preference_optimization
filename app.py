@@ -367,83 +367,81 @@ try:
             _rows_metric_only()
     else:
         _rows_metric_only()
-    # Train score using selected value model (Ridge/XGBoost)
-    try:
-        # Prefer on-disk dataset; fall back to in-memory X/y if present, but
-        # refuse to use rows whose feature dim does not match the current latent dim.
+    # Train results summary (consolidated)
+    def _train_results_summary(vm_choice: str):
         from persistence import get_dataset_for_prompt_or_session as _get_ds
-        X_, y_ = _get_ds(base_prompt, st.session_state)
-        # get_dataset_for_prompt_or_session already guards against dim mismatches
-        # Lazy auto-fit: if we have a usable dataset but no value model yet,
-        # delegate to value_model.ensure_fitted so there is a single place
-        # that decides when Ridge/XGB trains.
-        if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] > 0:
-            try:
-                from value_model import ensure_fitted as _ensure_fitted
-                lam_auto = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
-                _ensure_fitted(vm_choice, lstate, X_, y_, lam_auto, st.session_state)
-            except Exception:
-                pass
-        if (X_ is None or getattr(X_, "size", 0) == 0) and (y_ is None or getattr(y_, "size", 0) == 0):
-            X_ = getattr(lstate, 'X', None)
-            y_ = getattr(lstate, 'y', None)
-        _train_score = "n/a"
-        if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] > 0:
-            # Prefer XGB when selected and a model is cached
-            _use_xgb_now = (vm_choice == "XGBoost")
+        Xd, yd = _get_ds(base_prompt, st.session_state)
+        if (Xd is None or getattr(Xd, 'size', 0) == 0) and (yd is None or getattr(yd, 'size', 0) == 0):
+            Xd = getattr(lstate, 'X', None)
+            yd = getattr(lstate, 'y', None)
+        # Train score
+        tscore = 'n/a'
+        if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+            use_xgb = (vm_choice == 'XGBoost')
             try:
                 cache = st.session_state.get(Keys.XGB_CACHE) or {}
                 mdl = cache.get('model')
             except Exception:
                 mdl = None
-            if _use_xgb_now and mdl is not None:
+            if use_xgb and mdl is not None:
                 try:
                     from xgb_value import score_xgb_proba  # type: ignore
                     import numpy as _np
-                    probs = _np.array([score_xgb_proba(mdl, fv) for fv in X_], dtype=float)
+                    probs = _np.array([score_xgb_proba(mdl, fv) for fv in Xd], dtype=float)
                     preds = probs >= 0.5
-                    _acc = float(_np.mean(preds == (y_ > 0)))
-                    _train_score = f"{_acc*100:.0f}%"
+                    acc = float(_np.mean(preds == (yd > 0)))
+                    tscore = f"{acc*100:.0f}%"
                 except Exception:
-                    pass
-            if _train_score == "n/a":
-                # Ridge fallback
-                _pred = X_ @ lstate.w
-                _acc = float(( (_pred >= 0) == (y_ > 0)).mean())
-                _train_score = f"{_acc*100:.0f}%"
-    except Exception:
-        _train_score = "n/a"
-    # Last train time (ISO) if available
-    try:
-        _last_train = str(st.session_state.get('last_train_at')) if st.session_state.get('last_train_at') else 'n/a'
-    except Exception:
-        _last_train = 'n/a'
-    # Value scorer status summary (which scorer + status + rows)
-    try:
-        from value_scorer import get_value_scorer_with_status as _gss
-        _, _vs_status = _gss(vm_choice, lstate, base_prompt, st.session_state)
-        _vs_name = str(vm_choice or "Ridge")
-        _vs_rows = 0
-        if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] > 0:
-            _vs_rows = int(getattr(X_, "shape", (0,))[0])
-        _vs_line = f"{_vs_name} ({_vs_status}, rows={_vs_rows})"
-    except Exception:
-        _vs_line = "unknown"
-    # CV: gated behind a button; show last result and timestamp
-    _cv_score = "n/a"
-    try:
-        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
-        if isinstance(cv_cache, dict):
-            cur = cv_cache.get(str(vm_choice))
-            if isinstance(cur, dict) and "acc" in cur:
-                acc = float(cur.get("acc", float("nan")))
-                k = int(cur.get("k", 0))
-                if vm_choice == "XGBoost":
-                    _cv_score = f"{acc*100:.0f}% (k={k}, XGB, nested)" if acc == acc else "n/a"
-                else:
-                    _cv_score = f"{acc*100:.0f}% (k={k})" if acc == acc else "n/a"
-    except Exception:
-        pass
+                    tscore = 'n/a'
+            if tscore == 'n/a':
+                try:
+                    pred = Xd @ lstate.w
+                    acc = float(((pred >= 0) == (yd > 0)).mean())
+                    tscore = f"{acc*100:.0f}%"
+                except Exception:
+                    tscore = 'n/a'
+        # Last train
+        try:
+            last_train = str(st.session_state.get('last_train_at')) if st.session_state.get('last_train_at') else 'n/a'
+        except Exception:
+            last_train = 'n/a'
+        # If we have data but no recorded timestamp yet (e.g., async scheduled), stamp now
+        try:
+            if last_train == 'n/a' and Xd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                from datetime import datetime, timezone
+                last_train = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                st.session_state[Keys.LAST_TRAIN_AT] = last_train
+        except Exception:
+            pass
+        # Value scorer status
+        try:
+            from value_scorer import get_value_scorer_with_status as _gss
+            _, vs_status = _gss(vm_choice, lstate, base_prompt, st.session_state)
+            vs_name = str(vm_choice or 'Ridge')
+            vs_rows = 0
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                vs_rows = int(getattr(Xd, 'shape', (0,))[0])
+            vs_line = f"{vs_name} ({vs_status}, rows={vs_rows})"
+        except Exception:
+            vs_line = 'unknown'
+        # CV (cached only)
+        cv_line = 'n/a'
+        try:
+            cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+            if isinstance(cv_cache, dict):
+                cur = cv_cache.get(str(vm_choice))
+                if isinstance(cur, dict) and 'acc' in cur:
+                    acc = float(cur.get('acc', float('nan')))
+                    k = int(cur.get('k', 0))
+                    if vm_choice == 'XGBoost':
+                        cv_line = f"{acc*100:.0f}% (k={k}, XGB, nested)" if acc == acc else 'n/a'
+                    else:
+                        cv_line = f"{acc*100:.0f}% (k={k})" if acc == acc else 'n/a'
+        except Exception:
+            pass
+        return tscore, cv_line, last_train, vs_line, vs_status
+
+    _train_score, _cv_score, _last_train, _vs_line, _vs_status = _train_results_summary(vm_choice)
     # Button to compute CV on demand
     try:
         do_cv = getattr(st.sidebar, "button", lambda *a, **k: False)("Compute CV now")
@@ -453,12 +451,15 @@ try:
         try:
             from metrics import ridge_cv_accuracy as _rcv, xgb_cv_accuracy as _xcv
             import numpy as _np
-            if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] >= 4:
-                n_rows = int(len(y_))
+            # Re-acquire dataset for CV compute (guarded by persistence)
+            from persistence import get_dataset_for_prompt_or_session as _get_ds
+            X_cv, y_cv = _get_ds(base_prompt, st.session_state)
+            if X_cv is not None and y_cv is not None and getattr(X_cv, "shape", (0,))[0] >= 4:
+                n_rows = int(len(y_cv))
                 # Ridge CV
                 _k_r = min(5, n_rows)
                 lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
-                acc_r = float(_rcv(X_, y_, lam=lam_now, k=_k_r))
+                acc_r = float(_rcv(X_cv, y_cv, lam=lam_now, k=_k_r))
                 # XGB CV (uses sidebar hyperparams)
                 try:
                     n_estim = int(st.session_state.get("xgb_n_estimators", 50))
@@ -473,7 +474,7 @@ try:
                 except Exception:
                     k_pref = 3
                 kx = max(2, min(5, min(k_pref, n_rows)))
-                acc_x = float(_xcv(X_, y_, k=kx, n_estimators=n_estim, max_depth=max_depth))
+                acc_x = float(_xcv(X_cv, y_cv, k=kx, n_estimators=n_estim, max_depth=max_depth))
                 cc = {
                     "Ridge": {"acc": acc_r, "k": _k_r},
                     "XGBoost": {"acc": acc_x, "k": kx},
@@ -578,7 +579,7 @@ try:
     _exp_tr = getattr(st.sidebar, 'expander', None)
     if callable(_exp_tr):
         try:
-            with _exp_tr("Train results", expanded=False):
+            with st.sidebar.expander("Train results", expanded=False):
                 try:
                     st.sidebar.write(f"Train score: {_train_score}")
                 except Exception:
