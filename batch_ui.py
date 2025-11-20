@@ -260,7 +260,7 @@ def _refit_from_dataset_keep_batch() -> None:
 
 def _render_batch_ui() -> None:
     import streamlit as st
-    from latent_opt import z_to_latents, z_from_prompt
+    from latent_logic import z_to_latents, z_from_prompt
     from flux_local import generate_flux_image_latents
     from value_scorer import get_value_scorer
     import time as _time
