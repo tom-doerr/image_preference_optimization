@@ -168,8 +168,7 @@ def _curation_train_and_next() -> None:
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
             lam_now = float(getattr(st.session_state, 'reg_lambda', 1e-3))
-            vmc = st.session_state.get('vm_choice')
-            vm_train = str(st.session_state.get('vm_train_choice', vmc))
+            vm_train = str(st.session_state.get('vm_choice'))
             # First ensure an initial fit when needed; keep async inside fit_value_model
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             async_train = bool(st.session_state.get("xgb_train_async", True))
@@ -218,8 +217,7 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(st.session_state, 'reg_lambda', 1e-3))
-            vmc = st.session_state.get('vm_choice')
-            vm_train = str(st.session_state.get('vm_train_choice', vmc))
+            vm_train = str(st.session_state.get('vm_choice'))
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))

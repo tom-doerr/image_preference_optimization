@@ -18,6 +18,7 @@ class FitValueModelAsyncStatusTest(unittest.TestCase):
         ss.xgb_n_estimators = 20
         ss.xgb_max_depth = 3
         ss.last_train_at = None
+        ss.vm_choice = "XGBoost"
 
         # Dummy latent state with ridge weights
         lstate = types.SimpleNamespace(w=np.zeros(2))

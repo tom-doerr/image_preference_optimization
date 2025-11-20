@@ -547,6 +547,12 @@ New learnings (Nov 20, 2025):
 - Added a focused test `tests/test_iter_step_scores_sidebar.py` that stubs Streamlit, sets a non‑zero `w`, calls the renderer, and asserts a consolidated "Step scores: ..." line appears.
 - Rationale: minimal change, no fallbacks, keeps deps local to the function to preserve test stubbing.
 
+Sidebar cleanup (Nov 20, 2025):
+- Added a minimal "Compact sidebar" toggle (default ON in stubs/real app) to reduce noise.
+- When compact, we hide: Latent creation details, Training data (detailed) expander, Environment, Performance, Debug, and Images status. Core counters remain visible: Dataset rows, Train score, CV score, Last train, Value model.
+- Kept the Value model expander so tests asserting CV (XGBoost/Ridge) keep passing.
+- Test: `tests/test_compact_sidebar_minimal.py` verifies compact mode keeps core lines and hides verbose panels.
+
 UI fragments (Nov 18, 2025, late):
 - Wrapped each displayed image (Prompt, Left, Right, Batch/Queue items) in `st.fragment` to scope reruns and reduce unnecessary re-execution. Kept buttons outside the fragments to preserve interaction semantics. Minimal change; improves responsiveness.
 - Streamlit deprecation: `use_container_width` has been phased out for main images; we now pass `width=\"stretch\"` to `st.image` in the app, batch, and queue UIs to avoid warnings and keep layout consistent.

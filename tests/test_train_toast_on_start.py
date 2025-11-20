@@ -23,7 +23,6 @@ class TrainToastOnStartTest(unittest.TestCase):
         st.session_state.cur_labels = [None]
         st.session_state.lstate = types.SimpleNamespace(width=64, height=64, d=4, sigma=1.0, rng=np.random.default_rng(0), w=np.zeros(4))
         st.session_state.vm_choice = "XGBoost"
-        st.session_state.vm_train_choice = "XGBoost"
         st.session_state.xgb_train_async = False
         st.session_state.reg_lambda = 1e-3
 

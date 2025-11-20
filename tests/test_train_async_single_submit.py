@@ -19,7 +19,6 @@ class TrainAsyncSingleSubmitTest(unittest.TestCase):
         st.session_state.batch_size = 2
         st.session_state.xgb_train_async = True
         st.session_state.vm_choice = "XGBoost"
-        st.session_state.vm_train_choice = "XGBoost"
 
         # Minimal dataset so training is eligible
         X = np.ones((3, 4), dtype=float)

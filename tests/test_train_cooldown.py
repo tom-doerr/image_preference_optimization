@@ -27,7 +27,6 @@ class TestTrainCooldown(unittest.TestCase):
         st.session_state.last_train_at = (datetime.now(timezone.utc) - timedelta(seconds=2)).isoformat(timespec="seconds")
         st.session_state.min_train_interval_s = 10.0
         st.session_state.vm_choice = "XGBoost"
-        st.session_state.vm_train_choice = "XGBoost"
         st.session_state.xgb_train_async = True
 
         # Stubs

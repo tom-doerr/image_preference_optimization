@@ -211,19 +211,8 @@ if callable(_sb_sel):
 else:
     vm_choice = "XGBoost"
 st.session_state['vm_choice'] = vm_choice
-# Training model selector (independent so you can fit Ridge while scoring with Distance/Cosine, etc.)
-_vm_train_opts = ["XGBoost", "Ridge"]
-vm_train_choice = None
-if callable(_sb_sel):
-    try:
-        vm_train_choice = _sb_sel("Train value model", _vm_train_opts, index=0)
-        if vm_train_choice not in _vm_train_opts:
-            vm_train_choice = "XGBoost"
-    except Exception:
-        vm_train_choice = "XGBoost"
-else:
-    vm_train_choice = "XGBoost"
-st.session_state['vm_train_choice'] = vm_train_choice
+# Training uses the active value model choice to stay in sync.
+st.session_state['vm_train_choice'] = vm_choice
 
 # Batch/queue controls near top for quick access
 _exp = getattr(st.sidebar, 'expander', None)
@@ -308,7 +297,7 @@ try:
             try:
                 from value_model import ensure_fitted as _ensure_fitted
                 lam_auto = float(st.session_state.get("reg_lambda", 1e-3))
-                _ensure_fitted(st.session_state.get('vm_train_choice', vm_choice), lstate, X_, y_, lam_auto, st.session_state)
+                _ensure_fitted(vm_choice, lstate, X_, y_, lam_auto, st.session_state)
             except Exception:
                 pass
         if (X_ is None or getattr(X_, "size", 0) == 0) and (y_ is None or getattr(y_, "size", 0) == 0):
@@ -988,7 +977,7 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-            fit_value_model(st.session_state.get('vm_train_choice', st.session_state.get('vm_choice')),
+            fit_value_model(_st.session_state.get('vm_choice'),
                            lstate, X, y, lam_now, _st.session_state)
     except Exception:
         pass
