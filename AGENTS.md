@@ -1142,3 +1142,6 @@ New learnings (Nov 20, 2025, evening):
 Keep in mind:
 - When adding any fragmentized function, never write to `st.sidebar` within it. Compute state → write in a non-fragment context.
 - Prefer per-state locks (e.g., `lstate.w_lock`) and copy-on-read of `w` in hot paths.
+- Open question (Nov 20, 2025): user asked for “e25 tests” — clarify whether this means new e2e coverage and which flows to include (pair/batch/queue/upload).
+- Playwright: `tests_playwright/test_app_ui.py` is a simple smoke (waits for a Good button and at least two images). `scripts/run_playwright.sh` now sets `IPO_DATA_ROOT=.tmp_playwright_data`, waits for `_stcore/health`, and assumes browsers are installed (`python -m playwright install chromium` done locally).
+- Pending guidance (Nov 20, 2025): user wants to “simplify the app.” Awaiting choice: drop Async queue, drop upload/image-match page, or collapse sidebar controls to a minimal set.

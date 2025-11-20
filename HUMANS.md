@@ -286,3 +286,12 @@ Nov 20, 2025 — Notes for humans
 - App organization
   - `app.py` is now a thin orchestrator (<400 lines). Generation helpers and mode dispatch live in `app_run.py`. Tests that call `app.generate_pair()` or `app._queue_fill_up_to()` still work via tiny wrappers that delegate to `app_run`.
   - Prompt-first bootstrap (no decode on import): `app_bootstrap.prompt_first_bootstrap` sets placeholders (`images=(None,None)`, `prompt_image=None`) during import. First real decodes happen only when you click or when a mode runs. This keeps import fast and avoids unexpected GPU work.
+
+Open questions
+- What did you mean by “e25 tests”? If this is “e2e tests,” which flows should we cover next (pair, batch, async queue, upload page)?
+
+Playwright note
+- Added a small Playwright smoke that loads the stub app and asserts at least two `<img>` tags appear (Good/+1 present). `scripts/run_playwright.sh` now isolates data in `.tmp_playwright_data`, waits for `_stcore/health`, and needs `playwright install chromium` run once (already done here).
+
+New question
+- You asked to “simplify the app.” Which part should we trim first? Options: (1) drop the Async queue mode and keep only Batch; (2) remove the upload/image-match subpage; (3) collapse the sidebar to just core sliders (steps/alpha/beta/trust/lr_mu) and hide the rest. Let me know your pick.
