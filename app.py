@@ -367,42 +367,65 @@ try:
         _vs_line = f"{_vs_name} ({_vs_status}, rows={_vs_rows})"
     except Exception:
         _vs_line = "unknown"
+    # CV: gated behind a button; show last result and timestamp
+    _cv_score = "n/a"
     try:
-        from metrics import ridge_cv_accuracy as _rcv, xgb_cv_accuracy as _xcv
-        if X_ is not None and y_ is not None and len(y_) >= 4:
-            n_rows = int(len(y_))
-            if vm_choice == "XGBoost":
-                try:
-                    import numpy as _np
-                    # Read XGB hyperparams for CV to mirror training settings.
-                    try:
-                        n_estim = int(st.session_state.get("xgb_n_estimators", 50))
-                    except Exception:
-                        n_estim = 50
-                    try:
-                        max_depth = int(st.session_state.get("xgb_max_depth", 3))
-                    except Exception:
-                        max_depth = 3
-                    try:
-                        k_pref = int(st.session_state.get("xgb_cv_folds", 3))
-                    except Exception:
-                        k_pref = 3
-                    k = max(2, min(5, min(k_pref, n_rows)))
-                    _cv = float(_xcv(X_, y_, k, n_estimators=n_estim, max_depth=max_depth))
-                    if _np.isnan(_cv):
-                        _cv_score = "n/a"
-                    else:
-                        _cv_score = f"{_cv*100:.0f}% (k={k}, XGB, nested)"
-                except Exception:
-                    _cv_score = "n/a"
-            else:
-                _k = min(5, n_rows)
-                _cv = float(_rcv(X_, y_, lam=float(st.session_state.get('reg_lambda', 1e-3)), k=_k))
-                _cv_score = f"{_cv*100:.0f}% (k={_k})"
-        else:
-            _cv_score = "n/a"
+        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+        if isinstance(cv_cache, dict):
+            cur = cv_cache.get(str(vm_choice))
+            if isinstance(cur, dict) and "acc" in cur:
+                acc = float(cur.get("acc", float("nan")))
+                k = int(cur.get("k", 0))
+                if vm_choice == "XGBoost":
+                    _cv_score = f"{acc*100:.0f}% (k={k}, XGB, nested)" if acc == acc else "n/a"
+                else:
+                    _cv_score = f"{acc*100:.0f}% (k={k})" if acc == acc else "n/a"
     except Exception:
-        _cv_score = "n/a"
+        pass
+    # Button to compute CV on demand
+    try:
+        do_cv = getattr(st.sidebar, "button", lambda *a, **k: False)("Compute CV now")
+    except Exception:
+        do_cv = False
+    if do_cv:
+        try:
+            from metrics import ridge_cv_accuracy as _rcv, xgb_cv_accuracy as _xcv
+            import numpy as _np
+            if X_ is not None and y_ is not None and getattr(X_, "shape", (0,))[0] >= 4:
+                n_rows = int(len(y_))
+                # Ridge CV
+                _k_r = min(5, n_rows)
+                lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
+                acc_r = float(_rcv(X_, y_, lam=lam_now, k=_k_r))
+                # XGB CV (uses sidebar hyperparams)
+                try:
+                    n_estim = int(st.session_state.get("xgb_n_estimators", 50))
+                except Exception:
+                    n_estim = 50
+                try:
+                    max_depth = int(st.session_state.get("xgb_max_depth", 3))
+                except Exception:
+                    max_depth = 3
+                try:
+                    k_pref = int(st.session_state.get("xgb_cv_folds", 3))
+                except Exception:
+                    k_pref = 3
+                kx = max(2, min(5, min(k_pref, n_rows)))
+                acc_x = float(_xcv(X_, y_, k=kx, n_estimators=n_estim, max_depth=max_depth))
+                cc = {
+                    "Ridge": {"acc": acc_r, "k": _k_r},
+                    "XGBoost": {"acc": acc_x, "k": kx},
+                }
+                st.session_state[Keys.CV_CACHE] = cc
+                from datetime import datetime, timezone
+                st.session_state[Keys.CV_LAST_AT] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                # Update display for the active VM immediately
+                if vm_choice == "XGBoost":
+                    _cv_score = f"{acc_x*100:.0f}% (k={kx}, XGB, nested)" if not _np.isnan(acc_x) else "n/a"
+                else:
+                    _cv_score = f"{acc_r*100:.0f}% (k={_k_r})" if not _np.isnan(acc_r) else "n/a"
+        except Exception:
+            pass
     # Value model type and settings (use dropdown choice if present)
     try:
         cache = st.session_state.get('xgb_cache') or {}
@@ -468,7 +491,12 @@ try:
     else:
         # Hide async toggle in non-XGB modes to reduce clutter
         st.session_state["xgb_train_async"] = False
-    sidebar_metric_rows([("CV score", _cv_score), ("Last train", _last_train)], per_row=2)
+    try:
+        _last_cv = str(st.session_state.get(Keys.CV_LAST_AT)) if st.session_state.get(Keys.CV_LAST_AT) else 'n/a'
+    except Exception:
+        _last_cv = 'n/a'
+    sidebar_metric_rows([("CV score", _cv_score), ("Last CV", _last_cv)], per_row=2)
+    sidebar_metric_rows([("Last train", _last_train)], per_row=1)
     sidebar_metric_rows([("Value scorer", _vs_line)], per_row=1)
     # Tiny visibility line for XGBoost readiness
     try:

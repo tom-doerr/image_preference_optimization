@@ -884,6 +884,7 @@ Updates (Nov 20, 2025):
 - Consolidation: removed dormant helpers (`_curation_sample_one`), trimmed duplicate Ridge‑λ slider, and wired proposer opts to session state to avoid free‑name errors.
 - UI: added “Use fragments (isolate image tiles)” checkbox — controls whether tiles render inside `st.fragment` wrappers (default on). Helpful when debugging rerun behavior.
 - Sidebar trim (Nov 20, 2025): Removed the “Images status” block (Left/Right ready/empty) to reduce clutter; metrics panels remain.
+- Step scores display (Nov 20, 2025): For compactness, the sidebar writes the first 8 values on one line and shows metrics for the first 4 steps. The underlying `iter_steps` can be larger (e.g., 10). If needed, expose all steps or label as “(first 4 of N)”.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
