@@ -272,6 +272,10 @@ def _run_pipe(**kwargs):
                 return
             try:
                 sched.set_timesteps(int(steps), device="cuda")
+                try:
+                    print(f"[pipe] set_timesteps steps={int(steps)} device=cuda")
+                except Exception:
+                    pass
             except TypeError:
                 sched.set_timesteps(int(steps))
             if getattr(sched, "_step_index", None) is None:
