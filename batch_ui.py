@@ -171,6 +171,19 @@ def _curation_train_and_next() -> None:
             # Optionally move XGBoost training to a background thread so
             # UI clicks are less likely to block. Ridge stays synchronous.
             async_train = bool(st.session_state.get("xgb_train_async", True))
+            from datetime import datetime, timezone
+            min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
+            last_at = st.session_state.get("last_train_at")
+            if min_wait > 0 and last_at:
+                try:
+                    last_dt = datetime.fromisoformat(last_at)
+                except Exception:
+                    last_dt = None
+                if last_dt:
+                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if elapsed < min_wait:
+                        st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+                        return
             if vm_train == "XGBoost" and async_train:
                 try:
                     from background import get_executor
@@ -212,6 +225,19 @@ def _refit_from_dataset_keep_batch() -> None:
             vm_train = str(st.session_state.get('vm_train_choice', vmc))
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             async_train = bool(st.session_state.get("xgb_train_async", True))
+            from datetime import datetime, timezone
+            min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
+            last_at = st.session_state.get("last_train_at")
+            if min_wait > 0 and last_at:
+                try:
+                    last_dt = datetime.fromisoformat(last_at)
+                except Exception:
+                    last_dt = None
+                if last_dt:
+                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if elapsed < min_wait:
+                        st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+                        return
             if vm_train == "XGBoost" and async_train:
                 try:
                     from background import get_executor
@@ -236,6 +262,11 @@ def _render_batch_ui() -> None:
     import time as _time
 
     (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
+    try:
+        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
+    except Exception:
+        pass
+    render_nonce = int(st.session_state.get("render_nonce", 0))
     lstate, prompt = _lstate_and_prompt()
     steps = int(getattr(st.session_state, 'steps', 6))
     guidance_eff = float(getattr(st.session_state, 'guidance_eff', 0.0))
@@ -382,14 +413,14 @@ def _render_batch_ui() -> None:
                     def _good_clicked() -> bool:
                         if gcol is not None:
                             with gcol:
-                                return st.button(f"Good (+1) {i}", key=f"good_{nonce}_{i}", width="stretch")
-                        return st.button(f"Good (+1) {i}", key=f"good_{nonce}_{i}", width="stretch")
+                                return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{i}", width="stretch")
+                        return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{i}", width="stretch")
 
                     def _bad_clicked() -> bool:
                         if bcol is not None:
                             with bcol:
-                                return st.button(f"Bad (-1) {i}", key=f"bad_{nonce}_{i}", width="stretch")
-                        return st.button(f"Bad (-1) {i}", key=f"bad_{nonce}_{i}", width="stretch")
+                                return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{i}", width="stretch")
+                        return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{i}", width="stretch")
 
                     if _good_clicked():
                         t0g = _time.perf_counter()

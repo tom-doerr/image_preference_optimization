@@ -411,6 +411,14 @@ try:
         _vm_type, _vm_settings = "Ridge", "λ=1e-3"
 
     sidebar_metric_rows([("Dataset rows", _rows_cnt), ("Train score", _train_score)], per_row=2)
+    try:
+        min_train_interval = getattr(st.sidebar, "number_input", _sb_num)(
+            "Min seconds between trains", min_value=0.0, max_value=3600.0,
+            value=float(st.session_state.get("min_train_interval_s", 0.0)), step=1.0, format="%.0f"
+        )
+        st.session_state["min_train_interval_s"] = float(min_train_interval)
+    except Exception:
+        pass
     # XGBoost-only settings: simple hyperparams + CV folds to trade noise vs runtime.
     if vm_choice == "XGBoost":
         try:
@@ -1115,7 +1123,17 @@ def run_upload_mode() -> None:
             img_raw.save(os.path.join(up_dir, fname))
         except Exception:
             pass
-        z = image_to_z(img_raw, lstate)
+        z_upl = image_to_z(img_raw, lstate)
+        # Interpolate with prompt anchor for gentler starts
+        alpha_interp = st.slider(
+            f"Interpolate toward prompt (α) {idx}",
+            min_value=0.0,
+            max_value=1.0,
+            value=1.0,
+            step=0.05,
+            key=f"upl_interp_{nonce}_{idx}",
+        )
+        z = (1.0 - float(alpha_interp)) * z_p + float(alpha_interp) * z_upl
         try:
             lat = z.reshape(1, 4, lstate.height // 8, lstate.width // 8)
         except Exception:
