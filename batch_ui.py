@@ -151,6 +151,10 @@ def _curation_train_and_next() -> None:
     from persistence import get_dataset_for_prompt_or_session
     from value_model import ensure_fitted
     lstate, prompt = _lstate_and_prompt()
+    # Respect toggle: skip training when disabled
+    if not bool(st.session_state.get('train_on_new_data', True)):
+        _curation_new_batch()
+        return
     # Track async XGB training status in session for UI/reruns
     st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
     st.session_state.pop(Keys.XGB_TRAIN_STATUS, None)
@@ -196,6 +200,8 @@ def _refit_from_dataset_keep_batch() -> None:
     from persistence import get_dataset_for_prompt_or_session
     from value_model import ensure_fitted
     lstate, prompt = _lstate_and_prompt()
+    if not bool(st.session_state.get('train_on_new_data', True)):
+        return
     st.session_state.pop("xgb_fit_future", None)
     st.session_state.pop("xgb_train_status", None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)

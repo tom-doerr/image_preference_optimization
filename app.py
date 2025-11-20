@@ -466,6 +466,14 @@ try:
         st.session_state["min_train_interval_s"] = float(min_train_interval)
     except Exception:
         pass
+    # Async training toggles
+    try:
+        ridge_async_cb = getattr(st.sidebar, "checkbox", lambda *a, **k: st.session_state.get(Keys.RIDGE_TRAIN_ASYNC, False))(
+            "Train Ridge async", value=bool(st.session_state.get(Keys.RIDGE_TRAIN_ASYNC, False))
+        )
+        st.session_state[Keys.RIDGE_TRAIN_ASYNC] = bool(ridge_async_cb)
+    except Exception:
+        pass
     # XGBoost-only settings: simple hyperparams + CV folds to trade noise vs runtime.
     if vm_choice == "XGBoost":
         try:
@@ -793,139 +801,65 @@ except Exception:
 
 mu_show = False
 
-st.sidebar.subheader("State persistence")
-_export_state_bytes = export_state_bytes  # back-compat for tests
-render_persistence_controls(lstate, st.session_state.prompt, st.session_state.state_path, _apply_state, st_rerun)
+def render_sidebar_tail():
+    st.sidebar.subheader("State persistence")
+    _export_state_bytes = export_state_bytes  # back-compat for tests
+    render_persistence_controls(lstate, st.session_state.prompt, st.session_state.state_path, _apply_state, st_rerun)
 
-def _render_iter_step_scores():
-    try:
-        _tr = st.session_state.get('trust_r', 0.0)
-        trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
-    except Exception:
-        trust_val = None
-    return render_iter_step_scores(st, lstate, base_prompt, vm_choice, int(iter_steps), float(iter_eta) if iter_eta is not None else None, trust_val)
-_render_iter_step_scores()
-render_mu_value_history(st, lstate, base_prompt)
-
-# Autorun: set model once so decode paths are ready
-set_model(selected_model)
-
-# Latent state summary (concise)
-st.sidebar.subheader("Latent state")
-if not hasattr(st.sidebar, 'write'):
-    # Fallback for test stubs that don't implement .write
-    st.sidebar.text = getattr(st.sidebar, 'text', lambda *a, **k: None)
-    def _w(x):
-        st.sidebar.text(str(x))
-    st.sidebar.write = _w
-# Ensure st.metric exists in test stubs; map to write format if missing
-if not hasattr(st.sidebar, 'metric'):
-    st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
-
-## Latent creation sidebar expander removed to reduce clutter
-
-try:
-    exp = getattr(st.sidebar, 'expander', None)
-    stats = dataset_stats_for_prompt(base_prompt)
-    if callable(exp):
-        with exp("Training data", expanded=False):
-            sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
-            sidebar_metric_rows([("Feat dim", stats.get("d", 0))], per_row=1)
-            rl = stats.get("recent_labels", [])
-            if rl:
-                st.sidebar.write("Recent y: " + ", ".join([f"{v:+d}" for v in rl]))
-    else:
-        # Fallback simple line
-        st.sidebar.write("Training data: pos={} neg={} d={}".format(stats.get("pos",0), stats.get("neg",0), stats.get("d",0)))
-except Exception:
-    pass
-
-# Value model details (collapsed)
-try:
-    def _sb_w(line: str) -> None:
+    def _render_iter_step_scores():
         try:
-            if hasattr(st, 'sidebar_writes'):
-                st.sidebar_writes.append(str(line))
-            else:
-                st.sidebar.write(str(line))
+            _tr = st.session_state.get('trust_r', 0.0)
+            trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
         except Exception:
-            pass
-    # Always emit CV labels from cache so tests/stubs see them even without expander
+            trust_val = None
+        return render_iter_step_scores(st, lstate, base_prompt, vm_choice, int(iter_steps), float(iter_eta) if iter_eta is not None else None, trust_val)
+    _render_iter_step_scores()
+    render_mu_value_history(st, lstate, base_prompt)
+
+    # Autorun: set model once so decode paths are ready
+    set_model(selected_model)
+
+    # Latent state summary (concise)
+    st.sidebar.subheader("Latent state")
+    if not hasattr(st.sidebar, 'write'):
+        # Fallback for test stubs that don't implement .write
+        st.sidebar.text = getattr(st.sidebar, 'text', lambda *a, **k: None)
+        def _w(x):
+            st.sidebar.text(str(x))
+        st.sidebar.write = _w
+    # Ensure st.metric exists in test stubs; map to write format if missing
+    if not hasattr(st.sidebar, 'metric'):
+        st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
+
+    ## Latent creation sidebar expander removed to reduce clutter
+
     try:
-        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
-        ridge_line = "CV (Ridge): n/a"
-        xgb_line = "CV (XGBoost): n/a"
-        if isinstance(cv_cache, dict):
-            r = cv_cache.get("Ridge") or {}
-            x = cv_cache.get("XGBoost") or {}
-            if "acc" in r and "k" in r:
-                ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
-            if "acc" in x and "k" in x:
-                xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
-        _sb_w(xgb_line)
-        _sb_w(ridge_line)
+        exp = getattr(st.sidebar, 'expander', None)
+        stats = dataset_stats_for_prompt(base_prompt)
+        if callable(exp):
+            with exp("Training data", expanded=False):
+                sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
+                sidebar_metric_rows([("Feat dim", stats.get("d", 0))], per_row=1)
+                rl = stats.get("recent_labels", [])
+                if rl:
+                    st.sidebar.write("Recent y: " + ", ".join([f"{v:+d}" for v in rl]))
+        else:
+            # Fallback simple line
+            st.sidebar.write("Training data: pos={} neg={} d={}".format(stats.get("pos",0), stats.get("neg",0), stats.get("d",0)))
     except Exception:
         pass
-    exp = getattr(st.sidebar, 'expander', None)
-    if callable(exp):
-        with exp("Value model", expanded=False):
-            # Model type and status (kept visible)
-            vm = "Ridge"
-            cache = st.session_state.get('xgb_cache') or {}
-            if use_xgb and cache.get('model') is not None:
-                vm = "XGBoost"
-            st.sidebar.write(f"Value model: {vm}")
+
+    # Value model details (collapsed)
+    try:
+        def _sb_w(line: str) -> None:
             try:
-                from value_scorer import get_value_scorer_with_status
-                _scorer_vm, scorer_status = get_value_scorer_with_status(vm_choice, lstate, base_prompt, st.session_state)
-            except Exception:
-                scorer_status = "unknown"
-            st.sidebar.write(f"Value scorer status: {scorer_status}")
-            # CV lines (from cache, no per-render compute)
-            try:
-                cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
-                ridge_line = "CV (Ridge): n/a"
-                xgb_line = "CV (XGBoost): n/a"
-                if isinstance(cv_cache, dict):
-                    r = cv_cache.get("Ridge") or {}
-                    x = cv_cache.get("XGBoost") or {}
-                    if "acc" in r and "k" in r:
-                        ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
-                    if "acc" in x and "k" in x:
-                        xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
-                _sb_w(xgb_line)
-                _sb_w(ridge_line)
+                if hasattr(st, 'sidebar_writes'):
+                    st.sidebar_writes.append(str(line))
+                else:
+                    st.sidebar.write(str(line))
             except Exception:
                 pass
-            # Details tucked behind a sub-expander to reduce clutter
-            subexp = getattr(st.sidebar, 'expander', None)
-            if callable(subexp):
-                with subexp("Details", expanded=False):
-                    if vm == "Ridge":
-                        try:
-                            w_norm = float(np.linalg.norm(lstate.w))
-                        except Exception:
-                            w_norm = 0.0
-                        rows = 0
-                        try:
-                            rows = int(dataset_rows_for_prompt(base_prompt))
-                        except Exception:
-                            rows = 0
-                        st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
-                    else:
-                        n_fit = cache.get('n') or 0
-                        try:
-                            n_estim = int(st.session_state.get("xgb_n_estimators", 50))
-                        except Exception:
-                            n_estim = 50
-                        try:
-                            max_depth = int(st.session_state.get("xgb_max_depth", 3))
-                        except Exception:
-                            max_depth = 3
-                        st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
-    else:
-        _sb_w("Value model: Ridge")
-        # Fallback: emit CV labels even without expander (tests rely on text)
+        # Always emit CV labels from cache so tests/stubs see them even without expander
         try:
             cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
             ridge_line = "CV (Ridge): n/a"
@@ -941,8 +875,86 @@ try:
             _sb_w(ridge_line)
         except Exception:
             pass
-except Exception:
-    pass
+        exp = getattr(st.sidebar, 'expander', None)
+        if callable(exp):
+            with exp("Value model", expanded=False):
+                # Model type and status (kept visible)
+                vm = "Ridge"
+                cache = st.session_state.get('xgb_cache') or {}
+                if use_xgb and cache.get('model') is not None:
+                    vm = "XGBoost"
+                st.sidebar.write(f"Value model: {vm}")
+                try:
+                    from value_scorer import get_value_scorer_with_status
+                    _scorer_vm, scorer_status = get_value_scorer_with_status(vm_choice, lstate, base_prompt, st.session_state)
+                except Exception:
+                    scorer_status = "unknown"
+                st.sidebar.write(f"Value scorer status: {scorer_status}")
+                # CV lines (from cache, no per-render compute)
+                try:
+                    cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+                    ridge_line = "CV (Ridge): n/a"
+                    xgb_line = "CV (XGBoost): n/a"
+                    if isinstance(cv_cache, dict):
+                        r = cv_cache.get("Ridge") or {}
+                        x = cv_cache.get("XGBoost") or {}
+                        if "acc" in r and "k" in r:
+                            ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
+                        if "acc" in x and "k" in x:
+                            xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
+                    _sb_w(xgb_line)
+                    _sb_w(ridge_line)
+                except Exception:
+                    pass
+                # Details tucked behind a sub-expander to reduce clutter
+                subexp = getattr(st.sidebar, 'expander', None)
+                if callable(subexp):
+                    with subexp("Details", expanded=False):
+                        if vm == "Ridge":
+                            try:
+                                w_norm = float(np.linalg.norm(lstate.w))
+                            except Exception:
+                                w_norm = 0.0
+                            rows = 0
+                            try:
+                                rows = int(dataset_rows_for_prompt(base_prompt))
+                            except Exception:
+                                rows = 0
+                            st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
+                        else:
+                            n_fit = cache.get('n') or 0
+                            try:
+                                n_estim = int(st.session_state.get("xgb_n_estimators", 50))
+                            except Exception:
+                                n_estim = 50
+                            try:
+                                max_depth = int(st.session_state.get("xgb_max_depth", 3))
+                            except Exception:
+                                max_depth = 3
+                            st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
+        else:
+            _sb_w("Value model: Ridge")
+            # Fallback: emit CV labels even without expander (tests rely on text)
+            try:
+                cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+                ridge_line = "CV (Ridge): n/a"
+                xgb_line = "CV (XGBoost): n/a"
+                if isinstance(cv_cache, dict):
+                    r = cv_cache.get("Ridge") or {}
+                    x = cv_cache.get("XGBoost") or {}
+                    if "acc" in r and "k" in r:
+                        ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
+                    if "acc" in x and "k" in x:
+                        xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
+                _sb_w(xgb_line)
+                _sb_w(ridge_line)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+# Render the sidebar tail now that mode and controls are resolved
+render_sidebar_tail()
 
 try:
     _exp = getattr(st.sidebar, 'expander', None)

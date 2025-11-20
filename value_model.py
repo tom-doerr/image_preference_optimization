@@ -85,13 +85,38 @@ def fit_value_model(
     if _uses_ridge(choice):
         try:
             from latent_logic import ridge_fit  # local import keeps import time low
-            w_new = ridge_fit(X, y, float(lam))
-            lstate.w = w_new
-            try:
-                nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
-                print(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
-            except Exception:
-                pass
+            do_async_ridge = bool(getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False))
+            if do_async_ridge:
+                try:
+                    from background import get_executor  # lazy import
+                    def _fit_ridge_bg():
+                        t_r = _time.perf_counter()
+                        w_new = ridge_fit(X, y, float(lam))
+                        lstate.w = w_new
+                        try:
+                            nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
+                            print(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f} (async)")
+                        except Exception:
+                            pass
+                        try:
+                            session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t_r) * 1000.0)
+                        except Exception:
+                            pass
+                        return True
+                    fut = get_executor().submit(_fit_ridge_bg)
+                    session_state[Keys.RIDGE_FIT_FUTURE] = fut
+                except Exception:
+                    # If background executor not available, fall back to sync
+                    w_new = ridge_fit(X, y, float(lam))
+                    lstate.w = w_new
+            else:
+                w_new = ridge_fit(X, y, float(lam))
+                lstate.w = w_new
+                try:
+                    nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
+                    print(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
+                except Exception:
+                    pass
         except Exception:
             pass
 
