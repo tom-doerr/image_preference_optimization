@@ -13,22 +13,28 @@ PROMPT_CACHE: dict = {}
 USE_IMAGE_SERVER = False
 IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL")
 
+
 def use_image_server(on: bool, url: Optional[str] = None) -> None:
     global USE_IMAGE_SERVER, IMAGE_SERVER_URL
     USE_IMAGE_SERVER = bool(on)
     if url is not None:
         IMAGE_SERVER_URL = str(url)
+
+
 LOGGER = logging.getLogger("ipo")
 if not LOGGER.handlers:
     try:
         _h = logging.FileHandler("ipo.debug.log")
-        _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s flux_local: %(message)s"))
+        _h.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s flux_local: %(message)s")
+        )
         LOGGER.addHandler(_h)
         LOGGER.setLevel(logging.INFO)
     except Exception:
         pass
 try:
     import os as _os
+
     _lvl = (_os.getenv("IPO_LOG_LEVEL") or "").upper()
     if _lvl:
         LOGGER.setLevel(getattr(logging, _lvl, logging.INFO))
@@ -47,7 +53,17 @@ def _get_model_id() -> str:
     """
     mid = os.getenv("FLUX_LOCAL_MODEL")
     if not mid:
-        raise ValueError("FLUX_LOCAL_MODEL not set (e.g. 'black-forest-labs/FLUX.1-schnell')")
+        try:
+            from constants import DEFAULT_MODEL  # local import to avoid cycle
+
+            print(
+                f"[pipe] FLUX_LOCAL_MODEL not set; defaulting to {DEFAULT_MODEL!r}"
+            )
+            return DEFAULT_MODEL
+        except Exception:
+            raise ValueError(
+                "FLUX_LOCAL_MODEL not set (e.g. 'black-forest-labs/FLUX.1-schnell')"
+            )
     return mid
 
 
@@ -57,6 +73,7 @@ def _free_pipe() -> None:
     try:
         import gc  # type: ignore
         import torch  # type: ignore
+
         if PIPE is not None:
             del PIPE
             PIPE = None
@@ -78,7 +95,7 @@ def _ensure_pipe(model_id: Optional[str] = None):
     if not torch.cuda.is_available():
         raise ValueError("CUDA GPU not available; require 1080 Ti (cuda)")
 
-    os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     # Return cached if suitable
     if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
@@ -88,7 +105,8 @@ def _ensure_pipe(model_id: Optional[str] = None):
             pass
         return PIPE
 
-    mid = model_id or _get_model_id()
+    # Prefer an explicitly selected/current model id before consulting env
+    mid = model_id or CURRENT_MODEL_ID or _get_model_id()
     if PIPE is not None and CURRENT_MODEL_ID != mid:
         _free_pipe()
     try:
@@ -96,12 +114,47 @@ def _ensure_pipe(model_id: Optional[str] = None):
     except Exception:
         pass
     import time as _time
+
     t0 = _time.perf_counter()
-    PIPE = DiffusionPipeline.from_pretrained(
-        mid,
-        torch_dtype=torch.float16,
-        low_cpu_mem_usage=False,
-    ).to("cuda")
+    # Load on CPU first, then move to CUDA. Some Diffusers/Transformers
+    # versions initialize params on 'meta' under certain configs; calling
+    # .to('cuda') on such modules raises NotImplementedError. In that case,
+    # reload directly with a CUDA device_map and skip the extra .to().
+    try:
+        PIPE = DiffusionPipeline.from_pretrained(
+            mid,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=False,
+        ).to("cuda")
+    except NotImplementedError:
+        # Fallback 1: meta-tensor during .to('cuda') → reload with device_map='cuda'
+        try:
+            print("[pipe] meta-to error; reloading with device_map='cuda'")
+        except Exception:
+            pass
+        try:
+            PIPE = DiffusionPipeline.from_pretrained(
+                mid,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+                device_map="cuda",
+            )
+        except (NotImplementedError, ValueError) as e2:
+            # Fallback 2: if device_map path also hits a meta-to (or device_map error),
+            # try a CPU load with low_cpu_mem_usage=True and then move to CUDA.
+            if "meta tensor" not in str(e2) and "device_map" not in str(e2):
+                raise
+            try:
+                print(
+                    "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True"
+                )
+            except Exception:
+                pass
+            PIPE = DiffusionPipeline.from_pretrained(
+                mid,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+            ).to("cuda")
     try:
         dt = _time.perf_counter() - t0
         print(f"[pipe] loaded model id={mid!r} in {dt:.3f} s")
@@ -109,23 +162,23 @@ def _ensure_pipe(model_id: Optional[str] = None):
         pass
     # Disable safety checker to avoid blacked-out images; keep it minimal.
     try:
-        if hasattr(PIPE, 'safety_checker'):
+        if hasattr(PIPE, "safety_checker"):
             PIPE.safety_checker = None  # type: ignore[assignment]
-        if hasattr(PIPE, 'requires_safety_checker'):
+        if hasattr(PIPE, "requires_safety_checker"):
             try:
                 PIPE.register_to_config(requires_safety_checker=False)  # type: ignore[attr-defined]
             except Exception:
                 pass
-        if hasattr(PIPE, 'feature_extractor'):
+        if hasattr(PIPE, "feature_extractor"):
             PIPE.feature_extractor = None  # type: ignore[assignment]
     except Exception:
         pass
     try:
-        if hasattr(PIPE, 'enable_attention_slicing'):
+        if hasattr(PIPE, "enable_attention_slicing"):
             PIPE.enable_attention_slicing()
-        if hasattr(PIPE, 'enable_vae_slicing'):
+        if hasattr(PIPE, "enable_vae_slicing"):
             PIPE.enable_vae_slicing()
-        if hasattr(PIPE, 'enable_xformers_memory_efficient_attention'):
+        if hasattr(PIPE, "enable_xformers_memory_efficient_attention"):
             PIPE.enable_xformers_memory_efficient_attention()
     except Exception:
         pass
@@ -146,10 +199,11 @@ def _ensure_pipe(model_id: Optional[str] = None):
 def _to_cuda_fp16(latents):
     """Return a torch fp16 CUDA tensor for the given latents (np/torch)."""
     import torch  # type: ignore
-    TensorType = getattr(torch, 'Tensor', None)
+
+    TensorType = getattr(torch, "Tensor", None)
     if TensorType is not None and isinstance(latents, TensorType):
-        return latents.to(device='cuda', dtype=torch.float16)
-    return torch.tensor(latents, dtype=torch.float16, device='cuda')
+        return latents.to(device="cuda", dtype=torch.float16)
+    return torch.tensor(latents, dtype=torch.float16, device="cuda")
 
 
 def _normalize_to_init_sigma(pipe, latents, steps: Optional[int] = None):
@@ -161,17 +215,17 @@ def _normalize_to_init_sigma(pipe, latents, steps: Optional[int] = None):
     """
     init_sigma = 1.0
     try:
-        sched = getattr(pipe, 'scheduler', None)
+        sched = getattr(pipe, "scheduler", None)
         if sched is not None:
-            if isinstance(steps, int) and steps > 0 and hasattr(sched, 'set_timesteps'):
+            if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
                 try:
                     sched.set_timesteps(int(steps))
                 except Exception:
                     pass
-            s = getattr(sched, 'init_noise_sigma', None)
+            s = getattr(sched, "init_noise_sigma", None)
             if s is None:
-                sigmas = getattr(sched, 'sigmas', None)
-                if sigmas is not None and hasattr(sigmas, 'max'):
+                sigmas = getattr(sched, "sigmas", None)
+                if sigmas is not None and hasattr(sigmas, "max"):
                     s = float(sigmas.max().item())
             init_sigma = float(s) if s is not None else 1.0
     except Exception:
@@ -182,7 +236,8 @@ def _normalize_to_init_sigma(pipe, latents, steps: Optional[int] = None):
     except Exception:
         try:
             import numpy as _np  # type: ignore
-            arr = getattr(latents, 'arr', None)
+
+            arr = getattr(latents, "arr", None)
             std = float(_np.asarray(arr).std()) if arr is not None else 1.0
         except Exception:
             std = 1.0
@@ -192,7 +247,7 @@ def _normalize_to_init_sigma(pipe, latents, steps: Optional[int] = None):
     try:
         return (latents / std) * init_sigma
     except Exception:
-        arr = getattr(latents, 'arr', None)
+        arr = getattr(latents, "arr", None)
         if arr is not None:
             latents.arr = (arr / std) * init_sigma
             return latents
@@ -209,6 +264,7 @@ def _run_pipe(**kwargs):
         steps = int(kwargs.get("num_inference_steps", 20))
     except Exception:
         steps = 20
+
     def _prepare_scheduler():
         try:
             sched = getattr(PIPE, "scheduler", None)
@@ -230,8 +286,10 @@ def _run_pipe(**kwargs):
                 pass
         except Exception:
             pass
+
     _prepare_scheduler()
     import time as _time
+
     retries = 0
     try:
         retries = int(os.getenv("RETRY_ON_OOM", "0"))
@@ -242,7 +300,9 @@ def _run_pipe(**kwargs):
         try:
             t0 = _time.perf_counter()
             try:
-                print(f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}")
+                print(
+                    f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}"
+                )
             except Exception:
                 pass
             with PIPE_LOCK:
@@ -250,21 +310,27 @@ def _run_pipe(**kwargs):
             dur_s = _time.perf_counter() - t0
             try:
                 LAST_CALL["dur_s"] = float(dur_s)
-                print(f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})")
+                print(
+                    f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})"
+                )
             except Exception:
                 pass
             if hasattr(out, "images") and getattr(out, "images"):
                 img0 = out.images[0]
+
                 def _record_img_stats():
                     try:
                         import numpy as _np  # type: ignore
+
                         arr = _np.asarray(img0)
-                        LAST_CALL.update({
-                            "img0_mean": float(arr.mean()),
-                            "img0_std": float(arr.std()),
-                            "img0_min": float(arr.min()),
-                            "img0_max": float(arr.max()),
-                        })
+                        LAST_CALL.update(
+                            {
+                                "img0_mean": float(arr.mean()),
+                                "img0_std": float(arr.std()),
+                                "img0_min": float(arr.min()),
+                                "img0_max": float(arr.max()),
+                            }
+                        )
                         LOGGER.info(
                             "img0 stats mean=%.3f std=%.3f min=%s max=%s",
                             float(arr.mean()),
@@ -274,6 +340,7 @@ def _run_pipe(**kwargs):
                         )
                     except Exception:
                         pass
+
                 _record_img_stats()
                 return img0
             raise RuntimeError("Local FLUX pipeline returned no images")
@@ -282,6 +349,7 @@ def _run_pipe(**kwargs):
                 attempt += 1
                 try:
                     import torch  # type: ignore
+
                     torch.cuda.empty_cache()
                 except Exception:
                     pass
@@ -297,37 +365,68 @@ def _get_prompt_embeds(prompt: str, guidance: float):
     and re‑encoding on every rerun. If encode_prompt isn't available, return
     (None, None) and fall back to string prompts in the caller.
     """
+    if not guidance or guidance <= 1e-6:
+        return (None, None)
     key = (CURRENT_MODEL_ID, prompt, bool(guidance and guidance > 1e-6))
     try:
         if key in PROMPT_CACHE:
+            try:
+                print("[pipe] prompt embeds cache: hit")
+            except Exception:
+                pass
             return PROMPT_CACHE[key]
-        enc = getattr(PIPE, 'encode_prompt', None)
+        enc = getattr(PIPE, "encode_prompt", None)
         if enc is None:
             return (None, None)
         # num_images_per_prompt=1, classifier-free guidance as requested
         prompt_embeds, neg_embeds = enc(
             prompt=prompt,
-            device='cuda',
+            device="cuda",
             num_images_per_prompt=1,
             do_classifier_free_guidance=bool(key[2]),
             negative_prompt=None,
         )
         PROMPT_CACHE[key] = (prompt_embeds, neg_embeds)
+        try:
+            print("[pipe] prompt embeds cache: miss → stored")
+        except Exception:
+            pass
         return PROMPT_CACHE[key]
     except Exception:
         return (None, None)
 
 
-def generate_flux_image(prompt: str,
-                        seed: Optional[int] = None,
-                        width: int = 768,
-                        height: int = 768,
-                        steps: int = 20,
-                        guidance: float = 3.5):
+def generate_flux_image(
+    prompt: str,
+    seed: Optional[int] = None,
+    width: int = 768,
+    height: int = 768,
+    steps: int = 20,
+    guidance: float = 3.5,
+):
+    def _eff_guidance(mid: str, g: float) -> float:
+        if isinstance(mid, str) and "turbo" in mid:
+            return 0.0
+        return g
     if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
         import image_server as _srv
-        LAST_CALL.update({"event": "text_call", "width": int(width), "height": int(height), "steps": int(steps), "guidance": float(guidance)})
-        return _srv.generate_image(prompt, int(width), int(height), int(steps), float(guidance))
+
+        LAST_CALL.update(
+            {
+                "event": "text_call",
+                "width": int(width),
+                "height": int(height),
+                "steps": int(steps),
+                "guidance": float(guidance),
+            }
+        )
+        return _srv.generate_image(
+            prompt,
+            int(width),
+            int(height),
+            int(steps),
+            float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
+        )
     """Generate one image with a local FLUX model via Diffusers.
 
     Strict requirements (no fallbacks):
@@ -342,23 +441,27 @@ def generate_flux_image(prompt: str,
     gen = None
     if seed is not None:
         import torch  # local import for type
+
         gen = torch.Generator(device="cuda").manual_seed(int(seed))
 
-    LAST_CALL.update({
-        "event": "text_call",
-        "model_id": CURRENT_MODEL_ID,
-        "width": int(width),
-        "height": int(height),
-        "steps": int(steps),
-        "guidance": float(guidance),
-    })
-    pe, ne = _get_prompt_embeds(prompt, guidance)
+    guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+    LAST_CALL.update(
+        {
+            "event": "text_call",
+            "model_id": CURRENT_MODEL_ID,
+            "width": int(width),
+            "height": int(height),
+            "steps": int(steps),
+            "guidance": float(guidance_eff),
+        }
+    )
+    pe, ne = _get_prompt_embeds(prompt, guidance_eff)
     if pe is not None:
         return _run_pipe(
             prompt_embeds=pe,
             negative_prompt_embeds=ne,
             num_inference_steps=int(steps),
-            guidance_scale=float(guidance),
+            guidance_scale=float(guidance_eff),
             width=int(width),
             height=int(height),
             generator=gen,
@@ -367,7 +470,7 @@ def generate_flux_image(prompt: str,
         return _run_pipe(
             prompt=prompt,
             num_inference_steps=int(steps),
-            guidance_scale=float(guidance),
+            guidance_scale=float(guidance_eff),
             width=int(width),
             height=int(height),
             generator=gen,
@@ -375,16 +478,40 @@ def generate_flux_image(prompt: str,
     # unreachable; keep signature symmetry
 
 
-def generate_flux_image_latents(prompt: str,
-                                latents,
-                                width: int = 768,
-                                height: int = 768,
-                                steps: int = 20,
-                                guidance: float = 3.5):
+def generate_flux_image_latents(
+    prompt: str,
+    latents,
+    width: int = 768,
+    height: int = 768,
+    steps: int | None = 20,
+    guidance: float = 3.5,
+):
+    def _eff_guidance(mid: str, g: float) -> float:
+        if isinstance(mid, str) and "turbo" in mid:
+            return 0.0
+        return g
+    if steps is None:
+        steps = 20
     if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
         import image_server as _srv
-        LAST_CALL.update({"event": "latents_call", "width": int(width), "height": int(height), "steps": int(steps), "guidance": float(guidance)})
-        return _srv.generate_image_latents(prompt, latents, int(width), int(height), int(steps), float(guidance))
+
+        LAST_CALL.update(
+            {
+                "event": "latents_call",
+                "width": int(width),
+                "height": int(height),
+                "steps": int(steps),
+                "guidance": float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
+            }
+        )
+        return _srv.generate_image_latents(
+            prompt,
+            latents,
+            int(width),
+            int(height),
+            int(steps),
+            float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
+        )
     # Ensure pipeline is ready (env model id if not set)
     _ensure_pipe(None)
 
@@ -397,35 +524,42 @@ def generate_flux_image_latents(prompt: str,
         latents = _normalize_to_init_sigma(PIPE, latents)
     # record basic stats for debugging
     try:
-        std = float(latents.std().item()) if hasattr(latents, 'std') else None
+        std = float(latents.std().item()) if hasattr(latents, "std") else None
     except Exception:
         std = None
     try:
-        mean = float(getattr(latents, 'mean')().item()) if hasattr(latents, 'mean') else None
+        mean = (
+            float(getattr(latents, "mean")().item())
+            if hasattr(latents, "mean")
+            else None
+        )
     except Exception:
         mean = None
     try:
         shp = None
         try:
-            s = getattr(latents, 'shape', None)
+            s = getattr(latents, "shape", None)
             if s is not None:
                 shp = tuple(int(x) for x in s)
         except Exception:
             shp = None
-        LAST_CALL.update({
-            "event": "latents_call",
-            "model_id": CURRENT_MODEL_ID,
-            "width": int(width),
-            "height": int(height),
-            "steps": int(steps),
-            "guidance": float(guidance),
-            "latents_std": std,
-            "latents_mean": mean,
-            "latents_shape": shp,
-        })
+        guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+        LAST_CALL.update(
+            {
+                "event": "latents_call",
+                "model_id": CURRENT_MODEL_ID,
+                "width": int(width),
+                "height": int(height),
+                "steps": int(steps),
+                "guidance": float(guidance_eff),
+                "latents_std": std,
+                "latents_mean": mean,
+                "latents_shape": shp,
+            }
+        )
         try:
-            sched = getattr(PIPE, 'scheduler', None)
-            init_sigma = getattr(sched, 'init_noise_sigma', None)
+            sched = getattr(PIPE, "scheduler", None)
+            init_sigma = getattr(sched, "init_noise_sigma", None)
         except Exception:
             init_sigma = None
         LOGGER.info(
@@ -433,7 +567,7 @@ def generate_flux_image_latents(prompt: str,
             width,
             height,
             steps,
-            guidance,
+            guidance_eff,
             std,
             mean,
             shp,
@@ -441,13 +575,14 @@ def generate_flux_image_latents(prompt: str,
         )
     except Exception:
         pass
-    pe, ne = _get_prompt_embeds(prompt, guidance)
+    guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+    pe, ne = _get_prompt_embeds(prompt, guidance_eff)
     if pe is not None:
         return _run_pipe(
             prompt_embeds=pe,
             negative_prompt_embeds=ne,
             num_inference_steps=int(steps),
-            guidance_scale=float(guidance),
+            guidance_scale=float(guidance_eff),
             width=int(width),
             height=int(height),
             latents=latents,
@@ -456,21 +591,26 @@ def generate_flux_image_latents(prompt: str,
         return _run_pipe(
             prompt=prompt,
             num_inference_steps=int(steps),
-            guidance_scale=float(guidance),
+            guidance_scale=float(guidance_eff),
             width=int(width),
             height=int(height),
             latents=latents,
         )
+
+
 def set_model(model_id: str):
     """Load or switch the local FLUX/SD/SDXL model. CUDA only; no fallbacks."""
     pipe = _ensure_pipe(model_id)
     # Use Euler A for SD‑Turbo unless already configured; improves stability
     try:
-        if isinstance(model_id, str) and ('sd-turbo' in model_id or 'sdxl-turbo' in model_id):
+        if isinstance(model_id, str) and (
+            "sd-turbo" in model_id or "sdxl-turbo" in model_id
+        ):
             # SD‑Turbo models work best with LCM scheduler; EulerA can yield
             # degenerate outputs when injecting latents. Keep it simple.
             from diffusers import LCMScheduler  # type: ignore
-            cfg = getattr(pipe, 'scheduler', None).config
+
+            cfg = getattr(pipe, "scheduler", None).config
             pipe.scheduler = LCMScheduler.from_config(cfg)  # type: ignore[index]
             LOGGER.info("turbo model detected; using LCMScheduler for %s", model_id)
     except Exception:

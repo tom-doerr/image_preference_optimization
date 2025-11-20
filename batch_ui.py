@@ -9,18 +9,22 @@ LOGGER = _logging.getLogger("ipo")
 if not LOGGER.handlers:
     try:
         _h = _logging.FileHandler("ipo.debug.log")
-        _h.setFormatter(_logging.Formatter("%(asctime)s %(levelname)s batch_ui: %(message)s"))
+        _h.setFormatter(
+            _logging.Formatter("%(asctime)s %(levelname)s batch_ui: %(message)s")
+        )
         LOGGER.addHandler(_h)
         LOGGER.setLevel(_logging.INFO)
     except Exception:
         pass
 try:
     import os as _os
+
     _lvl = (_os.getenv("IPO_LOG_LEVEL") or "").upper()
     if _lvl:
         LOGGER.setLevel(getattr(_logging, _lvl, _logging.INFO))
 except Exception:
     pass
+
 
 def _log(msg: str, level: str = "info") -> None:
     try:
@@ -32,48 +36,61 @@ def _log(msg: str, level: str = "info") -> None:
     except Exception:
         pass
 
+
 __all__ = [
-    '_lstate_and_prompt',
-    '_sample_around_prompt',
-    '_prepare_xgb_scorer',
-    '_sample_one_for_batch',
-    '_curation_params',
-    '_curation_init_batch',
-    '_curation_new_batch',
-    '_curation_replace_at',
-    '_curation_add',
-    '_curation_train_and_next',
-    '_refit_from_dataset_keep_batch',
-    '_render_batch_ui',
-    'run_batch_mode',
+    "_lstate_and_prompt",
+    "_sample_around_prompt",
+    "_prepare_xgb_scorer",
+    "_sample_one_for_batch",
+    "_curation_params",
+    "_curation_init_batch",
+    "_curation_new_batch",
+    "_curation_replace_at",
+    "_curation_add",
+    "_curation_train_and_next",
+    "_refit_from_dataset_keep_batch",
+    "_render_batch_ui",
+    "run_batch_mode",
 ]
 
 
 def _lstate_and_prompt() -> Tuple[Any, str]:
     import streamlit as st
-    lstate = getattr(st.session_state, 'lstate', None)
+
+    lstate = getattr(st.session_state, "lstate", None)
     if lstate is None:
         try:
             from latent_state import init_latent_state as _init
+
             lstate = _init()
             st.session_state.lstate = lstate
         except Exception:
             pass
-    prompt = getattr(st.session_state, 'prompt', None)
+    prompt = getattr(st.session_state, "prompt", None)
     if not prompt:
         from constants import DEFAULT_PROMPT
+
         prompt = DEFAULT_PROMPT
     return lstate, prompt
 
 
 def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     from latent_logic import z_from_prompt
+
     lstate, prompt = _lstate_and_prompt()
     z_p = z_from_prompt(lstate, prompt)
-    r = lstate.rng.standard_normal(lstate.d)
+    rng = getattr(lstate, "rng", None)
+    if rng is None:
+        import numpy as _np
+
+        rng = _np.random.default_rng()
+        setattr(lstate, "rng", rng)
+    r = rng.standard_normal(lstate.d)
     r = r / (np.linalg.norm(r) + 1e-12)
     z = z_p + lstate.sigma * float(scale) * r
-    _log(f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}")
+    _log(
+        f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}"
+    )
     return z
 
 
@@ -85,37 +102,65 @@ def _prepare_xgb_scorer(lstate: Any, prompt: str):
     try:
         from persistence import get_dataset_for_prompt_or_session
         from value_model import ensure_fitted
-        X_ds, y_ds = get_dataset_for_prompt_or_session(prompt, __import__('streamlit').session_state)
-        if X_ds is not None and y_ds is not None and getattr(X_ds, 'shape', (0,))[0] > 0:
+
+        X_ds, y_ds = get_dataset_for_prompt_or_session(
+            prompt, __import__("streamlit").session_state
+        )
+        if (
+            X_ds is not None
+            and y_ds is not None
+            and getattr(X_ds, "shape", (0,))[0] > 0
+        ):
             try:
                 from constants import Keys as _K
-                lam_now = float(getattr(__import__('streamlit').session_state, _K.REG_LAMBDA, 1e-3))
+
+                lam_now = float(
+                    getattr(__import__("streamlit").session_state, _K.REG_LAMBDA, 1e-3)
+                )
             except Exception:
                 lam_now = 1e-3
             try:
-                vm_train_choice = str(__import__('streamlit').session_state.get('vm_train_choice', 'XGBoost'))
+                vm_train_choice = str(
+                    __import__("streamlit").session_state.get(
+                        "vm_train_choice", "XGBoost"
+                    )
+                )
             except Exception:
-                vm_train_choice = 'XGBoost'
-            ensure_fitted(vm_train_choice, lstate, X_ds, y_ds, lam_now, __import__('streamlit').session_state)
+                vm_train_choice = "XGBoost"
+            ensure_fitted(
+                vm_train_choice,
+                lstate,
+                X_ds,
+                y_ds,
+                lam_now,
+                __import__("streamlit").session_state,
+            )
         from value_scorer import get_value_scorer_with_status
-        return get_value_scorer_with_status('XGBoost', lstate, prompt, __import__('streamlit').session_state)
+
+        return get_value_scorer_with_status(
+            "XGBoost", lstate, prompt, __import__("streamlit").session_state
+        )
     except Exception:
-        return None, 'xgb_unavailable'
+        return None, "xgb_unavailable"
 
 
-def _sample_one_for_batch(lstate: Any,
-                          prompt: str,
-                          use_xgb: bool,
-                          scorer,
-                          steps: int,
-                          lr_mu: float,
-                          trust_r) -> np.ndarray:
+def _sample_one_for_batch(
+    lstate: Any, prompt: str, use_xgb: bool, scorer, steps: int, lr_mu: float, trust_r
+) -> np.ndarray:
     """Produce one latent for the batch using XGB hill or around‑prompt sample."""
     if use_xgb and scorer is not None:
         try:
             from latent_logic import sample_z_xgb_hill  # local import
-            step_scale = lr_mu * float(getattr(lstate, 'sigma', 1.0))
-            return sample_z_xgb_hill(lstate, prompt, scorer, steps=int(steps), step_scale=step_scale, trust_r=trust_r)
+
+            step_scale = lr_mu * float(getattr(lstate, "sigma", 1.0))
+            return sample_z_xgb_hill(
+                lstate,
+                prompt,
+                scorer,
+                steps=int(steps),
+                step_scale=step_scale,
+                trust_r=trust_r,
+            )
         except Exception:
             pass
     return _sample_around_prompt(scale=0.8)
@@ -124,11 +169,12 @@ def _sample_one_for_batch(lstate: Any,
 def _curation_params():
     """Read once: VM choice, steps, lr_mu, trust_r, use_xgb."""
     import streamlit as st
+
     try:
         vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
     except Exception:
         vm_choice = ""
-    use_xgb = (vm_choice == "XGBoost")
+    use_xgb = vm_choice == "XGBoost"
     try:
         steps = int(st.session_state.get(Keys.ITER_STEPS, 10))
     except Exception:
@@ -153,34 +199,49 @@ def _curation_init_batch() -> None:
 
 def _curation_new_batch() -> None:
     import streamlit as st
+
     lstate, prompt = _lstate_and_prompt()
     import time as _time
+
     t0 = _time.perf_counter()
     z_list = []
     from latent_logic import z_from_prompt
+
     z_p = z_from_prompt(lstate, prompt)
-    batch_n = int(st.session_state.get('batch_size', 6))
+    batch_n = int(st.session_state.get("batch_size", 6))
     # Optional XGBoost-guided hill climb per image when XGB is active.
     vm_choice, use_xgb, steps, lr_mu, trust_r = _curation_params()
     scorer = None
     scorer_status = None
     if use_xgb:
         scorer, scorer_status = _prepare_xgb_scorer(lstate, prompt)
-        if scorer_status != 'ok':
+        if scorer_status != "ok":
             scorer = None
     for i in range(batch_n):
-        z_list.append(_sample_one_for_batch(lstate, prompt, use_xgb, scorer, steps, lr_mu, trust_r))
+        z_list.append(
+            _sample_one_for_batch(
+                lstate, prompt, use_xgb, scorer, steps, lr_mu, trust_r
+            )
+        )
     st.session_state.cur_batch = z_list
     st.session_state.cur_labels = [None] * len(z_list)
     try:
-        st.session_state["cur_batch_nonce"] = int(st.session_state.get("cur_batch_nonce", 0)) + 1
+        st.session_state["cur_batch_nonce"] = (
+            int(st.session_state.get("cur_batch_nonce", 0)) + 1
+        )
     except Exception:
         pass
     try:
         dt_ms = (_time.perf_counter() - t0) * 1000.0
     except Exception:
         dt_ms = -1.0
-    _log(f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} in {dt_ms:.1f} ms")
+    try:
+        vm_choice = st.session_state.get(Keys.VM_CHOICE)
+    except Exception:
+        vm_choice = None
+    _log(
+        f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} vm={vm_choice} in {dt_ms:.1f} ms"
+    )
 
 
 def _curation_replace_at(idx: int) -> None:
@@ -194,35 +255,258 @@ def _curation_replace_at(idx: int) -> None:
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
-    from persistence import append_dataset_row, save_sample_image
+    import persistence as p
+    from constants import Keys
     from latent_logic import z_from_prompt
+
     lstate, prompt = _lstate_and_prompt()
     z_p = z_from_prompt(lstate, prompt)
-    X = getattr(st.session_state, 'dataset_X', None)
-    y = getattr(st.session_state, 'dataset_y', None)
+    X = getattr(st.session_state, "dataset_X", None)
+    y = getattr(st.session_state, "dataset_y", None)
     feat = (z - z_p).reshape(1, -1)
     lab = np.array([float(label)])
     st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
     st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
+    # Also mirror into keyed entries for consistency with Keys-based readers
     try:
-        row_idx = append_dataset_row(prompt, feat, float(label))
+        st.session_state[Keys.DATASET_X] = st.session_state.dataset_X
+        st.session_state[Keys.DATASET_Y] = st.session_state.dataset_y
+    except Exception:
+        pass
+    try:
+        row_idx = p.append_dataset_row(prompt, feat, float(label))
         if img is not None:
-            save_sample_image(prompt, row_idx, img)
+            p.save_sample_image(prompt, row_idx, img)
         try:
-            getattr(st, "toast", lambda *a, **k: None)(f"Saved sample #{row_idx}")
+            save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
+        except Exception:
+            save_dir = "data"
+        try:
+            import sys as _sys
+
+            line = f"[rows] live={rows_live} disk={rows_disk}\n"
+            _sys.stdout.write(line)
+            _sys.stdout.flush()
+        except Exception:
+            pass
+        msg = f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
+        try:
+            getattr(st, "toast", lambda *a, **k: None)(msg)
+            try:
+                import time as _time
+
+                st.session_state[Keys.LAST_ACTION_TEXT] = msg
+                st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Persistent breadcrumb in the sidebar so the action is visible after reruns
+        try:
+            st.sidebar.write(msg)
+        except Exception:
+            try:
+                st.sidebar.write(f"Saved sample #{row_idx}")
+            except Exception:
+                pass
+        # Bump the live rows display immediately so the top metric updates even
+        # before the fragment tick.
+        try:
+            _yl = st.session_state.get(Keys.DATASET_Y, None)
+            rows_live = int(len(_yl)) if _yl is not None else 0
+        except Exception:
+            rows_live = 0
+        try:
+            rows_disk = int(getattr(p, "dataset_rows_for_prompt")(prompt))
+        except Exception:
+            rows_disk = 0
+        try:
+            st.session_state[Keys.ROWS_DISPLAY] = str(max(rows_live, rows_disk))
+        except Exception:
+            pass
+        try:
+            line = f"[rows] live={rows_live} disk={rows_disk}"
+            print(line)
         except Exception:
             pass
     except Exception:
         pass
 
 
+def _render_batch_tile_body(
+    i: int,
+    render_nonce: int,
+    lstate: Any,
+    prompt: str,
+    steps: int,
+    guidance_eff: float,
+    best_of: bool,
+    scorer,
+    fut_running: bool,
+    cur_batch,
+    z_p,
+) -> None:
+    import streamlit as st
+    from latent_logic import z_to_latents
+    from flux_local import generate_flux_image_latents
+    import time as _time
+
+    z_i = cur_batch[i]
+    try:
+        vm_choice_local = st.session_state.get("vm_choice")
+    except Exception:
+        vm_choice_local = None
+    if vm_choice_local == "XGBoost" and scorer is not None and not fut_running:
+        try:
+            from latent_logic import sample_z_xgb_hill
+
+            steps_local = int(st.session_state.get("iter_steps", 10))
+            lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
+            trust_val = st.session_state.get("trust_r", None)
+            trust_r_local = (
+                float(trust_val)
+                if (trust_val is not None and float(trust_val) > 0.0)
+                else None
+            )
+            step_scale_local = lr_mu_local * float(getattr(lstate, "sigma", 1.0))
+            z_i = sample_z_xgb_hill(
+                lstate,
+                prompt,
+                scorer,
+                steps=steps_local,
+                step_scale=step_scale_local,
+                trust_r=trust_r_local,
+            )
+        except Exception:
+            pass
+    else:
+        try:
+            z_i = _sample_around_prompt(scale=0.8)
+        except Exception:
+            z_i = cur_batch[i]
+
+    try:
+        cur_batch[i] = z_i
+        st.session_state.cur_batch = cur_batch
+    except Exception:
+        pass
+
+    t0 = _time.perf_counter()
+    la = z_to_latents(lstate, z_i)
+    img_i = generate_flux_image_latents(
+        prompt,
+        latents=la,
+        width=lstate.width,
+        height=lstate.height,
+        steps=steps,
+        guidance=guidance_eff,
+    )
+    try:
+        dt_ms = (_time.perf_counter() - t0) * 1000.0
+    except Exception:
+        dt_ms = -1.0
+    _log(
+        f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
+    )
+    v_text = "Value: n/a"
+    if scorer is not None and z_p is not None:
+        try:
+            fvec = z_i - z_p
+            v = float(scorer(fvec))
+            v_text = f"Value: {v:.3f}"
+            try:
+                vmn = st.session_state.get("vm_choice")
+                _log(f"[scorer] tile={i} vm={vmn} v={v:.3f}")
+            except Exception:
+                pass
+        except Exception:
+            v_text = "Value: n/a"
+    cap_txt = f"Item {i} • {v_text}"
+    st.image(img_i, caption=cap_txt, width="stretch")
+
+    if best_of:
+        if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
+            t0b = _time.perf_counter()
+            for j, z_j in enumerate(cur_batch):
+                lbl = 1 if j == i else -1
+                img_j = img_i if j == i else None
+                _curation_add(lbl, z_j, img_j)
+                st.session_state.cur_labels[j] = lbl
+            _curation_train_and_next()
+            try:
+                getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
+            except Exception:
+                pass
+            _log(
+                f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms"
+            )
+    else:
+        btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
+        gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
+        bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+
+        nonce = int(st.session_state.get("cur_batch_nonce", 0))
+
+        def _btn_key(prefix: str, idx: int) -> str:
+            try:
+                seq = int(st.session_state.get("btn_seq", 0)) + 1
+            except Exception:
+                seq = 1
+            st.session_state["btn_seq"] = seq
+            return f"{prefix}_{render_nonce}_{nonce}_{idx}_{seq}"
+
+        def _good_clicked() -> bool:
+            if gcol is not None:
+                with gcol:
+                    return st.button(
+                        f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                    )
+            return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
+
+        def _bad_clicked() -> bool:
+            if bcol is not None:
+                with bcol:
+                    return st.button(
+                        f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                    )
+            return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
+
+        if _good_clicked():
+            t0g = _time.perf_counter()
+            _curation_add(1, z_i, img_i)
+            st.session_state.cur_labels[i] = 1
+            _refit_from_dataset_keep_batch()
+            _curation_replace_at(i)
+            try:
+                getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
+            except Exception:
+                pass
+            _log(
+                f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
+            )
+        if _bad_clicked():
+            t0b2 = _time.perf_counter()
+            _curation_add(-1, z_i, img_i)
+            st.session_state.cur_labels[i] = -1
+            _refit_from_dataset_keep_batch()
+            _curation_replace_at(i)
+            try:
+                getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
+            except Exception:
+                pass
+            _log(
+                f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
+            )
+
+
 def _curation_train_and_next() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import ensure_fitted
+    from value_model import train_and_record
+
     lstate, prompt = _lstate_and_prompt()
     # Respect toggle: skip training when disabled
-    if not bool(st.session_state.get('train_on_new_data', True)):
+    if not bool(st.session_state.get("train_on_new_data", True)):
         _curation_new_batch()
         return
     # Track async XGB training status in session for UI/reruns
@@ -230,26 +514,21 @@ def _curation_train_and_next() -> None:
     st.session_state.pop(Keys.XGB_TRAIN_STATUS, None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
-    if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
+    if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
         try:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
             vm_train = str(st.session_state.get(Keys.VM_CHOICE))
-            ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            import value_model as _vm
-            # Ensure status is visible immediately for tests/UI
-            try:
-                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
-            except Exception:
-                pass
-            tr = getattr(_vm, 'train_and_record', None)
-            if callable(tr):
-                tr(vm_train, lstate, X, y, lam_now, st.session_state)
-            else:
-                _vm.fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            # Single entry point for training
+            st.session_state[Keys.XGB_TRAIN_STATUS] = {
+                "state": "running",
+                "rows": int(getattr(X, "shape", (0,))[0]),
+                "lam": float(lam_now),
+            }
+            train_and_record(vm_train, lstate, X, y, lam_now, st.session_state)
         except Exception:
             pass
     _curation_new_batch()
@@ -258,33 +537,29 @@ def _curation_train_and_next() -> None:
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import ensure_fitted
+    from value_model import train_and_record
+
     lstate, prompt = _lstate_and_prompt()
-    if not bool(st.session_state.get('train_on_new_data', True)):
+    if not bool(st.session_state.get("train_on_new_data", True)):
         return
     st.session_state.pop("xgb_fit_future", None)
     st.session_state.pop("xgb_train_status", None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
-        if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
+        if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
             vm_train = str(st.session_state.get(Keys.VM_CHOICE))
-            ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            import value_model as _vm
-            try:
-                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
-            except Exception:
-                pass
-            tr = getattr(_vm, 'train_and_record', None)
-            if callable(tr):
-                tr(vm_train, lstate, X, y, lam_now, st.session_state)
-            else:
-                _vm.fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            st.session_state[Keys.XGB_TRAIN_STATUS] = {
+                "state": "running",
+                "rows": int(getattr(X, "shape", (0,))[0]),
+                "lam": float(lam_now),
+            }
+            train_and_record(vm_train, lstate, X, y, lam_now, st.session_state)
     except Exception:
         pass
 
@@ -295,21 +570,35 @@ def _render_batch_ui() -> None:
     from flux_local import generate_flux_image_latents
     import time as _time
 
-    (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
+    # Ensure a model is loaded before any decode. The app sets this, but guard here
+    # so fragments don’t trigger the env fallback path in flux_local.
+    try:
+        from flux_local import CURRENT_MODEL_ID, set_model  # type: ignore
+
+        if CURRENT_MODEL_ID is None:
+            from constants import DEFAULT_MODEL
+
+            set_model(DEFAULT_MODEL)
+    except Exception:
+        pass
+
+    (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
     # Reset per-render button sequence to keep keys unique yet bounded
     try:
         st.session_state["btn_seq"] = 0
     except Exception:
         pass
     try:
-        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
+        st.session_state["render_nonce"] = (
+            int(st.session_state.get("render_nonce", 0)) + 1
+        )
     except Exception:
         pass
     render_nonce = int(st.session_state.get("render_nonce", 0))
     lstate, prompt = _lstate_and_prompt()
-    steps = int(getattr(st.session_state, 'steps', 6))
-    guidance_eff = float(getattr(st.session_state, 'guidance_eff', 0.0))
-    best_of = bool(getattr(st.session_state, 'batch_best_of', False))
+    steps = int(getattr(st.session_state, "steps", 6))
+    guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0))
+    best_of = bool(getattr(st.session_state, "batch_best_of", False))
     cur_batch = st.session_state.cur_batch or []
     # Prepare optional value scorer once per batch
     scorer = None
@@ -317,11 +606,16 @@ def _render_batch_ui() -> None:
     fut_running = False
     z_p = None
     try:
-        vm_choice = st.session_state.get('vm_choice')
+        vm_choice = st.session_state.get("vm_choice")
         from value_scorer import get_value_scorer_with_status
-        scorer, scorer_status = get_value_scorer_with_status(vm_choice, lstate, prompt, st.session_state)
+
+        scorer, scorer_status = get_value_scorer_with_status(
+            vm_choice, lstate, prompt, st.session_state
+        )
         fut = st.session_state.get("xgb_fit_future")
-        fut_running = bool(fut is not None and not getattr(fut, "done", lambda: False)())
+        fut_running = bool(
+            fut is not None and not getattr(fut, "done", lambda: False)()
+        )
         if scorer_status != "ok":
             scorer = None
         z_p = z_from_prompt(lstate, prompt)
@@ -334,26 +628,52 @@ def _render_batch_ui() -> None:
 
     for row_start in range(0, n, per_row):
         row_end = min(row_start + per_row, n)
-        cols = getattr(st, 'columns', lambda x: [None] * x)(row_end - row_start)
+        cols = getattr(st, "columns", lambda x: [None] * x)(row_end - row_start)
         for col_idx, i in enumerate(range(row_start, row_end)):
             col = cols[col_idx] if cols and len(cols) > col_idx else None
+
             def _render_item() -> None:
+                _render_batch_tile_body(
+                    i,
+                    render_nonce,
+                    lstate,
+                    prompt,
+                    steps,
+                    guidance_eff,
+                    best_of,
+                    scorer,
+                    fut_running,
+                    cur_batch,
+                    z_p,
+                )
+                return
                 # Create the vector for this image immediately before decode so
                 # each tile uses a freshly sampled latent under the current
                 # settings, independent of cur_batch.
                 z_i = cur_batch[i]
                 try:
-                    vm_choice_local = st.session_state.get('vm_choice')
+                    vm_choice_local = st.session_state.get("vm_choice")
                 except Exception:
                     vm_choice_local = None
-                if vm_choice_local == "XGBoost" and scorer is not None and not fut_running:
+                if (
+                    vm_choice_local == "XGBoost"
+                    and scorer is not None
+                    and not fut_running
+                ):
                     try:
                         from latent_logic import sample_z_xgb_hill  # local import
-                        steps_local = int(st.session_state.get('iter_steps', 10))
-                        lr_mu_local = float(st.session_state.get('lr_mu_ui', 0.3))
-                        trust_val = st.session_state.get('trust_r', None)
-                        trust_r_local = float(trust_val) if (trust_val is not None and float(trust_val) > 0.0) else None
-                        step_scale_local = lr_mu_local * float(getattr(lstate, "sigma", 1.0))
+
+                        steps_local = int(st.session_state.get("iter_steps", 10))
+                        lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
+                        trust_val = st.session_state.get("trust_r", None)
+                        trust_r_local = (
+                            float(trust_val)
+                            if (trust_val is not None and float(trust_val) > 0.0)
+                            else None
+                        )
+                        step_scale_local = lr_mu_local * float(
+                            getattr(lstate, "sigma", 1.0)
+                        )
                         z_i = sample_z_xgb_hill(
                             lstate,
                             prompt,
@@ -393,21 +713,20 @@ def _render_batch_ui() -> None:
                     dt_ms = (_time.perf_counter() - t0) * 1000.0
                 except Exception:
                     dt_ms = -1.0
-                _log(f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})")
+                _log(
+                    f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
+                )
                 # Predicted value using current value model scorer
                 v_text = "Value: n/a"
                 if scorer is not None and z_p is not None:
                     try:
-                        fvec = (z_i - z_p)
+                        fvec = z_i - z_p
                         v = float(scorer(fvec))
                         v_text = f"Value: {v:.3f}"
                     except Exception:
                         v_text = "Value: n/a"
-                st.image(img_i, caption=f"Item {i}", width="stretch")
-                try:
-                    st.caption(v_text)
-                except Exception:
-                    pass
+                cap_txt = f"Item {i} • {v_text}"
+                st.image(img_i, caption=cap_txt, width="stretch")
 
                 if best_of:
                     if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
@@ -420,10 +739,14 @@ def _render_batch_ui() -> None:
                             st.session_state.cur_labels[j] = lbl
                         _curation_train_and_next()
                         try:
-                            getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
+                            getattr(st, "toast", lambda *a, **k: None)(
+                                f"Best-of: chose {i}"
+                            )
                         except Exception:
                             pass
-                        _log(f"[perf] best_of choose item={i} took {(_time.perf_counter()-t0b)*1000:.1f} ms")
+                        _log(
+                            f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms"
+                        )
                 else:
                     btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
@@ -442,14 +765,26 @@ def _render_batch_ui() -> None:
                     def _good_clicked() -> bool:
                         if gcol is not None:
                             with gcol:
-                                return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
-                        return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
+                                return st.button(
+                                    f"Good (+1) {i}",
+                                    key=_btn_key("good", i),
+                                    width="stretch",
+                                )
+                        return st.button(
+                            f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                        )
 
                     def _bad_clicked() -> bool:
                         if bcol is not None:
                             with bcol:
-                                return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
-                        return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
+                                return st.button(
+                                    f"Bad (-1) {i}",
+                                    key=_btn_key("bad", i),
+                                    width="stretch",
+                                )
+                        return st.button(
+                            f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                        )
 
                     if _good_clicked():
                         t0g = _time.perf_counter()
@@ -458,10 +793,26 @@ def _render_batch_ui() -> None:
                         _refit_from_dataset_keep_batch()
                         _curation_replace_at(i)
                         try:
-                            getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
+                            _log(f"[batch] click good item={i}")
                         except Exception:
                             pass
-                        _log(f"[perf] good_label item={i} took {(_time.perf_counter()-t0g)*1000:.1f} ms")
+                        try:
+                            msg = "Labeled Good (+1)"
+                            getattr(st, "toast", lambda *a, **k: None)(msg)
+                            try:
+                                import time as _time
+
+                                st.session_state[Keys.LAST_ACTION_TEXT] = msg
+                                st.session_state[Keys.LAST_ACTION_TS] = float(
+                                    _time.time()
+                                )
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                        _log(
+                            f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
+                        )
                     if _bad_clicked():
                         t0b2 = _time.perf_counter()
                         _curation_add(-1, z_i, img_i)
@@ -469,17 +820,33 @@ def _render_batch_ui() -> None:
                         _refit_from_dataset_keep_batch()
                         _curation_replace_at(i)
                         try:
-                            getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
+                            _log(f"[batch] click bad item={i}")
                         except Exception:
                             pass
-                        _log(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0b2)*1000:.1f} ms")
+                        try:
+                            msg = "Labeled Bad (-1)"
+                            getattr(st, "toast", lambda *a, **k: None)(msg)
+                            try:
+                                import time as _time
+
+                                st.session_state[Keys.LAST_ACTION_TEXT] = msg
+                                st.session_state[Keys.LAST_ACTION_TS] = float(
+                                    _time.time()
+                                )
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                        _log(
+                            f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
+                        )
 
             # Wrap each tile in its own fragment when available so the
             # latent sampling, decode, buttons, and saves are scoped per
             # image and can run independently. Streamlit exposes fragments
             # as a decorator, so we decorate _render_item and then call it.
             frag = getattr(st, "fragment", None)
-            use_frags = bool(getattr(st.session_state, 'use_fragments', True))
+            use_frags = bool(getattr(st.session_state, "use_fragments", True))
             if col is not None:
                 with col:
                     if use_frags and callable(frag):
