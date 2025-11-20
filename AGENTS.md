@@ -789,3 +789,4 @@ New learnings (Nov 20, 2025):
 - Removed Paths/Dataset browser panels from the sidebar to keep it shorter; corresponding test now asserts they stay hidden.
 - Fully deleted the unused `render_paths_panel` and `render_dataset_viewer` helpers from `persistence_ui.py` to reduce dead code.
 - Added a toast when a sample is saved (Good/Bad/Batch/Upload flows) so the user sees immediate feedback; test `tests/test_toast_on_save.py` covers it.
+- New CLI `xgb_cli.py`: trains XGBoost on `dataset_<hash>.npz` for a given prompt and saves `xgb_model_<hash>.bin`; helper `train_xgb_for_prompt` is test-covered (`tests/test_xgb_cli.py`). Minimal, no fallbacks.
