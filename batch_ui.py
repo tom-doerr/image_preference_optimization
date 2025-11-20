@@ -35,6 +35,8 @@ def _log(msg: str, level: str = "info") -> None:
 __all__ = [
     '_lstate_and_prompt',
     '_sample_around_prompt',
+    '_prepare_xgb_scorer',
+    '_sample_one_for_batch',
     '_curation_init_batch',
     '_curation_new_batch',
     '_curation_replace_at',
@@ -74,6 +76,50 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     return z
 
 
+def _prepare_xgb_scorer(lstate: Any, prompt: str):
+    """Return (scorer, status) for XGB when available, else (None, status).
+
+    Keeps import surface tiny and avoids repeating dataset/ensure_fitted calls.
+    """
+    try:
+        from persistence import get_dataset_for_prompt_or_session
+        from value_model import ensure_fitted
+        X_ds, y_ds = get_dataset_for_prompt_or_session(prompt, __import__('streamlit').session_state)
+        if X_ds is not None and y_ds is not None and getattr(X_ds, 'shape', (0,))[0] > 0:
+            try:
+                from constants import Keys as _K
+                lam_now = float(getattr(__import__('streamlit').session_state, _K.REG_LAMBDA, 1e-3))
+            except Exception:
+                lam_now = 1e-3
+            try:
+                vm_train_choice = str(__import__('streamlit').session_state.get('vm_train_choice', 'XGBoost'))
+            except Exception:
+                vm_train_choice = 'XGBoost'
+            ensure_fitted(vm_train_choice, lstate, X_ds, y_ds, lam_now, __import__('streamlit').session_state)
+        from value_scorer import get_value_scorer_with_status
+        return get_value_scorer_with_status('XGBoost', lstate, prompt, __import__('streamlit').session_state)
+    except Exception:
+        return None, 'xgb_unavailable'
+
+
+def _sample_one_for_batch(lstate: Any,
+                          prompt: str,
+                          use_xgb: bool,
+                          scorer,
+                          steps: int,
+                          lr_mu: float,
+                          trust_r) -> np.ndarray:
+    """Produce one latent for the batch using XGB hill or around‑prompt sample."""
+    if use_xgb and scorer is not None:
+        try:
+            from latent_logic import sample_z_xgb_hill  # local import
+            step_scale = lr_mu * float(getattr(lstate, 'sigma', 1.0))
+            return sample_z_xgb_hill(lstate, prompt, scorer, steps=int(steps), step_scale=step_scale, trust_r=trust_r)
+        except Exception:
+            pass
+    return _sample_around_prompt(scale=0.8)
+
+
 def _curation_init_batch() -> None:
     # Always create a fresh batch on init so each page reload/new round uses
     # newly sampled latents instead of reusing the previous cur_batch.
@@ -86,7 +132,7 @@ def _curation_new_batch() -> None:
     import time as _time
     t0 = _time.perf_counter()
     z_list = []
-    from latent_logic import z_from_prompt, sample_z_xgb_hill
+    from latent_logic import z_from_prompt
     z_p = z_from_prompt(lstate, prompt)
     batch_n = int(st.session_state.get('batch_size', 6))
     # Optional XGBoost-guided hill climb per image when XGB is active.
@@ -99,39 +145,11 @@ def _curation_new_batch() -> None:
     trust = st.session_state.get(Keys.TRUST_R, None)
     trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
     if use_xgb:
-        try:
-            from persistence import get_dataset_for_prompt_or_session
-            from value_model import ensure_fitted
-            X_ds, y_ds = get_dataset_for_prompt_or_session(prompt, st.session_state)
-            if X_ds is not None and y_ds is not None and getattr(X_ds, "shape", (0,))[0] > 0:
-                try:
-                    d_x = int(getattr(X_ds, "shape", (0, 0))[1])
-                    d_lat = int(getattr(lstate, "d", d_x))
-                    if d_x == d_lat:
-                        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
-                        vm_train_choice = str(st.session_state.get("vm_train_choice", vm_choice))
-                        ensure_fitted(vm_train_choice, lstate, X_ds, y_ds, lam_now, st.session_state)
-                except Exception:
-                    pass
-            from value_scorer import get_value_scorer_with_status
-            scorer, scorer_status = get_value_scorer_with_status("XGBoost", lstate, prompt, st.session_state)
-            if scorer_status != "ok":
-                scorer = None
-        except Exception:
+        scorer, scorer_status = _prepare_xgb_scorer(lstate, prompt)
+        if scorer_status != 'ok':
             scorer = None
     for i in range(batch_n):
-        z = None
-        if use_xgb and scorer is not None:
-            try:
-                step_scale = lr_mu * float(getattr(lstate, "sigma", 1.0))
-                z = sample_z_xgb_hill(lstate, prompt, scorer, steps=steps, step_scale=step_scale, trust_r=trust_r)
-            except Exception:
-                z = None
-        if z is None:
-            r = lstate.rng.standard_normal(lstate.d)
-            r = r / (np.linalg.norm(r) + 1e-12)
-            z = z_p + lstate.sigma * 0.8 * r
-        z_list.append(z)
+        z_list.append(_sample_one_for_batch(lstate, prompt, use_xgb, scorer, steps, lr_mu, trust_r))
     st.session_state.cur_batch = z_list
     st.session_state.cur_labels = [None] * len(z_list)
     try:

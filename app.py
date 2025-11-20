@@ -1164,7 +1164,13 @@ def _queue_fill_up_to() -> None:
     _q._queue_fill_up_to()
     # Materialize list in session state for stubbed tests that may lazily wrap state
     try:
-        q = list(st.session_state.get('queue') or [])
+        from constants import Keys as _K
+        qsrc = st.session_state.get(_K.QUEUE)
+        if qsrc is None:
+            qsrc = st.session_state.get('queue')
+        q = list(qsrc or [])
+        # Write under both the literal and key to be safe in tests
+        st.session_state[_K.QUEUE] = q
         st.session_state['queue'] = q
     except Exception:
         pass
