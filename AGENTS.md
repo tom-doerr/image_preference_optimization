@@ -1137,6 +1137,7 @@ New learnings (Nov 20, 2025, evening):
 - LAST_CALL stats: `tests/test_last_call_logs_latents_stats.py` asserts `latents_std`/`latents_mean` are recorded after a decode (stubbed pipe).
 - Turbo clamp logging: `tests/test_guidance_turbo_clamp_last_call.py` verifies guidance is clamped to 0.0 for turbo models and recorded in `LAST_CALL`.
 - CLI print: `_run_pipe` logs `"[pipe] set_timesteps steps=<n> device=cuda"` when it programs the scheduler, to aid debugging scheduler state.
+- CLI detail line: `_run_pipe` now prints model/event/steps/size/guidance/latents_std/init_sigma before calling PIPE; covered by `tests/test_run_pipe_cli_detail.py`.
 
 Keep in mind:
 - When adding any fragmentized function, never write to `st.sidebar` within it. Compute state → write in a non-fragment context.

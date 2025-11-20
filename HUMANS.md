@@ -248,6 +248,8 @@ Nov 20, 2025 — Notes for humans
   - Added `tests/test_last_call_logs_latents_stats.py` to assert `LAST_CALL` captures `latents_std`/`latents_mean` after a decode (stubbed pipe).
 - Turbo guidance clamp logging
   - `tests/test_guidance_turbo_clamp_last_call.py` checks that guidance is clamped to 0.0 for turbo models and recorded in `LAST_CALL.guidance`.
+- CLI detail logging
+  - `_run_pipe` now prints a detailed line (`model=… steps=… size=… guidance=… latents_std=… init_sigma=…`). Test: `tests/test_run_pipe_cli_detail.py` captures stdout and asserts the fields.
 - CLI prints
   - `_run_pipe` now logs `[pipe] set_timesteps steps=<n> device=cuda` when timesteps are set, to help diagnose scheduler state.
 - Async queue value captions: queue images now render `Item i • Value: …` just like batch tiles. Test: `tests/test_async_queue_value_caption.py`.

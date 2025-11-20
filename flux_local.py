@@ -304,6 +304,31 @@ def _run_pipe(**kwargs):
         try:
             t0 = _time.perf_counter()
             try:
+                mid = CURRENT_MODEL_ID
+                ev = LAST_CALL.get("event")
+                lat_std = LAST_CALL.get("latents_std")
+                init_sig = None
+                try:
+                    sched = getattr(PIPE, "scheduler", None)
+                    init_sig = getattr(sched, "init_noise_sigma", None)
+                except Exception:
+                    pass
+                print(
+                    "[pipe] call model={mid} event={ev} steps={steps} size={w}x{h} "
+                    "guidance={g} latents_std={ls} init_sigma={isig}".format(
+                        mid=mid,
+                        ev=ev,
+                        steps=int(steps),
+                        w=kwargs.get("width"),
+                        h=kwargs.get("height"),
+                        g=kwargs.get("guidance_scale"),
+                        ls=lat_std,
+                        isig=init_sig,
+                    )
+                )
+            except Exception:
+                pass
+            try:
                 print(
                     f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}"
                 )
