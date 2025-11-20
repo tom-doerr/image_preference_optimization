@@ -782,3 +782,4 @@ New learnings (Nov 20, 2025):
 - Added a “Train value model” selector (XGBoost or Ridge) so you can choose the training backend independently of the active scorer; fit calls honor this choice across batch/auto-fit paths.
 - Scores are always shown under each batch and upload image; even during async fits we keep the cached scorer values (or display “n/a” when unavailable).
 - Step-score sidebar now always renders (shows 0/n/a when weights are unset) so per-step visibility stays on even during async fits or zero-weight states.
+- Debug panel lists the active latent depth (4) and latent shape (1x4xH/8xW/8) for the loaded model.

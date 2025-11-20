@@ -864,6 +864,13 @@ try:
         with expander("Debug", expanded=False):
             last = get_last_call() or {}
             dbg_pairs = []
+            try:
+                lat_depth = 4
+                lat_shape = f"1x{lat_depth}x{max(1, lstate.height//8)}x{max(1, lstate.width//8)}"
+                dbg_pairs.append(("latent_depth", str(lat_depth)))
+                dbg_pairs.append(("latent_shape", lat_shape))
+            except Exception:
+                pass
             for k in ("model_id", "width", "height", "steps", "guidance", "latents_std", "init_sigma", "img0_std", "img0_min", "img0_max"):
                 if k in last and last[k] is not None:
                     dbg_pairs.append((k, str(last[k])))
@@ -892,6 +899,13 @@ try:
         st.sidebar.subheader("Debug")
         last = get_last_call() or {}
         dbg_pairs = []
+        try:
+            lat_depth = 4
+            lat_shape = f"1x{lat_depth}x{max(1, lstate.height//8)}x{max(1, lstate.width//8)}"
+            dbg_pairs.append(("latent_depth", str(lat_depth)))
+            dbg_pairs.append(("latent_shape", lat_shape))
+        except Exception:
+            pass
         for k in ("model_id", "width", "height", "steps", "guidance", "latents_std", "init_sigma", "img0_std", "img0_min", "img0_max"):
             if k in last and last[k] is not None:
                 dbg_pairs.append((k, str(last[k])))
