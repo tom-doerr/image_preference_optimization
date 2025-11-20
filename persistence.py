@@ -100,6 +100,16 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
         with np.load(p) as d:
             Xd = d['X'] if 'X' in d.files else np.zeros((0, feat.shape[1]))
             yd = d['y'] if 'y' in d.files else np.zeros((0,))
+        # If feature dimension changed (e.g., resolution changed), start a fresh
+        # aggregate file for the new dimension instead of failing a vstack.
+        try:
+            if Xd.size and getattr(Xd, 'shape', (0, 0))[1] != int(feat.shape[1]):
+                Xd = np.zeros((0, feat.shape[1]))
+                yd = np.zeros((0,))
+        except Exception:
+            # Keep minimal; on shape introspection error just fall back to fresh.
+            Xd = np.zeros((0, feat.shape[1]))
+            yd = np.zeros((0,))
     else:
         Xd = np.zeros((0, feat.shape[1]))
         yd = np.zeros((0,))
