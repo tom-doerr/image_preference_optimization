@@ -447,30 +447,17 @@ try:
             fut_running = bool(fut is not None and not getattr(fut, "done", lambda: False)())
             active = "yes" if (_vs_status == "ok") else "no"
             status = st.session_state.get("xgb_train_status")
-            if fut_running or (isinstance(status, dict) and status.get("state") == "running"):
-                st.sidebar.write("XGBoost active: training…")
-                if isinstance(status, dict) and status.get("state") == "running":
-                    rows = status.get("rows")
-                    lam = status.get("lam")
+            st.sidebar.write(f"XGBoost active: {active}")
+            if isinstance(status, dict):
+                state = status.get("state")
+                rows = status.get("rows")
+                lam = status.get("lam")
+                if state == "running" or fut_running:
                     st.sidebar.write(f"Train progress: rows={rows} λ={lam}")
-            else:
-                st.sidebar.write(f"XGBoost active: {active}")
-                if isinstance(status, dict) and status.get("state") == "ok":
-                    rows = status.get("rows")
-                    lam = status.get("lam")
-                    st.sidebar.write(f"Train progress: updated (rows={rows}, λ={lam})")
-                # One-shot toast/note after fit completion
-                try:
-                    last_rows = st.session_state.pop("xgb_last_updated_rows", None)
-                    if last_rows is not None:
-                        st.sidebar.write(f"Updated XGB (rows={last_rows})")
-                        try:
-                            st.sidebar.success(f"Updated XGB (rows={last_rows})")
-                        except Exception:
-                            pass
-                        st.session_state.pop("xgb_last_updated_lam", None)
-                except Exception:
-                    pass
+                elif state == "waiting":
+                    st.sidebar.write("Train progress: waiting (cooldown)")
+                elif state == "ok":
+                    st.sidebar.write(f"Updated XGB (rows={rows}, λ={lam})")
             # If a background fit just finished, clear the future; we avoid full page rerun by default.
             if fut is not None and getattr(fut, "done", lambda: False)():
                 st.session_state.pop("xgb_fit_future", None)
