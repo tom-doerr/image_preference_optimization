@@ -187,6 +187,10 @@ def _curation_train_and_next() -> None:
                         st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
             st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            try:
+                getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
+            except Exception:
+                pass
             # fit_value_model handles async internally when vm_train==XGBoost and xgb_train_async is True.
             fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
         except Exception:
@@ -231,6 +235,10 @@ def _refit_from_dataset_keep_batch() -> None:
                         st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
             st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            try:
+                getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
+            except Exception:
+                pass
             fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
     except Exception:
         pass
