@@ -383,6 +383,10 @@ def _render_batch_ui() -> None:
                             st.session_state.cur_labels[j] = lbl
                         _curation_train_and_next()
                         try:
+                            getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
+                        except Exception:
+                            pass
+                        try:
                             print(f"[perf] best_of choose item={i} took {(_time.perf_counter()-t0b)*1000:.1f} ms")
                         except Exception:
                             pass
@@ -414,6 +418,10 @@ def _render_batch_ui() -> None:
                         _refit_from_dataset_keep_batch()
                         _curation_replace_at(i)
                         try:
+                            getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
+                        except Exception:
+                            pass
+                        try:
                             print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0g)*1000:.1f} ms")
                         except Exception:
                             pass
@@ -423,6 +431,10 @@ def _render_batch_ui() -> None:
                         st.session_state.cur_labels[i] = -1
                         _refit_from_dataset_keep_batch()
                         _curation_replace_at(i)
+                        try:
+                            getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
+                        except Exception:
+                            pass
                         try:
                             print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0b2)*1000:.1f} ms")
                         except Exception:
