@@ -1,4 +1,4 @@
-.PHONY: test test-fast mypy
+.PHONY: test test-fast mypy commit push
 
 test:
 	pytest -q
@@ -9,3 +9,8 @@ test-fast:
 mypy:
 	mypy value_model.py value_scorer.py batch_ui.py queue_ui.py pair_ui.py proposer.py modes.py
 
+commit:
+	git commit -am "wip"
+
+push:
+	git push

@@ -34,24 +34,56 @@ def dataset_rows_for_prompt(prompt: str) -> int:
 
 
 def get_dataset_for_prompt_or_session(prompt: str, session_state) -> tuple[object | None, object | None]:
-    """Return (X, y) from the saved dataset for this prompt, or from session_state.
+    """Return (X, y) for this prompt from disk-backed data.
 
-    Prefers the persisted NPZ; if missing, uses `session_state.dataset_X`/`dataset_y` when present.
-    Keeps code minimal and avoids repeating the same load-or-session pattern.
+    Prefer per-sample folders under data/<hash>/ when present; otherwise fall
+    back to the aggregate dataset_<hash>.npz file. session_state is unused.
     """
     X = y = None
+    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+    root = os.path.join("data", h)
+    try:
+        if os.path.isdir(root):
+            xs = []
+            ys = []
+            for name in sorted(os.listdir(root)):
+                sample_path = os.path.join(root, name, "sample.npz")
+                if not os.path.exists(sample_path):
+                    continue
+                with np.load(sample_path) as d:
+                    Xi = d["X"] if "X" in d.files else None
+                    yi = d["y"] if "y" in d.files else None
+                if Xi is None or yi is None:
+                    continue
+                xs.append(Xi)
+                ys.append(yi)
+            if xs:
+                X = np.vstack(xs)
+                y = np.concatenate(ys)
+                try:
+                    print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from data/{h}")
+                except Exception:
+                    pass
+                return X, y
+    except Exception:
+        X = y = None
+    # Fallback: aggregate NPZ
     p = dataset_path_for_prompt(prompt)
     try:
         if os.path.exists(p):
             with np.load(p) as d:
-                X = d['X'] if 'X' in d.files else None
-                y = d['y'] if 'y' in d.files else None
+                X = d["X"] if "X" in d.files else None
+                y = d["y"] if "y" in d.files else None
+            if X is not None and y is not None:
+                try:
+                    print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {os.path.basename(p)}")
+                except Exception:
+                    pass
     except Exception:
         X = y = None
-    if (X is None or y is None) and getattr(session_state, 'dataset_X', None) is not None:
+    if X is None or y is None:
         try:
-            X = session_state.dataset_X
-            y = session_state.dataset_y
+            print(f"[data] no dataset for prompt={prompt!r}")
         except Exception:
             pass
     return X, y
@@ -75,7 +107,40 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     y_new = np.concatenate([yd, np.array([label], dtype=float)]) if yd.size else np.array([label], dtype=float)
     np.savez_compressed(p, X=X_new, y=y_new)
     _write_backups(p)
-    return int(X_new.shape[0])
+
+    # Also save per-sample NPZ under data/<hash>/<row_idx>/sample.npz
+    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+    root = os.path.join("data", h)
+    row_idx = int(X_new.shape[0])
+    sample_dir = os.path.join(root, f"{row_idx:06d}")
+    os.makedirs(sample_dir, exist_ok=True)
+    sample_path = os.path.join(sample_dir, "sample.npz")
+    np.savez_compressed(sample_path, X=feat, y=np.array([label], dtype=float))
+
+    return row_idx
+
+
+def save_sample_image(prompt: str, row_idx: int, img: Any) -> None:
+    """Save a sample image alongside its feature/label NPZ in the data folder.
+
+    Keeps the image in `data/<hash>/<row_idx>/image.png`. Errors are not raised.
+    """
+    try:
+        h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+        root = os.path.join("data", h)
+        sample_dir = os.path.join(root, f"{row_idx:06d}")
+        os.makedirs(sample_dir, exist_ok=True)
+        path = os.path.join(sample_dir, "image.png")
+        import numpy as _np
+        from PIL import Image  # pillow is already a dependency via diffusers/Streamlit
+        if hasattr(img, "save"):
+            img.save(path)
+        else:
+            arr = _np.asarray(img)
+            Image.fromarray(arr).save(path)
+    except Exception:
+        # Image saving is best-effort; do not affect core flow.
+        pass
 
 
 def _write_backups(path: str) -> None:

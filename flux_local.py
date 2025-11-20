@@ -68,16 +68,31 @@ def _ensure_pipe(model_id: Optional[str] = None):
 
     # Return cached if suitable
     if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
+        try:
+            print(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}")
+        except Exception:
+            pass
         return PIPE
 
     mid = model_id or _get_model_id()
     if PIPE is not None and CURRENT_MODEL_ID != mid:
         _free_pipe()
+    try:
+        print(f"[pipe] loading model id={mid!r}")
+    except Exception:
+        pass
+    import time as _time
+    t0 = _time.perf_counter()
     PIPE = DiffusionPipeline.from_pretrained(
         mid,
         torch_dtype=torch.float16,
         low_cpu_mem_usage=False,
     ).to("cuda")
+    try:
+        dt = _time.perf_counter() - t0
+        print(f"[pipe] loaded model id={mid!r} in {dt:.3f} s")
+    except Exception:
+        pass
     # Disable safety checker to avoid blacked-out images; keep it minimal.
     try:
         if hasattr(PIPE, 'safety_checker'):
@@ -184,7 +199,7 @@ def _run_pipe(**kwargs):
         sched = getattr(PIPE, "scheduler", None)
         if sched is not None and hasattr(sched, "set_timesteps"):
             try:
-                # LCM requires _step_index to be initialized; set_timesteps should do it.
+                # LCM requires _step_index and num_inference_steps to be initialized.
                 sched.set_timesteps(int(steps), device="cuda")
             except TypeError:
                 sched.set_timesteps(int(steps))  # older signatures
@@ -194,40 +209,70 @@ def _run_pipe(**kwargs):
                     sched._step_index = 0  # type: ignore[attr-defined]
                 except Exception:
                     pass
+            # Some schedulers (e.g. newer LCM) require num_inference_steps
+            # to be set explicitly; mirror what set_timesteps would do.
+            try:
+                if getattr(sched, "num_inference_steps", None) is None:
+                    sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
+            except Exception:
+                pass
     except Exception:
         pass
     import time as _time
-    t0 = _time.perf_counter()
-    with PIPE_LOCK:
-        out = PIPE(**kwargs)
-    dur_s = _time.perf_counter() - t0
+    retries = 0
     try:
-        LAST_CALL["dur_s"] = float(dur_s)
-        print(f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})")
+        retries = int(os.getenv("RETRY_ON_OOM", "0"))
     except Exception:
-        pass
-    if hasattr(out, "images") and getattr(out, "images"):
-        img0 = out.images[0]
+        retries = 0
+    attempt = 0
+    while True:
         try:
-            import numpy as _np  # type: ignore
-            arr = _np.asarray(img0)
-            LAST_CALL.update({
-                "img0_mean": float(arr.mean()),
-                "img0_std": float(arr.std()),
-                "img0_min": float(arr.min()),
-                "img0_max": float(arr.max()),
-            })
-            LOGGER.info(
-                "img0 stats mean=%.3f std=%.3f min=%s max=%s",
-                float(arr.mean()),
-                float(arr.std()),
-                arr.min(),
-                arr.max(),
-            )
-        except Exception:
-            pass
-        return img0
-    raise RuntimeError("Local FLUX pipeline returned no images")
+            t0 = _time.perf_counter()
+            try:
+                print(f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}")
+            except Exception:
+                pass
+            with PIPE_LOCK:
+                out = PIPE(**kwargs)
+            dur_s = _time.perf_counter() - t0
+            try:
+                LAST_CALL["dur_s"] = float(dur_s)
+                print(f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})")
+            except Exception:
+                pass
+            if hasattr(out, "images") and getattr(out, "images"):
+                img0 = out.images[0]
+                try:
+                    import numpy as _np  # type: ignore
+                    arr = _np.asarray(img0)
+                    LAST_CALL.update({
+                        "img0_mean": float(arr.mean()),
+                        "img0_std": float(arr.std()),
+                        "img0_min": float(arr.min()),
+                        "img0_max": float(arr.max()),
+                    })
+                    LOGGER.info(
+                        "img0 stats mean=%.3f std=%.3f min=%s max=%s",
+                        float(arr.mean()),
+                        float(arr.std()),
+                        arr.min(),
+                        arr.max(),
+                    )
+                except Exception:
+                    pass
+                return img0
+            raise RuntimeError("Local FLUX pipeline returned no images")
+        except RuntimeError as e:
+            if attempt < retries and "out of memory" in str(e).lower():
+                attempt += 1
+                try:
+                    import torch  # type: ignore
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+                _time.sleep(1.0)
+                continue
+            raise
 
 
 def _get_prompt_embeds(prompt: str, guidance: float):

@@ -59,7 +59,7 @@ def render_paths_panel(state_path: str, prompt: str) -> None:
     import streamlit as st
     from persistence import dataset_path_for_prompt
     try:
-        st.sidebar.subheader("Paths")
+        st.sidebar.subheader("Paths (files)")
         st.sidebar.write(f"State path: {state_path} {'(exists)' if os.path.exists(state_path) else '(missing)'}")
         dpath = dataset_path_for_prompt(prompt)
         st.sidebar.write(f"Dataset path: {dpath} {'(exists)' if os.path.exists(dpath) else '(missing)'}")
@@ -77,7 +77,7 @@ def render_dataset_viewer() -> None:
     import numpy as np
     import streamlit as st
     files = sorted(glob.glob('dataset_*.npz'))
-    st.sidebar.subheader("Datasets")
+    st.sidebar.subheader("Dataset browser")
     if not files:
         st.sidebar.write("No datasets found")
         return

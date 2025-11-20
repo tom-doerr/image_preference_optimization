@@ -42,10 +42,8 @@ class TestValueModelCosineHill(unittest.TestCase):
 
         out = "\n".join(writes)
         self.assertIn('Value model: CosineHill', out)
-        self.assertIn('V(left):', out)
-        self.assertIn('V(right):', out)
+        # Pair-specific V(left)/V(right) panel removed in Batch-only UI
 
 
 if __name__ == '__main__':
     unittest.main()
-

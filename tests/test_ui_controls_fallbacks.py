@@ -38,7 +38,8 @@ class TestUIControlsFallbacks(unittest.TestCase):
         st.sidebar = Sidebar()
         # Top-level slider provides value
         st.slider = lambda *a, **k: k.get('value')
-        self.assertEqual(ui.build_batch_controls(st, expanded=False), 6)
+        # Batch default now 25 (see constants.DEFAULT_BATCH_SIZE)
+        self.assertEqual(ui.build_batch_controls(st, expanded=False), 25)
         self.assertEqual(ui.build_queue_controls(st, expanded=False), 6)
 
 

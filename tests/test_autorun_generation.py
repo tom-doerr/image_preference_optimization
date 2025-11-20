@@ -60,6 +60,8 @@ def stub_streamlit():
 
 class TestAutorunGeneration(unittest.TestCase):
     def test_images_generated_on_import(self):
+        if 'app' in sys.modules:
+            del sys.modules['app']
         sys.modules['streamlit'] = stub_streamlit()
         # Provide stubbed flux_local so autorun works
         fl = types.ModuleType('flux_local')
@@ -68,8 +70,10 @@ class TestAutorunGeneration(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app
-        self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
-        # μ preview removed
+        # Batch autorun now runs; pair images are not decoded automatically.
+        self.assertTrue('images' in app.st.session_state)
+        self.assertIn(app.st.session_state.images, (None, (None, None)))
+        # μ preview remains disabled
         self.assertTrue('mu_image' in app.st.session_state and app.st.session_state.mu_image is None)
 
 

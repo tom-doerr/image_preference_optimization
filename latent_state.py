@@ -3,6 +3,7 @@ from typing import Optional, Any, Mapping
 import numpy as np
 import os
 import io
+from constants import Config
 
 
 @dataclass
@@ -22,7 +23,7 @@ class LatentState:
     mu_hist: Optional[np.ndarray] = None
 
 
-def init_latent_state(width: int = 512, height: int = 512, d: int = 0, seed: Optional[int] = 0) -> LatentState:
+def init_latent_state(width: int = Config.DEFAULT_WIDTH, height: int = Config.DEFAULT_HEIGHT, d: int = 0, seed: Optional[int] = 0) -> LatentState:
     h8, w8 = height // 8, width // 8
     flat = 4 * h8 * w8
     rng = np.random.default_rng(seed)

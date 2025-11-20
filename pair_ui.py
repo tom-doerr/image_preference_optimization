@@ -70,6 +70,9 @@ def _prefetch_next_for_generate() -> None:
             za_n, zb_n = propose_next_pair(lstate, prompt, opts=_proposer_opts())
     except Exception:
         za_n, zb_n = propose_latent_pair_ridge(lstate)
+    # If background stubs do not expose pair scheduling (tests), skip prefetch.
+    if not hasattr(bg, 'schedule_decode_pair'):
+        return
     la_n = z_to_latents(lstate, za_n)
     lb_n = z_to_latents(lstate, zb_n)
     f = bg.schedule_decode_pair(

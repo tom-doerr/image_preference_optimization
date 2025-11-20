@@ -14,17 +14,8 @@ class TestIterStepScoresSidebar(unittest.TestCase):
             'DistanceHill' if 'Value model' in label else (
             options[0] if 'Model' in label else options[index]
         ))) )
-        st.session_state['prompt'] = 'unit test prompt'
-
-        # Provide a tiny dataset and non-zero w so scores are computed
-        # Create a 512x512 default state later; d = 16384
-        d = 16384
-        X = np.zeros((2, d), dtype=float)
-        X[0, 0] = 1.0
-        X[1, 1] = -1.0
-        y = np.array([1.0, -1.0], dtype=float)
-        st.session_state['dataset_X'] = X
-        st.session_state['dataset_y'] = y
+        prompt = 'unit test prompt'
+        st.session_state['prompt'] = prompt
 
         # Stub flux_local
         fl = types.ModuleType('flux_local')
@@ -35,9 +26,25 @@ class TestIterStepScoresSidebar(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         sys.modules['streamlit'] = st
+        # Ensure no stale on-disk dataset for this prompt
+        from persistence import dataset_path_for_prompt
+        path = dataset_path_for_prompt(prompt)
+        import os
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
         if 'app' in sys.modules:
             del sys.modules['app']
         import app  # noqa: F401
+        # Persist a tiny dataset for this prompt so helper can load it
+        from persistence import append_dataset_row
+        d = app.st.session_state.lstate.d
+        feat_pos = np.zeros((1, d), dtype=float); feat_pos[0, 0] = 1.0
+        feat_neg = np.zeros((1, d), dtype=float); feat_neg[0, 1] = -1.0
+        append_dataset_row(st.session_state['prompt'], feat_pos, +1.0)
+        append_dataset_row(st.session_state['prompt'], feat_neg, -1.0)
         # Ensure w is non-zero, then render scores now that state exists
         app.st.session_state.lstate.w = np.ones(app.st.session_state.lstate.d, dtype=float)
         app._render_iter_step_scores()

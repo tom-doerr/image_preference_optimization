@@ -55,3 +55,40 @@ def pair_metrics(w: np.ndarray, z_a: np.ndarray, z_b: np.ndarray) -> Dict[str, f
         "diff_norm": diff_n,
         "cos_w_diff": c,
     }
+
+
+def xgb_cv_accuracy(X: np.ndarray, y: np.ndarray, k: int = 3, n_estimators: int = 50, max_depth: int = 3) -> float:
+    """Tiny XGBoost-based K-fold CV accuracy.
+
+    - Deterministic shuffle + split into k folds (k clamped to [2, n]).
+    - Trains a fresh XGB model per fold via xgb_value.fit_xgb_classifier.
+    - Uses xgb_value.score_xgb_proba to score the held-out fold and computes
+      accuracy vs labels (y>0).
+    - Returns mean accuracy over non-empty folds in [0,1]; NaN if no folds.
+    """
+    import numpy as _np
+    from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+
+    X = _np.asarray(X, dtype=float)
+    y = _np.asarray(y, dtype=float).ravel()
+    n = int(X.shape[0])
+    if n == 0:
+        return float("nan")
+    k = max(2, min(int(k), n))
+    idx = _np.arange(n)
+    rng = _np.random.default_rng(0)
+    rng.shuffle(idx)
+    folds = _np.array_split(idx, k)
+    accs: list[float] = []
+    for fi in range(k):
+        test_idx = folds[fi]
+        train_idx = _np.concatenate([folds[j] for j in range(k) if j != fi])
+        if train_idx.size == 0 or test_idx.size == 0:
+            continue
+        mdl = fit_xgb_classifier(X[train_idx], y[train_idx], n_estimators=n_estimators, max_depth=max_depth)
+        probs = _np.array([score_xgb_proba(mdl, fv) for fv in X[test_idx]], dtype=float)
+        preds = probs >= 0.5
+        accs.append(float(_np.mean(preds == (y[test_idx] > 0))))
+    if not accs:
+        return float("nan")
+    return float(_np.mean(accs))

@@ -18,7 +18,7 @@ def make_stub_streamlit():
     def text_input(label, value=""):
         return value
 
-    def number_input(label, min_value=None, max_value=None, step=None, value=None):
+    def number_input(label, min_value=None, max_value=None, step=None, value=None, **kwargs):
         return value
 
     def slider(label, min_value=None, max_value=None, value=None, step=None):

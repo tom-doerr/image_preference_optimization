@@ -14,12 +14,10 @@ class TestValueSidebar(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app  # noqa: F401
-
         text = "\n".join(writes)
-        self.assertIn("V(left):", text)
-        self.assertIn("V(right):", text)
+        # Pair/left-right panel removed; ensure value model line still present
+        self.assertIn("Value model:", text)
 
 
 if __name__ == '__main__':
     unittest.main()
-

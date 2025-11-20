@@ -2,58 +2,31 @@ import sys
 import types
 import unittest
 
-
-class Session(dict):
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-
-
-def stub_streamlit():
-    st = types.ModuleType('streamlit')
-    st.session_state = Session()
-    st.set_page_config = lambda **_: None
-    st.title = lambda *_, **__: None
-    st.caption = lambda *_, **__: None
-    st.subheader = lambda *_, **__: None
-    st.text_input = lambda *_, value="": value
-    st.number_input = lambda *_, value=None, **__: value
-    st.slider = lambda *_, value=None, **__: value
-    st.button = lambda *_, **__: False
-    st.image = lambda *_, **__: None
-    class Sidebar:
-        selectbox = staticmethod(lambda *a, **k: 'stabilityai/sd-turbo')
-        header = staticmethod(lambda *a, **k: None)
-        subheader = staticmethod(lambda *a, **k: None)
-        download_button = staticmethod(lambda *a, **k: None)
-        file_uploader = staticmethod(lambda *a, **k: None)
-        text_input = staticmethod(lambda *a, **k: '')
-        checkbox = staticmethod(lambda *a, **k: False)
-        button = staticmethod(lambda *a, **k: False)
-    st.sidebar = Sidebar()
-    class Col:
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-    st.columns = lambda n: (Col(), Col())
-    st.write = lambda *_, **__: None
-    st.experimental_rerun = lambda: None
-    return st
+from tests.helpers.st_streamlit import stub_basic
 
 
 class TestAutorunPromptFirst(unittest.TestCase):
-    def test_prompt_only_generated_on_import(self):
-        sys.modules['streamlit'] = stub_streamlit()
+    def test_import_initializes_state_without_prompt_only_image(self):
+        if 'app' in sys.modules:
+            del sys.modules['app']
+        sys.modules['streamlit'] = stub_basic(pre_images=False)
+
+        # Minimal flux_local stub; prompt-only helpers are no longer used
         fl = types.ModuleType('flux_local')
-        # Provide both paths; app now always uses text path for prompt-only
-        fl.generate_flux_image = lambda *a, **kw: 'ok-text'
         fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
         fl.set_model = lambda *a, **kw: None
         fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
         import app  # noqa: F401
-        # Pair should be generated on import
-        self.assertEqual(sys.modules['streamlit'].session_state.images, ('ok-image', 'ok-image'))
+        st = sys.modules['streamlit']
+        # App should set up images field but not decode a prompt-only image.
+        self.assertTrue('images' in st.session_state)
+        self.assertIn(st.session_state.images, (None, (None, None)))
+        self.assertTrue('prompt_image' in st.session_state)
+        self.assertIsNone(st.session_state.prompt_image)
 
 
 if __name__ == '__main__':
     unittest.main()
+

@@ -398,11 +398,6 @@ def _render_batch_ui() -> None:
                             print(f"[perf] best_of choose item={i} took {(_time.perf_counter()-t0b)*1000:.1f} ms")
                         except Exception:
                             pass
-                        if callable(getattr(st, 'rerun', None)):
-                            try:
-                                st.rerun()
-                            except Exception:
-                                pass
                 else:
                     btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
@@ -432,11 +427,6 @@ def _render_batch_ui() -> None:
                             print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0g)*1000:.1f} ms")
                         except Exception:
                             pass
-                        if callable(getattr(st, 'rerun', None)):
-                            try:
-                                st.rerun()
-                            except Exception:
-                                pass
                     if _bad_clicked():
                         t0b2 = _time.perf_counter()
                         _curation_add(-1, z_i, img_i)
@@ -447,11 +437,6 @@ def _render_batch_ui() -> None:
                             print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0b2)*1000:.1f} ms")
                         except Exception:
                             pass
-                        if callable(getattr(st, 'rerun', None)):
-                            try:
-                                st.rerun()
-                            except Exception:
-                                pass
 
             # Wrap each tile in its own fragment when available so the
             # latent sampling, decode, buttons, and saves are scoped per

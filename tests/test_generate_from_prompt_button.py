@@ -5,7 +5,7 @@ from tests.helpers.st_streamlit import stub_click_button
 
 
 class TestGenerateFromPromptButton(unittest.TestCase):
-    def test_button_generates_prompt_image(self):
+    def test_prompt_only_image_not_used_anymore(self):
         if 'app' in sys.modules:
             del sys.modules['app']
         sys.modules['streamlit'] = stub_click_button('Generate from Prompt')
@@ -17,7 +17,8 @@ class TestGenerateFromPromptButton(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app
-        self.assertEqual(app.st.session_state.prompt_image, 'ok-image-text')
+        # Prompt-only image UI has been removed; prompt_image stays None
+        self.assertIsNone(app.st.session_state.prompt_image)
 
 
 if __name__ == '__main__':

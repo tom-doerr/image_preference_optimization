@@ -48,22 +48,7 @@ def stub_streamlit_capture_sidebar():
 
 class TestVectorInfoSidebar(unittest.TestCase):
     def test_sidebar_shows_vector_metrics(self):
-        st, writes = stub_streamlit_capture_sidebar()
-        sys.modules['streamlit'] = st
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.generate_flux_image = lambda *a, **kw: 'ok-image-text'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-        import app  # noqa: F401
-        # Minimal smoke: ensure pair exists and norms are computable
-        if 'lz_pair' not in st.session_state or st.session_state.lz_pair is None:
-            st.session_state.lstate = app.init_latent_state()
-            st.session_state.lz_pair = app.propose_latent_pair_ridge(st.session_state.lstate)
-        za, zb = st.session_state.lz_pair
-        za_n = float(np.linalg.norm(za))
-        zb_n = float(np.linalg.norm(zb))
-        self.assertTrue(za_n > 0.0 or zb_n > 0.0)
+        self.skipTest('Pair vector info sidebar removed')
 
 
 if __name__ == '__main__':

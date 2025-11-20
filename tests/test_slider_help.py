@@ -20,11 +20,14 @@ def stub_streamlit_capture_sliders():
 
     calls = []
     def slider(label, *args, **kwargs):
-        calls.append({"label": label, "help": kwargs.get("help")})
-        # return the default value
+        # capture label, help text, and default value
         if len(args) >= 3:
-            return args[2]
-        return kwargs.get('value')
+            default_val = args[2]
+        else:
+            default_val = kwargs.get('value')
+        calls.append({"label": label, "help": kwargs.get("help"), "value": default_val})
+        # return the default value
+        return default_val
     st.slider = slider
     st.button = lambda *_, **__: False
     st.image = lambda *_, **__: None
@@ -51,14 +54,9 @@ def stub_streamlit_capture_sliders():
 class TestSliderHelp(unittest.TestCase):
     def test_alpha_beta_have_tooltips(self):
         st, calls = stub_streamlit_capture_sliders()
-        sys.modules['streamlit'] = st
-        # Stub flux_local to avoid GPU work
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-
-        import app  # noqa: F401
+        # Call build_pair_controls directly to capture slider labels/help.
+        from ui_controls import build_pair_controls
+        build_pair_controls(st, expanded=False)
         labels = {c['label']: c.get('help') for c in calls if c.get('label')}
         self.assertIn('Alpha (ridge d1)', labels)
         self.assertIn('Beta (ridge d2)', labels)
@@ -66,6 +64,52 @@ class TestSliderHelp(unittest.TestCase):
         self.assertIsNotNone(labels['Beta (ridge d2)'])
         self.assertIn('d1', labels['Alpha (ridge d1)'])
         self.assertIn('d2', labels['Beta (ridge d2)'])
+
+    def test_iter_eta_default_positive(self):
+        st, _ = stub_streamlit_capture_sliders()
+        sys.modules['streamlit'] = st
+        fl = types.ModuleType('flux_local')
+        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
+        fl.set_model = lambda *a, **kw: None
+        sys.modules['flux_local'] = fl
+
+        if 'app' in sys.modules:
+            del sys.modules['app']
+        import app  # noqa: F401
+        # Numeric eta input in app.py should set a positive default.
+        self.assertIn('iter_eta', st.session_state)
+        self.assertGreater(float(st.session_state['iter_eta']), 0.0)
+
+    def test_iter_eta_numeric_updates_state(self):
+        st, _ = stub_streamlit_capture_sliders()
+
+        # Numeric input: override only the eta field to simulate a user edit.
+        def num(label, *args, value=None, **kwargs):
+            if label == "Iterative step (eta)":
+                return 0.3
+            return value
+
+        st.number_input = num
+        st.sidebar.number_input = staticmethod(num)
+
+        sys.modules['streamlit'] = st
+        fl = types.ModuleType('flux_local')
+        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
+        fl.set_model = lambda *a, **kw: None
+        sys.modules['flux_local'] = fl
+
+        if 'app' in sys.modules:
+            del sys.modules['app']
+        import app  # noqa: F401
+
+        # Numeric eta input should have updated the shared state.
+        self.assertIn('iter_eta', st.session_state)
+        self.assertAlmostEqual(float(st.session_state['iter_eta']), 0.3, places=6)
+
+        # build_pair_controls should now see and return the updated eta value.
+        from ui_controls import build_pair_controls
+        alpha, beta, trust_r, lr_mu_ui, gamma_orth, iter_steps, iter_eta = build_pair_controls(st, expanded=False)
+        self.assertAlmostEqual(float(iter_eta), 0.3, places=6)
 
 
 if __name__ == '__main__':

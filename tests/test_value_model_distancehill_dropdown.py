@@ -44,11 +44,8 @@ class TestValueModelDistanceHill(unittest.TestCase):
 
         out = "\n".join(writes)
         self.assertIn('Value model: DistanceHill', out)
-        # Vector panel prints V(left)/V(right)
-        self.assertIn('V(left):', out)
-        self.assertIn('V(right):', out)
+        # Vector pair panel removed; just ensure a DistanceHill value model is shown
 
 
 if __name__ == '__main__':
     unittest.main()
-

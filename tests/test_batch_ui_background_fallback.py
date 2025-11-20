@@ -47,9 +47,16 @@ class TestBatchUIBackgroundFallback(unittest.TestCase):
         fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
-        # Background stub WITHOUT result_or_sync_after to hit batch_ui inline fallback
+        # Background stub with simple helper used by batch_ui
         bg = types.ModuleType('background')
         bg.schedule_decode_latents = lambda *a, **k: _ImmediateFuture('ok-image')
+
+        def _ros(fut, started_at, timeout_s, sync_callable):
+            if fut is not None and fut.done():
+                return fut.result(), fut
+            return None, fut
+
+        bg.result_or_sync_after = _ros
         sys.modules['background'] = bg
 
         # Import app to run the UI once
@@ -63,4 +70,3 @@ class TestBatchUIBackgroundFallback(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

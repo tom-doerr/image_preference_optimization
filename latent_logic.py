@@ -111,13 +111,35 @@ def propose_latent_pair_ridge(state: LatentState, alpha: float = 0.5, beta: floa
 
 
 def z_from_prompt(state: LatentState, prompt: str) -> np.ndarray:
-    """Deterministic z derived from the prompt text (hash-seeded Gaussian).
+    """Latent anchor z for a prompt or a random anchor when enabled.
 
-    Keeps things minimal: no model inversion, just a stable mapping prompt→z.
+    Default: deterministic hash-seeded Gaussian from the prompt text.
+    When `state.use_random_anchor` is truthy, use a single random anchor
+    per state (cached on `state.random_anchor_z`) instead.
     """
+    # Optional random-anchor mode (set from the UI via state attribute)
+    if getattr(state, "use_random_anchor", False):
+        z_cached = getattr(state, "random_anchor_z", None)
+        if z_cached is None or getattr(z_cached, "shape", (0,))[0] != state.d:
+            rng = getattr(state, "rng", np.random.default_rng())
+            z_cached = rng.standard_normal(state.d).astype(float) * state.sigma
+            state.random_anchor_z = z_cached
+        try:
+            import numpy as _np  # local to keep deps minimal
+            n = float(_np.linalg.norm(z_cached))
+            print(f"[latent] z_from_prompt random anchor d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")
+        except Exception:
+            pass
+        return z_cached
     h = int.from_bytes(hashlib.sha1(prompt.encode('utf-8')).digest()[:8], 'big')
     rng = np.random.default_rng(h)
     z = rng.standard_normal(state.d).astype(float) * state.sigma
+    try:
+        import numpy as _np  # local import
+        n = float(_np.linalg.norm(z))
+        print(f"[latent] z_from_prompt prompt_hash={h} d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")
+    except Exception:
+        pass
     return z
 
 
@@ -286,11 +308,25 @@ def hill_climb_mu_distance(state: LatentState,
         return
     z_p = z_from_prompt(state, prompt)
     mu = state.mu.astype(float)
+    # If μ is still uninitialized (all zeros), start from a random point
+    # around the prompt anchor to avoid always climbing from the same vector.
+    if not np.any(mu):
+        r = state.rng.standard_normal(state.d).astype(float)
+        n = float(np.linalg.norm(r))
+        if n > 0.0:
+            r = r / n
+        scale = float(trust_r) if (trust_r is not None and float(trust_r) > 0.0) else float(state.sigma)
+        mu = z_p + scale * r
+        state.mu = mu
     Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
     diffs = mu.reshape(1, -1) - Z  # shape (n, d)
     d2 = np.sum(diffs * diffs, axis=1)  # (n,)
     yy = np.asarray(y, dtype=float).reshape(-1)
     sig = _sigmoid(gamma * d2)
+    try:
+        L0 = float(np.sum(-yy * sig))
+    except Exception:
+        L0 = None
     # scalers per sample
     scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)  # (n,)
     grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
@@ -300,11 +336,168 @@ def hill_climb_mu_distance(state: LatentState,
         n = float(np.linalg.norm(delta))
         if n > float(trust_r) and n > 0.0:
             mu_new = z_p + delta * (float(trust_r) / n)
+    try:
+        diffs_new = mu_new.reshape(1, -1) - Z
+        d2_new = np.sum(diffs_new * diffs_new, axis=1)
+        sig_new = _sigmoid(gamma * d2_new)
+        L1 = float(np.sum(-yy * sig_new))
+        if L0 is not None:
+            print(f"[hill] L(mu) before={L0:.4f} after={L1:.4f}")
+        else:
+            print(f"[hill] L(mu) after={L1:.4f}")
+    except Exception:
+        pass
     state.mu = mu_new
     # record history
     mh = getattr(state, 'mu_hist', None)
     mu_now = state.mu.reshape(1, -1)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
+
+
+def hill_climb_mu_xgb(state: LatentState,
+                      prompt: str,
+                      scorer,
+                      steps: int = 3,
+                      step_scale: float = 0.2,
+                      trust_r: Optional[float] = None) -> None:
+    """Multi-step hill climb on μ using an external value scorer (e.g. XGBoost).
+
+    Uses ridge w to define a direction d1 in latent space and, at each step,
+    proposes μ ± step_t·d1, scores them via `scorer` on f = z − z_prompt,
+    and moves μ to the better one. step_t decays as step_scale/(1+t).
+    """
+    try:
+        n_steps = max(1, int(steps))
+    except Exception:
+        n_steps = 1
+    if n_steps <= 0:
+        return
+    z_p = z_from_prompt(state, prompt)
+    mu = state.mu.astype(float)
+    if not np.any(mu):
+        mu = z_p.copy()
+    w = getattr(state, "w", None)
+    if w is None:
+        return
+    w = np.asarray(w[: state.d], dtype=float)
+    n = float(np.linalg.norm(w))
+    if n == 0.0:
+        return
+    d1 = w / n
+    try:
+        base_step = float(step_scale)
+    except Exception:
+        base_step = 0.2
+    for t in range(n_steps):
+        step_t = base_step / float(1 + t)
+        candidates = []
+        for sgn in (1.0, -1.0):
+            z_cand = mu + sgn * step_t * d1
+            delta = z_cand - z_p
+            if trust_r is not None and float(trust_r) > 0.0:
+                r = float(np.linalg.norm(delta))
+                if r > float(trust_r) and r > 0.0:
+                    z_cand = z_p + delta * (float(trust_r) / r)
+                    delta = z_cand - z_p
+            fvec = delta
+            try:
+                score = float(scorer(fvec))
+            except Exception:
+                score = 0.0
+            candidates.append((score, z_cand))
+        try:
+            best_score, best_z = max(candidates, key=lambda x: x[0])
+        except ValueError:
+            break
+        mu = best_z
+        try:
+            print(f"[xgb-hill] step={t+1} best_score={best_score:.4f}")
+        except Exception:
+            pass
+    state.mu = mu
+    mh = getattr(state, 'mu_hist', None)
+    mu_now = state.mu.reshape(1, -1)
+    state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
+
+
+def sample_z_xgb_hill(state: LatentState,
+                      prompt: str,
+                      scorer,
+                      steps: int = 3,
+                      step_scale: float = 0.2,
+                      trust_r: Optional[float] = None) -> np.ndarray:
+    """Return one latent sample via XGB-guided hill climb from a random start.
+
+    - Start from z_p + σ·r where r is a random unit vector.
+    - Use ridge w to define d1 and perform a small multi-step best-of-two
+      search along ±d1 with scores from `scorer(f)` where f = z − z_p.
+    - If w is missing/zero or scorer fails, fall back to the random start.
+    """
+    z_p = z_from_prompt(state, prompt)
+    # Random starting point around the anchor
+    r = state.rng.standard_normal(state.d).astype(float)
+    n_r = float(np.linalg.norm(r))
+    if n_r > 0.0:
+        r = r / n_r
+    mu = z_p + float(state.sigma) * r
+
+    w = getattr(state, "w", None)
+    if w is None:
+        try:
+            print("[xgb-hill-batch] w is None; returning random start sample")
+        except Exception:
+            pass
+        return mu
+    w = np.asarray(w[: state.d], dtype=float)
+    n_w = float(np.linalg.norm(w))
+    if n_w == 0.0:
+        try:
+            print("[xgb-hill-batch] ‖w‖=0; returning random start sample")
+        except Exception:
+            pass
+        return mu
+    d1 = w / n_w
+    try:
+        n_steps = max(1, int(steps))
+    except Exception:
+        n_steps = 1
+    try:
+        base_step = float(step_scale)
+    except Exception:
+        base_step = 0.2
+    # Fallback scorer when None: simple ridge dot
+    def _score(delta: np.ndarray) -> float:
+        if scorer is None:
+            return float(np.dot(w, delta))
+        try:
+            return float(scorer(delta))
+        except Exception:
+            return float(np.dot(w, delta))
+
+    for t in range(n_steps):
+        step_t = base_step / float(1 + t)
+        best_score = None
+        best_z = None
+        for sgn in (1.0, -1.0):
+            z_cand = mu + sgn * step_t * d1
+            delta = z_cand - z_p
+            if trust_r is not None and float(trust_r) > 0.0:
+                rdelta = float(np.linalg.norm(delta))
+                if rdelta > float(trust_r) and rdelta > 0.0:
+                    z_cand = z_p + delta * (float(trust_r) / rdelta)
+                    delta = z_cand - z_p
+            s = _score(delta)
+            if best_score is None or s > best_score:
+                best_score = s
+                best_z = z_cand
+        if best_z is None:
+            break
+        mu = best_z
+        try:
+            print(f"[xgb-hill-batch] step={t+1} score={best_score:.4f}")
+        except Exception:
+            pass
+    return mu
 
 
 def propose_pair_distancehill(state: LatentState,

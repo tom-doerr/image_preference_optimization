@@ -12,7 +12,7 @@ class TestDefaultSteps(unittest.TestCase):
     def test_steps_slider_default_is_8(self):
         captured = {}
 
-        def slider(label, min_value=None, max_value=None, value=None, step=None):
+        def slider(label, min_value=None, max_value=None, value=None, step=None, **kwargs):
             if label == "Steps":
                 captured['default'] = value
             return value
@@ -51,6 +51,8 @@ class TestDefaultSteps(unittest.TestCase):
         fl.set_model = lambda *a, **k: None
         sys.modules['flux_local'] = fl
 
+        if 'app' in sys.modules:
+            del sys.modules['app']
         import app  # noqa: F401
 
         self.assertEqual(captured.get('default'), 6)

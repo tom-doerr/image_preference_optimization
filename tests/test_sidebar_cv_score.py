@@ -32,7 +32,34 @@ class TestSidebarCVScore(unittest.TestCase):
         out = "\n".join(writes)
         self.assertIn("CV score", out)
 
+    def test_value_model_expander_shows_both_cv_for_xgb(self):
+        # XGBoost mode: Value model expander should show both XGB and Ridge CV lines.
+        st, writes = stub_with_writes()
+        class SB(st.sidebar.__class__):
+            @staticmethod
+            def selectbox(label, options, index=0):
+                if 'Value model' in label:
+                    return 'XGBoost'
+                if 'Generation mode' in label:
+                    return 'Batch curation'
+                return options[index]
+        st.sidebar = SB()
+        sys.modules['streamlit'] = st
+
+        fl = types.ModuleType('flux_local')
+        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
+        fl.set_model = lambda *a, **kw: None
+        sys.modules['flux_local'] = fl
+
+        if 'app' in sys.modules:
+            del sys.modules['app']
+        import app  # noqa: F401
+
+        out = "\n".join(writes)
+        # We only assert that the labels are present; exact numbers depend on data.
+        self.assertIn("CV (XGBoost):", out)
+        self.assertIn("CV (Ridge):", out)
+
 
 if __name__ == '__main__':
     unittest.main()
-

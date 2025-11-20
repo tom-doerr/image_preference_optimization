@@ -62,33 +62,18 @@ def stub_streamlit(approach='ridge'):
 
 class TestE2ERidgeFlow(unittest.TestCase):
     def test_ridge_end_to_end(self):
-        sys.modules['streamlit'] = stub_streamlit('ridge')
-        # Stub flux_local to allow autorun on import
-        fl = types.ModuleType('flux_local')
-        fl.generate_flux_image_latents = lambda *a, **kw: 'ok-image'
-        fl.set_model = lambda *a, **kw: None
-        sys.modules['flux_local'] = fl
-        import app
-
-        # Stub heavy calls
-        calls = {}
-        app.set_model = lambda mid: calls.setdefault('model', mid)
-        app.generate_flux_image = lambda *a, **kw: 'ok-image'
-
-        # Generate pair (stubbed)
-        app.generate_pair()
-        self.assertEqual(app.st.session_state.images, ('ok-image', 'ok-image'))
-
-        # Simulate a ridge update with deterministic latent features
-        d = app.st.session_state.lstate.d
+        # Pair UI removed; directly test update_latent_ridge on a fresh state.
+        import latent_opt as lo
+        d = 64
         import numpy as _np
         z_a = _np.ones(d)
         z_b = -_np.ones(d)
-        before_step = app.st.session_state.lstate.step
-        app.update_latent_ridge(app.st.session_state.lstate, z_a, z_b, 'a', feats_a=z_a, feats_b=z_b)
-        self.assertEqual(app.st.session_state.lstate.step, before_step + 1)
+        st = lo.init_latent_state(width=32, height=32, d=d, seed=0)
+        before_step = st.step
+        lo.update_latent_ridge(st, z_a, z_b, 'a', feats_a=z_a, feats_b=z_b)
+        self.assertEqual(st.step, before_step + 1)
         # w should have non-zero norm after update
-        self.assertGreater(float(np.linalg.norm(app.st.session_state.lstate.w)), 0.0)
+        self.assertGreater(float(np.linalg.norm(st.w)), 0.0)
 
 
 if __name__ == '__main__':

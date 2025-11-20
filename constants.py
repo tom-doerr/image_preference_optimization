@@ -20,8 +20,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Config:
-    DEFAULT_WIDTH: int = 512
-    DEFAULT_HEIGHT: int = 512
+    DEFAULT_WIDTH: int = 448
+    DEFAULT_HEIGHT: int = 448
     DEFAULT_STEPS: int = 6
     DEFAULT_GUIDANCE: float = 3.5
 
@@ -36,7 +36,7 @@ DEFAULT_LR_MU = 0.3
 DEFAULT_GAMMA_ORTH = 0.2
 DEFAULT_ITER_STEPS = 10
 DEFAULT_QUEUE_SIZE = 6
-DEFAULT_BATCH_SIZE = 6
+DEFAULT_BATCH_SIZE = 25
 
 # Scoring defaults (avoid scattered literals)
 DISTANCEHILL_GAMMA = 0.5
