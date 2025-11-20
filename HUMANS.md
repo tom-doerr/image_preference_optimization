@@ -246,6 +246,8 @@ Nov 20, 2025 — Notes for humans
   - `_run_pipe` now has explicit coverage to ensure timesteps and `_step_index` are set before calling the pipe. Test: `tests/test_run_pipe_sets_timesteps.py`.
 - Latents stats coverage
   - Added `tests/test_last_call_logs_latents_stats.py` to assert `LAST_CALL` captures `latents_std`/`latents_mean` after a decode (stubbed pipe).
+- Turbo guidance clamp logging
+  - `tests/test_guidance_turbo_clamp_last_call.py` checks that guidance is clamped to 0.0 for turbo models and recorded in `LAST_CALL.guidance`.
 - Async queue value captions: queue images now render `Item i • Value: …` just like batch tiles. Test: `tests/test_async_queue_value_caption.py`.
 
 - Streamlit DuplicateElementKey errors (e.g., `good_1_10_24`).
