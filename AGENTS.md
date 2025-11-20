@@ -791,3 +791,4 @@ New learnings (Nov 20, 2025):
 - Added a toast when a sample is saved (Good/Bad/Batch/Upload flows) so the user sees immediate feedback; test `tests/test_toast_on_save.py` covers it.
 - New CLI `xgb_cli.py`: trains XGBoost on `dataset_<hash>.npz` for a given prompt and saves `xgb_model_<hash>.bin`; helper `train_xgb_for_prompt` is test-covered (`tests/test_xgb_cli.py`). Minimal, no fallbacks.
 - Smoke subset run (Nov 20, 2025): `python -m unittest tests/test_toast_on_save.py tests/test_xgb_cli.py tests/test_batch_keys_unique.py tests/test_dataset_rows_live.py tests/test_xgb_active_note.py` — all pass (CUDA warning still present).
+- Added cooldown regression test `tests/test_train_cooldown.py` to ensure recent `last_train_at` with `min_train_interval_s` prevents `fit_value_model` from running. Uses stubs; fast.
