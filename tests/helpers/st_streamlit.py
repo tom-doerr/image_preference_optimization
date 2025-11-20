@@ -30,6 +30,7 @@ def _common(st):
     st.image = lambda *_, **__: None
     st.write = lambda *_, **__: None
     st.experimental_rerun = lambda: None
+    st.toast = lambda *_, **__: None
     class Sidebar:
         selectbox = staticmethod(lambda *a, **k: 'stabilityai/sd-turbo')
         header = staticmethod(lambda *a, **k: None)

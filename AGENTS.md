@@ -788,3 +788,4 @@ New learnings (Nov 20, 2025):
 - Removed explicit `st.rerun()` calls after Good/Bad/queue Accept/Reject clicks to avoid double page reloads during async training; rely on Streamlit’s natural rerun per interaction. This keeps the UI steady while still saving labels and refreshing metrics.
 - Removed Paths/Dataset browser panels from the sidebar to keep it shorter; corresponding test now asserts they stay hidden.
 - Fully deleted the unused `render_paths_panel` and `render_dataset_viewer` helpers from `persistence_ui.py` to reduce dead code.
+- Added a toast when a sample is saved (Good/Bad/Batch/Upload flows) so the user sees immediate feedback; test `tests/test_toast_on_save.py` covers it.

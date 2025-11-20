@@ -137,6 +137,10 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
         row_idx = append_dataset_row(prompt, feat, float(label))
         if img is not None:
             save_sample_image(prompt, row_idx, img)
+        try:
+            getattr(st, "toast", lambda *a, **k: None)(f"Saved sample #{row_idx}")
+        except Exception:
+            pass
     except Exception:
         pass
 

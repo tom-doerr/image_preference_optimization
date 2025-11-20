@@ -1,0 +1,46 @@
+import os
+import sys
+import shutil
+import unittest
+
+from tests.helpers.st_streamlit import stub_basic
+
+
+class TestToastOnSave(unittest.TestCase):
+    def test_toast_fires_on_sample_save(self):
+        st = stub_basic()
+        toasts = []
+        st.toast = lambda msg, **k: toasts.append(msg)
+        st.session_state.prompt = "toast-sample-prompt"
+
+        # Small latent for speed
+        from latent_state import init_latent_state
+        st.session_state.lstate = init_latent_state(width=32, height=32)
+        sys.modules['streamlit'] = st
+
+        # Ensure clean slate for dataset/data folders
+        from persistence import dataset_path_for_prompt
+        dpath = dataset_path_for_prompt(st.session_state.prompt)
+        if os.path.exists(dpath):
+            os.remove(dpath)
+        h = __import__("hashlib").sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
+        data_dir = os.path.join("data", h)
+        if os.path.isdir(data_dir):
+            shutil.rmtree(data_dir)
+
+        # Now import batch_ui and add one sample
+        import batch_ui
+        z = st.session_state.lstate.mu.copy()
+        batch_ui._curation_add(1, z, img=None)
+
+        self.assertTrue(any("Saved sample #1" in t for t in toasts))
+
+        # Cleanup created files
+        if os.path.exists(dpath):
+            os.remove(dpath)
+        if os.path.isdir(data_dir):
+            shutil.rmtree(data_dir)
+
+
+if __name__ == "__main__":
+    unittest.main()
