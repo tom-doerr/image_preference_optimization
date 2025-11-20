@@ -1,6 +1,7 @@
 import os
 import math
 import threading
+import logging
 from typing import Optional
 
 
@@ -9,8 +10,14 @@ CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.Lock()
 LAST_CALL: dict = {}
 PROMPT_CACHE: dict = {}
+USE_IMAGE_SERVER = False
+IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL")
 
-import logging
+def use_image_server(on: bool, url: Optional[str] = None) -> None:
+    global USE_IMAGE_SERVER, IMAGE_SERVER_URL
+    USE_IMAGE_SERVER = bool(on)
+    if url is not None:
+        IMAGE_SERVER_URL = str(url)
 LOGGER = logging.getLogger("ipo")
 if not LOGGER.handlers:
     try:
@@ -309,6 +316,10 @@ def generate_flux_image(prompt: str,
                         height: int = 768,
                         steps: int = 20,
                         guidance: float = 3.5):
+    if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
+        import image_server as _srv
+        LAST_CALL.update({"event": "text_call", "width": int(width), "height": int(height), "steps": int(steps), "guidance": float(guidance)})
+        return _srv.generate_image(prompt, int(width), int(height), int(steps), float(guidance))
     """Generate one image with a local FLUX model via Diffusers.
 
     Strict requirements (no fallbacks):
@@ -362,6 +373,10 @@ def generate_flux_image_latents(prompt: str,
                                 height: int = 768,
                                 steps: int = 20,
                                 guidance: float = 3.5):
+    if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
+        import image_server as _srv
+        LAST_CALL.update({"event": "latents_call", "width": int(width), "height": int(height), "steps": int(steps), "guidance": float(guidance)})
+        return _srv.generate_image_latents(prompt, latents, int(width), int(height), int(steps), float(guidance))
     # Ensure pipeline is ready (env model id if not set)
     _ensure_pipe(None)
 

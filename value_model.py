@@ -66,51 +66,15 @@ def fit_value_model(
                     max_depth = int(getattr(session_state, "xgb_max_depth", session_state.get("xgb_max_depth", 3)))
                 except Exception:
                     max_depth = 3
-                do_async = bool(getattr(session_state, "xgb_train_async", False))
                 if cache.get('model') is None or last_n != n:
-                    if do_async:
-                        try:
-                            from background import get_executor  # lazy import
-
-                            def _fit_and_store():
-                                t_x = _time.perf_counter()
-                                mdl_inner = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                                session_state.xgb_cache = {'model': mdl_inner, 'n': n}
-                                try:
-                                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                                    print(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms (async)")
-                                except Exception:
-                                    pass
-                                try:
-                                    session_state["xgb_train_status"] = {"state": "ok", "rows": n, "lam": float(lam)}
-                                    session_state["xgb_last_updated_rows"] = int(n)
-                                    session_state["xgb_last_updated_lam"] = float(lam)
-                                except Exception:
-                                    pass
-                                return mdl_inner
-
-                            session_state["xgb_train_status"] = {"state": "running", "rows": n, "lam": float(lam)}
-                            fut = get_executor().submit(_fit_and_store)
-                            session_state["xgb_fit_future"] = fut
-                        except Exception:
-                            # Fallback to sync if executor fails
-                            t_x = _time.perf_counter()
-                            mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                            session_state.xgb_cache = {'model': mdl, 'n': n}
-                            try:
-                                dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                                print(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                            except Exception:
-                                pass
-                    else:
-                        t_x = _time.perf_counter()
-                        mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                        session_state.xgb_cache = {'model': mdl, 'n': n}
-                        try:
-                            dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                            print(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                        except Exception:
-                            pass
+                    t_x = _time.perf_counter()
+                    mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                    session_state.xgb_cache = {'model': mdl, 'n': n}
+                    try:
+                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                        print(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                    except Exception:
+                        pass
         except Exception:
             pass
 

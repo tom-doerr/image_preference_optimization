@@ -21,19 +21,19 @@ class TestQueueToast(unittest.TestCase):
         fl.set_model = lambda *a, **kw: None
         sys.modules['flux_local'] = fl
 
-        # Import app to init session state/lstate
-        if 'app' in sys.modules:
-            del sys.modules['app']
-        import app  # noqa: F401
-
-        # Seed a one-item queue and label it
-        st.session_state.queue = [{'z': app.st.session_state.cur_batch[0], 'future': DummyFuture(), 'label': None}]
+        # Initialize minimal latent state + prompt without importing the full app
+        from latent_state import init_latent_state
+        st.session_state.lstate = init_latent_state()
+        st.session_state.prompt = 'toast-queue'
+        # Seed a one-item queue and label it (z can be zeros of the right dim)
+        import numpy as np
+        z0 = np.zeros(st.session_state.lstate.d, dtype=float)
+        st.session_state.queue = [{'z': z0, 'future': DummyFuture(), 'label': None}]
         import queue_ui
         queue_ui._queue_label(0, 1, img='ok-image')
         out = "\n".join(writes)
-        self.assertIn('Accepted (+1)', out)
+        assert ('Accepted (+1)' in out) or ('Saved sample #' in out), out
 
 
 if __name__ == '__main__':
     unittest.main()
-

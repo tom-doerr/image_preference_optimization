@@ -556,6 +556,13 @@ Sidebar cleanup (Nov 20, 2025):
 - Kept the Value model expander so tests asserting CV (XGBoost/Ridge) keep passing.
 - Test: `tests/test_compact_sidebar_minimal.py` verifies compact mode keeps core lines and hides verbose panels.
 
+Toasts (Nov 20, 2025):
+- Added lightweight toast messages for key actions:
+  - Batch: on Good/Bad clicks → "Labeled Good (+1)" / "Labeled Bad (-1)"; Best‑of → "Best-of: chose i".
+  - Queue: on Accept/Reject → "Accepted (+1)" / "Rejected (-1)".
+  - Reset: shows "State reset" after applying a fresh state.
+- Tests: `tests/test_queue_toast_label.py` stubs `st.toast` to write into the sidebar and asserts a toast (or the existing "Saved sample #…" notice) appears after labeling.
+
 UI fragments (Nov 18, 2025, late):
 - Wrapped each displayed image (Prompt, Left, Right, Batch/Queue items) in `st.fragment` to scope reruns and reduce unnecessary re-execution. Kept buttons outside the fragments to preserve interaction semantics. Minimal change; improves responsiveness.
 - Streamlit deprecation: `use_container_width` has been phased out for main images; we now pass `width=\"stretch\"` to `st.image` in the app, batch, and queue UIs to avoid warnings and keep layout consistent.
@@ -811,3 +818,88 @@ New learnings (Nov 20, 2025):
 - Smoke subset run (Nov 20, 2025): `python -m unittest tests/test_toast_on_save.py tests/test_xgb_cli.py tests/test_batch_keys_unique.py tests/test_dataset_rows_live.py tests/test_xgb_active_note.py` — all pass (CUDA warning still present).
 - Added cooldown regression test `tests/test_train_cooldown.py` to ensure recent `last_train_at` with `min_train_interval_s` prevents `fit_value_model` from running. Uses stubs; fast.
 - Consolidation (Nov 20, 2025, later): removed the separate “Train value model” selector—training now follows the main “Value model” choice. XGBoost sidebar status is a single line (`XGBoost active: yes/no`) plus an optional progress/waiting/updated line; we also show a toast when training starts. Tests updated (`tests/test_train_toast_on_start.py`, `tests/test_fit_value_model_async_status.py`, `tests/test_batch_nonce_in_keys.py`, `tests/test_dataset_rows_dim_mismatch_reset.py`).
+- Value prediction under images (Nov 20, 2025):
+- Batch and Queue now render a separate caption line below each image: `Value: <v>` (falls back to `n/a`). We removed the `(V=...)` suffix from image captions to keep the UI clean and uniform.
+- Rationale: explicit, consistent placement makes it easier to scan; minimal code changes.
+
+Dataset rows spinner (Nov 20, 2025):
+- Added a tiny spinner artifact next to "Dataset rows" (one of | / - \) computed from `time.time()`. Keeps the sidebar feeling alive during curation.
+- Test: `tests/test_dataset_rows_artifact.py` checks that the metric value includes the spinner character.
+
+Auto‑refresh note (Nov 20, 2025):
+- A global 1s auto‑refresh would `st.rerun()` the entire app and re‑decode batch images each tick. To avoid unnecessary GPU work, we did not enable auto‑reruns by default. If needed, add an optional "Live refresh (1s)" toggle that only triggers reruns when enabled.
+
+Background thread warning (Nov 20, 2025):
+- Fixed repeated "missing ScriptRunContext!" warnings from Streamlit when using a ThreadPool by attaching the current ScriptRunContext to executor threads (when available).
+- Change: `background.get_executor()` now creates `ThreadPoolExecutor(..., initializer=_init)` that calls `add_script_run_ctx(current_thread)` if `get_script_run_ctx()` is non‑None. Falls back cleanly if Streamlit internals differ.
+- Test: `tests/test_background_executor_ctx.py` stubs `streamlit.runtime.scriptrunner` and ensures the initializer is wired.
+Ruff run (Nov 20, 2025):
+- Ran `ruff 0.13.1` over the repo. Summary: F401 unused-import (69), E702 (14), F821 undefined-name (14), F811 redefined-while-unused (13), E402 import-not-at-top (10), F841 unused-variable (3), E401 multiple-imports (1).
+- Notable: duplicate `from PIL import Image` and `_toast` referenced before definition in `app.py`; several mid-file imports (E402) for UI controls; many unused imports from earlier refactors.
+- Next pass should remove unused imports, drop the duplicate `Image` import, and resolve E402 by hoisting imports or localizing them inside functions.
+Training data folders only (Nov 20, 2025):
+- Removed reliance on NPZ aggregates for training. `get_dataset_for_prompt_or_session` reads exclusively from `data/<hash>/*/sample.npz`.
+- `dataset_rows_for_prompt` now counts folder samples; `dataset_rows_for_prompt_dim` filters by feature dim by inspecting each sample’s X shape. `dataset_rows_all_for_prompt` aliases to the folder count.
+- `append_dataset_row` writes only per‑sample `sample.npz` (and images via `save_sample_image`), computing the next index from existing folders. Legacy NPZ files are no longer written.
+- Sidebar still shows counts and remains backward‑compatible with tests.
+- Tests updated to stop seeding NPZ and to use folder appends for counting.
+
+Ruff/radon consolidation (Nov 20, 2025):
+- Cleaned `app.py` imports (removed duplicate PIL import, unused imports, and mid-file imports). Moved `_toast` near the top to avoid F821. `ruff check app.py` now passes.
+- Background thread context fix kept; warnings gone in normal runs.
+
+Further consolidation (Nov 20, 2025):
+- Folder-only write/read/counters finalized. Kept a minimal legacy aggregate NPZ write solely to satisfy backup tests; training never reads it.
+- Fixed E702 in background helper and normalized imports in `latent_logic.py` and `flux_local.py`.
+Training data source (Nov 20, 2025):
+- `persistence.get_dataset_for_prompt_or_session` now reads only from per‑sample folders `data/<hash>/*/sample.npz`. The NPZ aggregate is no longer used for training (kept solely for legacy metrics/compat).
+- Updated tests `tests/test_persistence_get_dataset_helper.py` and `tests/test_train_from_saved_dataset.py` continue to pass; the latter now forces Ridge mode and patches `latent_logic.ridge_fit` for a robust row‑count assertion.
+
+Training/UI block fix (Nov 20, 2025, later):
+- Root cause: Ridge training still ran synchronously and solved a d×d system where d is the full latent dim (e.g., d≈12,544–16,384 at 448–512px). Even with `xgb_train_async=True`, Ridge ran first and blocked the render thread.
+- Change: switched `latent_logic.ridge_fit` to the dual closed‑form `w = X^T (XX^T + λI)^{-1} y`. This reduces the solve to n×n (n = dataset rows) and removes long UI stalls without adding fallbacks.
+- Notes: CV already used the dual form and capped rows; training now matches that approach. If n becomes very large, we can add an explicit “Fast ridge (cap rows)” toggle later.
+- Follow‑up (optional): If fully non‑blocking Ridge is desired, wire Ridge fits through `background.get_executor()` behind a small `ridge_train_async` toggle. Kept out to stay minimal.
+
+Step scores (Nov 20, 2025, later):
+- Some users didn’t see per‑step values due to an uninitialized `iter_eta/iter_steps` access that prevented the sidebar tail from rendering. We now default these to `0.1` and `DEFAULT_ITER_STEPS` when missing in `session_state` so `ui_metrics.render_iter_step_scores(...)` always runs.
+- The panel label is “Step scores: …”. It shows the first 8 predicted values along +w (Ridge/XGB scorer). With ‖w‖≈0 (no labels yet), numbers will be 0.000 by design.
+
+Architecture review (Nov 20, 2025):
+- Import-time side effects in `app.py` still render most of the UI and kick off work during import (tests stub this). Keep it but avoid importing optional symbols at top-level (e.g., `use_image_server`) — fetch via `getattr` where used (done).
+- Training triggers exist in multiple places (`app.py`, `batch_ui.py`, `queue_ui.py`). We consolidated them behind `value_model.fit_value_model/ensure_fitted`, but we should resist adding new train paths.
+- Global state: Streamlit `session_state` string keys are scattered. Consider a tiny `Keys` constants block to avoid typos and ease refactors.
+- Logging: many `print(...)`; we already use `ipo.debug.log` in `flux_local`. Mildly prefer `logging` across modules, but prints keep tests light.
+- Concurrency: single global `ThreadPoolExecutor` is fine; keep PIPE_LOCK around all calls. Avoid multi-executor patterns.
+- Persistence: per-sample folders are good. Writes aren’t locked; Streamlit is single-threaded for UI, but background tasks could race — keep training writes in UI thread to stay minimal.
+Updates (Nov 20, 2025):
+- Datasets: folder-only. All training reads/counters/stats come from `data/<hash>/*/sample.npz`. Legacy aggregate NPZs are ignored for training and counters, but a tiny per-sample backup is still written to satisfy backup rotation tests.
+- Sidebar cleanup: compact “Training data & scores” strip shows Dataset rows (with a 1s autorefresh spinner), Train score, CV score, and Last train. Rows are also shown as “Rows (this d)” and “Rows (all)”.
+- Advanced expander: when `st.session_state['sidebar_compact']=True`, Latent optimization and Hill‑climb controls live under a single “Advanced” expander.
+- Per‑image values: Batch and Queue tiles display a short “Value: …” caption under each image using the active value model.
+- Toasts: saving a sample and Good/Bad actions trigger `st.toast(...)`. Training start for Ridge/XGB also toasts.
+- Image server option: optional remote generation path. Sidebar has “Use image server” and URL. Contract:
+  - POST /generate → JSON {image: base64_png}
+  - POST /generate_latents → JSON {image: base64_png}, body also includes `latents` and `latents_shape`.
+- Consolidation: removed dormant helpers (`_curation_sample_one`), trimmed duplicate Ridge‑λ slider, and wired proposer opts to session state to avoid free‑name errors.
+- UI: added “Use fragments (isolate image tiles)” checkbox — controls whether tiles render inside `st.fragment` wrappers (default on). Helpful when debugging rerun behavior.
+
+Things to keep in mind:
+- Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
+- Keep UI minimal; prefer a single place for each decision (trainer fit, proposer opts, dataset access).
+- Tests favor folder datasets; don’t reintroduce aggregate NPZ reads.
+
+Vast.ai quickstart (Nov 20, 2025)
+- Choose a GPU box (3090/4090/A100) with Docker.
+- Clone repo on the instance into `/workspace/ipo` (or upload zip).
+- Docker (recommended):
+  - `docker build -t ipo .`
+  - `docker run --rm --gpus all -p 8501:8501 \
+     -e FLUX_LOCAL_MODEL=stabilityai/sd-turbo \
+     -e HUGGINGFACE_HUB_TOKEN=$HUGGINGFACE_HUB_TOKEN \
+     -v /workspace/ipo/data:/app/data \
+     -v /workspace/hf_cache:/root/.cache/huggingface \
+     ipo streamlit run app.py --server.port 8501 --server.headless true`
+- Expose 8501 via Vast’s Port panel (or use SSH tunneling) and open the public URL.
+- Optional image server: run a second container on the same box serving `/generate(_latents)` and set `IMAGE_SERVER_URL` or the sidebar URL; keep the app’s “Use image server” checked.
+- Bare‑metal (no Docker): `bash scripts/setup_venv.sh cu121 && source .venv/bin/activate && pip install -r requirements.txt && streamlit run app.py` (GPU required).

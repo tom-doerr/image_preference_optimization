@@ -5,25 +5,15 @@ import numpy as np
 
 class TestDataFolderSamples(unittest.TestCase):
     def test_append_creates_per_sample_folder(self):
-        from persistence import append_dataset_row, dataset_path_for_prompt, get_dataset_for_prompt_or_session
+        from persistence import append_dataset_row, get_dataset_for_prompt_or_session
         prompt = "data folder samples test"
         # Ensure clean dataset file and data folder
-        path = dataset_path_for_prompt(prompt)
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-        except FileNotFoundError:
-            pass
+        # No NPZ path under folder-only scheme; ensure folder root is clean
         h = __import__("hashlib").sha1(prompt.encode("utf-8")).hexdigest()[:10]
         root = os.path.join("data", h)
         if os.path.isdir(root):
-            # remove existing sample dirs to avoid interference
-            for name in os.listdir(root):
-                d = os.path.join(root, name)
-                if os.path.isdir(d):
-                    for f in os.listdir(d):
-                        os.remove(os.path.join(d, f))
-                    os.rmdir(d)
+            import shutil
+            shutil.rmtree(root)
 
         d = 4
         feat1 = np.ones((1, d), dtype=float)
@@ -47,12 +37,7 @@ class TestDataFolderSamples(unittest.TestCase):
         self.assertAlmostEqual(float(y1[0]), 1.0)
         self.assertAlmostEqual(float(y2[0]), -1.0)
 
-        # Loader should reconstruct X, y from data/<hash>/ when the aggregate NPZ is removed
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-        except FileNotFoundError:
-            pass
+        # Loader should reconstruct X, y from data/<hash>/
         X_loaded, y_loaded = get_dataset_for_prompt_or_session(prompt, type("SS", (), {})())
         self.assertIsNotNone(X_loaded)
         self.assertEqual(int(X_loaded.shape[0]), 2)

@@ -29,7 +29,7 @@ class TestSmokePairNotConstant(unittest.TestCase):
 
     def test_pair_images_have_content(self):
         import numpy as np  # type: ignore
-        from latent_opt import init_latent_state, z_from_prompt, z_to_latents, ProposerOpts, propose_next_pair
+        from latent_opt import init_latent_state, z_to_latents, ProposerOpts, propose_next_pair
         from flux_local import set_model, generate_flux_image_latents
 
         prompt = 'neon punk city, women with short hair, standing in the rain'
@@ -52,4 +52,3 @@ class TestSmokePairNotConstant(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

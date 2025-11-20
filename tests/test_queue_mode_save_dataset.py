@@ -3,7 +3,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_basic
-from persistence import dataset_rows_for_prompt, dataset_path_for_prompt
+from persistence import dataset_rows_for_prompt
 
 
 class TestQueueModeSaveDataset(unittest.TestCase):
@@ -38,13 +38,11 @@ class TestQueueModeSaveDataset(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         # Clean file
-        path = dataset_path_for_prompt(prompt)
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
+        # no-op: folder data is unique per prompt
 
         import app
+        from latent_state import init_latent_state
+        app._apply_state(init_latent_state())
         app._queue_fill_up_to()
         # Accept first item
         app._queue_label(0, 1)
@@ -53,4 +51,3 @@ class TestQueueModeSaveDataset(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

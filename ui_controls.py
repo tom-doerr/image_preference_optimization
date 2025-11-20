@@ -15,8 +15,8 @@ def build_size_controls(st, lstate) -> Tuple[int, int, int, float, bool]:
     sld = _sb_sld(st)
     width = num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
     height = num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
-    steps = sld("Steps", 0, 50, 6)
-    guidance = sld("Guidance", 0.0, 10.0, 3.5, 0.1)
+    steps = sld("Steps", min_value=0, max_value=50, value=6)
+    guidance = sld("Guidance", min_value=0.0, max_value=10.0, value=3.5, step=0.1)
     # Fallbacks for stubs that return None
     width = lstate.width if width is None else width
     height = lstate.height if height is None else height
@@ -40,11 +40,11 @@ def build_pair_controls(st, expanded: bool = False):
     ctx = expander("Pair controls", expanded=expanded) if callable(expander) else None
     if ctx is not None:
         ctx.__enter__()
-    alpha = sld("Alpha (ridge d1)", 0.0, 3.0, 0.5, 0.05, help="Step along d1 (∥ w; utility-gradient direction).")
-    beta = sld("Beta (ridge d2)", 0.0, 3.0, 0.5, 0.05, help="Step along d2 (orthogonal to d1).")
-    trust_r = sld("Trust radius (||y||)", 0.0, 5.0, 2.5, 0.1)
-    lr_mu_ui = sld("Step size (lr_μ)", 0.0, 1.0, 0.3, 0.01)
-    gamma_orth = sld("Orth explore (γ)", 0.0, 1.0, 0.2, 0.05)
+    alpha = sld("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.05, help="Step along d1 (∥ w; utility-gradient direction).")
+    beta = sld("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.05, help="Step along d2 (orthogonal to d1).")
+    trust_r = sld("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1)
+    lr_mu_ui = sld("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01)
+    gamma_orth = sld("Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.05)
     # Optimization steps (latent) are now driven by a numeric input in app.py;
     # here we simply read the shared session_state value and pass it through.
     try:
@@ -73,7 +73,7 @@ def build_pair_controls(st, expanded: bool = False):
 
 def build_batch_controls(st, expanded: bool = False) -> int:
     sld = _sb_sld(st)
-    batch_size = sld("Batch size", 0, 64, value=25, step=1)
+    batch_size = sld("Batch size", min_value=0, max_value=64, value=25, step=1)
     return int(batch_size)
 
 
@@ -83,7 +83,7 @@ def build_queue_controls(st, expanded: bool = False) -> int:
     if ctx is not None:
         ctx.__enter__()
     sld = _sb_sld(st)
-    queue_size = sld("Queue size", 0, 16, value=6, step=1)
+    queue_size = sld("Queue size", min_value=0, max_value=16, value=6, step=1)
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return int(queue_size)

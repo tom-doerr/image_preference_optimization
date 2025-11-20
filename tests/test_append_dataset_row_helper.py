@@ -1,10 +1,9 @@
 import os
-import sys
 import types
 import unittest
 import numpy as np
 from tests.helpers.st_streamlit import stub_basic
-from persistence import append_dataset_row, dataset_rows_for_prompt, dataset_path_for_prompt
+from persistence import append_dataset_row, dataset_rows_for_prompt
 
 
 class TestAppendDatasetRow(unittest.TestCase):
@@ -12,10 +11,7 @@ class TestAppendDatasetRow(unittest.TestCase):
         # Use plain helper without UI
         prompt = 'append dataset row helper test'
         # Clean file
-        try:
-            os.remove(dataset_path_for_prompt(prompt))
-        except FileNotFoundError:
-            pass
+        # No NPZ to remove under folder-only scheme
         feat = np.zeros((1, 8))  # small dummy, shape only matters
         n1 = append_dataset_row(prompt, feat, +1.0)
         self.assertEqual(n1, 1)
@@ -26,4 +22,3 @@ class TestAppendDatasetRow(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

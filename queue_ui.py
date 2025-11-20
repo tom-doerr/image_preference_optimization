@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 import numpy as np
 
 __all__ = [
@@ -142,8 +141,8 @@ def _render_queue_ui() -> None:
                 print(f"[queue] decoded and showing item 0 in {dt_ms:.1f} ms")
             except Exception:
                 pass
-            # Optional predicted value per queue item
-            v_str = ""
+            # Predicted value per queue item
+            v_text = "Value: n/a"
             try:
                 lstate = st.session_state.lstate
                 vm_choice = st.session_state.get('vm_choice')
@@ -151,10 +150,14 @@ def _render_queue_ui() -> None:
                 z_p = z_from_prompt(lstate, getattr(st.session_state, 'prompt', ''))
                 fvec = (it['z'] - z_p)
                 v = float(scorer(fvec))
-                v_str = f" (V={v:.3f})"
+                v_text = f"Value: {v:.3f}"
             except Exception:
-                v_str = ""
-            st.image(img, caption=f"Item {i}{v_str}", width="stretch")
+                pass
+            st.image(img, caption=f"Item {i}", width="stretch")
+            try:
+                st.caption(v_text)
+            except Exception:
+                pass
             if st.button(f"Accept {i}", key=f"queue_accept_{i}", width="stretch"):
                 _queue_label(i, 1, img)
             if st.button(f"Reject {i}", key=f"queue_reject_{i}", width="stretch"):
@@ -163,7 +166,8 @@ def _render_queue_ui() -> None:
         # Mirror batch_ui: wrap the single visible queue item in a fragment
         # when available so its decode + buttons are scoped to one fragment.
         frag = getattr(st, "fragment", None)
-        if callable(frag):
+        use_frags = bool(getattr(st.session_state, 'use_fragments', True))
+        if use_frags and callable(frag):
             try:
                 wrapped = frag(_render_item)
                 wrapped()

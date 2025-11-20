@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 import numpy as np
-from persistence import dataset_path_for_prompt
+from persistence import get_dataset_for_prompt_or_session
 
 
 def _prompt_hash(prompt: str) -> str:
@@ -21,16 +21,11 @@ def train_xgb_for_prompt(
     save_model: bool = True,
     model_dir: str = ".",
 ) -> Optional[str]:
-    """Train an XGBoost classifier on dataset_<hash>.npz for the prompt.
+    """Train an XGBoost classifier on the folder-backed dataset for the prompt.
 
     Returns the saved model path when save_model is True, otherwise None.
     """
-    path = dataset_path_for_prompt(prompt)
-    if not os.path.exists(path):
-        raise FileNotFoundError(path)
-    with np.load(path) as z:
-        X = z["X"] if "X" in z.files else None
-        y = z["y"] if "y" in z.files else None
+    X, y = get_dataset_for_prompt_or_session(prompt, type("SS", (), {})())
     if X is None or y is None or X.shape[0] == 0:
         raise ValueError("Dataset is empty; add samples first.")
     if len(set(np.asarray(y).astype(int))) < 2:

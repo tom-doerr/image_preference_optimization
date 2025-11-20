@@ -171,7 +171,6 @@ def _curation_train_and_next() -> None:
             vm_train = str(st.session_state.get('vm_choice'))
             # First ensure an initial fit when needed; keep async inside fit_value_model
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
-            async_train = bool(st.session_state.get("xgb_train_async", True))
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
             last_at = st.session_state.get("last_train_at")
@@ -246,7 +245,6 @@ def _render_batch_ui() -> None:
     import streamlit as st
     from latent_logic import z_to_latents, z_from_prompt
     from flux_local import generate_flux_image_latents
-    from value_scorer import get_value_scorer
     import time as _time
 
     (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
@@ -348,29 +346,20 @@ def _render_batch_ui() -> None:
                     print(f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})")
                 except Exception:
                     pass
-                # Optional predicted value using current value model scorer
-                v_str = ""
+                # Predicted value using current value model scorer
+                v_text = "Value: n/a"
                 if scorer is not None and z_p is not None:
                     try:
                         fvec = (z_i - z_p)
                         v = float(scorer(fvec))
-                        v_str = f" (V={v:.3f})"
-                        try:
-                            st.caption(f"Score: {v:.3f}")
-                        except Exception:
-                            pass
+                        v_text = f"Value: {v:.3f}"
                     except Exception:
-                        v_str = " (V=n/a)"
-                        try:
-                            st.caption("Score: n/a")
-                        except Exception:
-                            pass
-                else:
-                    try:
-                        st.caption("Score: n/a")
-                    except Exception:
-                        pass
-                st.image(img_i, caption=f"Item {i}{v_str}", width="stretch")
+                        v_text = "Value: n/a"
+                st.image(img_i, caption=f"Item {i}", width="stretch")
+                try:
+                    st.caption(v_text)
+                except Exception:
+                    pass
 
                 if best_of:
                     if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
@@ -445,9 +434,10 @@ def _render_batch_ui() -> None:
             # image and can run independently. Streamlit exposes fragments
             # as a decorator, so we decorate _render_item and then call it.
             frag = getattr(st, "fragment", None)
+            use_frags = bool(getattr(st.session_state, 'use_fragments', True))
             if col is not None:
                 with col:
-                    if callable(frag):
+                    if use_frags and callable(frag):
                         try:
                             wrapped = frag(_render_item)
                             wrapped()
@@ -456,7 +446,7 @@ def _render_batch_ui() -> None:
                     else:
                         _render_item()
             else:
-                if callable(frag):
+                if use_frags and callable(frag):
                     try:
                         wrapped = frag(_render_item)
                         wrapped()

@@ -11,7 +11,23 @@ def get_executor() -> ThreadPoolExecutor:
     global _EXECUTOR
     if _EXECUTOR is None:
         # Single worker to avoid contention with CUDA + Streamlit reruns.
-        _EXECUTOR = ThreadPoolExecutor(max_workers=1)
+        # Attach Streamlit ScriptRunContext to the worker when available to
+        # suppress "missing ScriptRunContext" warnings in threaded tasks.
+        try:
+            from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx  # type: ignore
+            import threading as _th  # local import to keep module light
+
+            def _init():
+                try:
+                    ctx = get_script_run_ctx()
+                    if ctx is not None:
+                        add_script_run_ctx(_th.current_thread())
+                except Exception:
+                    pass
+
+            _EXECUTOR = ThreadPoolExecutor(max_workers=1, initializer=_init)
+        except Exception:
+            _EXECUTOR = ThreadPoolExecutor(max_workers=1)
     return _EXECUTOR
 
 
@@ -63,7 +79,8 @@ def result_or_sync_after(fut: Any,
         if started_at is not None and (_time.time() - float(started_at)) > float(timeout_s):
             res = sync_callable()
             from concurrent.futures import Future  # lazy import
-            nf = Future(); nf.set_result(res)
+            nf = Future()
+            nf.set_result(res)
             return res, nf
     except Exception:
         pass

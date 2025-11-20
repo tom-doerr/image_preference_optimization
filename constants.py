@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 APP_VERSION = "0.1.0"
 DEFAULT_PROMPT = "neon punk city, women with short hair, standing in the rain"
 DEFAULT_MODEL = "stabilityai/sd-turbo"
@@ -15,7 +17,6 @@ SMALL_VRAM_MAX_HEIGHT = 448
 SMALL_VRAM_MAX_STEPS = 12
 
 # Minimal config to avoid scattered literals
-from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

@@ -19,10 +19,7 @@ class TestToastOnSave(unittest.TestCase):
         sys.modules['streamlit'] = st
 
         # Ensure clean slate for dataset/data folders
-        from persistence import dataset_path_for_prompt
-        dpath = dataset_path_for_prompt(st.session_state.prompt)
-        if os.path.exists(dpath):
-            os.remove(dpath)
+        # Folder-only; remove per-prompt data folder if present
         h = __import__("hashlib").sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
         data_dir = os.path.join("data", h)
         if os.path.isdir(data_dir):
@@ -36,8 +33,6 @@ class TestToastOnSave(unittest.TestCase):
         self.assertTrue(any("Saved sample #1" in t for t in toasts))
 
         # Cleanup created files
-        if os.path.exists(dpath):
-            os.remove(dpath)
         if os.path.isdir(data_dir):
             shutil.rmtree(data_dir)
 

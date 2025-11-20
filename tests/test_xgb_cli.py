@@ -29,15 +29,10 @@ class TestXgbCli(unittest.TestCase):
 
     def test_trains_and_saves_model(self):
         prompt = "cli prompt test"
-        from persistence import dataset_path_for_prompt
-
-        dpath = dataset_path_for_prompt(prompt)
-        if os.path.exists(dpath):
-            os.remove(dpath)
-
-        X = np.array([[1.0, 0.0], [0.0, 1.0]])
-        y = np.array([1.0, -1.0])
-        np.savez_compressed(dpath, X=X, y=y)
+        # Seed folder dataset via append
+        from persistence import append_dataset_row
+        append_dataset_row(prompt, np.array([[1.0, 0.0]]), +1.0)
+        append_dataset_row(prompt, np.array([[0.0, 1.0]]), -1.0)
 
         # Stub xgb_value.fit_xgb_classifier
         stub_mod = types.SimpleNamespace()
@@ -57,7 +52,6 @@ class TestXgbCli(unittest.TestCase):
 
         # Cleanup
         shutil.rmtree(out_dir)
-        os.remove(dpath)
 
 
 if __name__ == "__main__":

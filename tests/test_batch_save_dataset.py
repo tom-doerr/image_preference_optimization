@@ -3,7 +3,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_basic
-from persistence import dataset_path_for_prompt
+from persistence import dataset_rows_for_prompt
 
 
 class TestBatchSaveDataset(unittest.TestCase):
@@ -45,12 +45,7 @@ class TestBatchSaveDataset(unittest.TestCase):
         fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
-        # Ensure a clean dataset file
-        path = dataset_path_for_prompt(prompt)
-        try:
-            os.remove(path)
-        except FileNotFoundError:
-            pass
+        # Folder-only; no NPZ cleanup
 
         import app
 
@@ -58,7 +53,6 @@ class TestBatchSaveDataset(unittest.TestCase):
         z0, z1 = app.st.session_state.cur_batch[:2]
         app._curation_add(1, z0)
         app._curation_add(-1, z1)
-        from persistence import dataset_rows_for_prompt
         # Use app.base_prompt to match the in-app path computation
         self.assertGreaterEqual(dataset_rows_for_prompt(app.base_prompt), 2)
 

@@ -5,26 +5,16 @@ import numpy as np
 
 class TestPersistenceGetDatasetHelper(unittest.TestCase):
     def test_uses_only_persisted_file(self):
-        from persistence import get_dataset_for_prompt_or_session, dataset_path_for_prompt, append_dataset_row
+        from persistence import get_dataset_for_prompt_or_session, append_dataset_row
         import hashlib
         prompt = 'persist helper test unique'
-        path = dataset_path_for_prompt(prompt)
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-        except Exception:
-            pass
+        # ensure folder clean-up handled below
         # Also clear any per-sample data folder for this prompt
         h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
         root = os.path.join("data", h)
+        import shutil
         if os.path.isdir(root):
-            for name in os.listdir(root):
-                d = os.path.join(root, name)
-                if os.path.isdir(d):
-                    for f in os.listdir(d):
-                        os.remove(os.path.join(d, f))
-                    os.rmdir(d)
-            os.rmdir(root)
+            shutil.rmtree(root)
         # Without a file, helper should return (None, None) regardless of session_state
         ss = type('SS', (), {})()
         setattr(ss, 'dataset_X', np.zeros((1, 8), dtype=float))

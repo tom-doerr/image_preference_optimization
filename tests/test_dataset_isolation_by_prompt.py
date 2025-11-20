@@ -3,7 +3,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_basic
-from persistence import dataset_rows_for_prompt, dataset_path_for_prompt
+from persistence import dataset_rows_for_prompt, data_root_for_prompt
 
 
 class TestDatasetIsolation(unittest.TestCase):
@@ -36,11 +36,15 @@ class TestDatasetIsolation(unittest.TestCase):
         prompt_a = 'dataset iso A'
         st.text_input = lambda *_, value="": prompt_a
         # Clean A
-        try:
-            os.remove(dataset_path_for_prompt(prompt_a))
-        except FileNotFoundError:
-            pass
+        # Clean A folder by removing its data root if present
+        import shutil
+        ra = data_root_for_prompt(prompt_a)
+        if os.path.isdir(ra):
+            shutil.rmtree(ra)
         import app
+        # Ensure latent state exists
+        from latent_state import init_latent_state
+        app._apply_state(init_latent_state())
         app._curation_add(1, app.st.session_state.cur_batch[0])
         rows_a = dataset_rows_for_prompt(app.base_prompt)
         self.assertGreaterEqual(rows_a, 1)
@@ -49,20 +53,19 @@ class TestDatasetIsolation(unittest.TestCase):
         del sys.modules['app']
         prompt_b = 'dataset iso B'
         st.text_input = lambda *_, value="": prompt_b
-        try:
-            os.remove(dataset_path_for_prompt(prompt_b))
-        except FileNotFoundError:
-            pass
+        rb = data_root_for_prompt(prompt_b)
+        if os.path.isdir(rb):
+            shutil.rmtree(rb)
         sys.modules['streamlit'] = st
         sys.modules['flux_local'] = fl
         import app as app2
+        app2._apply_state(init_latent_state())
         app2._curation_add(1, app2.st.session_state.cur_batch[0])
         rows_b = dataset_rows_for_prompt(app2.base_prompt)
         self.assertGreaterEqual(rows_b, 1)
         # isolation check
-        self.assertNotEqual(dataset_path_for_prompt(prompt_a), dataset_path_for_prompt(prompt_b))
+        self.assertNotEqual(data_root_for_prompt(prompt_a), data_root_for_prompt(prompt_b))
 
 
 if __name__ == '__main__':
     unittest.main()
-

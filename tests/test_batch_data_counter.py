@@ -3,7 +3,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_with_writes
-from persistence import dataset_path_for_prompt
+from persistence import dataset_rows_for_prompt
 
 
 class TestBatchDataCounter(unittest.TestCase):
@@ -26,12 +26,7 @@ class TestBatchDataCounter(unittest.TestCase):
         # capture sidebar writes
         st.sidebar.write = lambda *a, **k: writes.append(str(a[0]) if a else "")
 
-        # Remove existing dataset
-        p = dataset_path_for_prompt(prompt)
-        try:
-            os.remove(p)
-        except FileNotFoundError:
-            pass
+        # Folder datasets are unique per prompt; no NPZ cleanup required
 
         fl = types.ModuleType('flux_local')
         fl.generate_flux_image = lambda *a, **k: 'ok-text'
@@ -41,6 +36,10 @@ class TestBatchDataCounter(unittest.TestCase):
         sys.modules['flux_local'] = fl
 
         import app
+        from latent_state import init_latent_state
+        app._apply_state(init_latent_state())
+        # ensure lstate and pair/batch are initialized
+        app._curation_init_batch()
         # Add one label
         app._curation_add(1, app.st.session_state.cur_batch[0])
         # Re-render Data block by simulating a rerun: import again

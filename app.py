@@ -1,9 +1,8 @@
 import streamlit as st
 import numpy as np
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple
 import os
 import hashlib
-from PIL import Image
 from PIL import Image
 from constants import (
     DEFAULT_PROMPT,
@@ -12,32 +11,16 @@ from constants import (
 )
 from constants import Config
 from env_info import get_env_summary
-from ui import sidebar_metric_rows, render_pair_sidebar, env_panel, status_panel, perf_panel
-from concurrent import futures  # exposed for tests to monkey-patch executors
+from ui import sidebar_metric_rows, env_panel, status_panel, perf_panel
 import batch_ui as _batch_ui
-from batch_ui import (
-    _curation_init_batch,
-    _curation_new_batch,
-    _curation_replace_at,
-    _curation_add,
-    _curation_train_and_next,
-    _refit_from_dataset_keep_batch,
-    _render_batch_ui,
-    run_batch_mode,
-)
-from queue_ui import (
-    _queue_fill_up_to,
-    _queue_label,
-    _render_queue_ui,
-    run_queue_mode,
-)
-from persistence import state_path_for_prompt, export_state_bytes, dataset_path_for_prompt, dataset_rows_for_prompt, dataset_stats_for_prompt
+from ui_metrics import render_iter_step_scores, render_mu_value_history
+from ui_controls import build_batch_controls, build_queue_controls, build_size_controls, build_pair_controls
+from persistence import state_path_for_prompt, export_state_bytes, dataset_rows_for_prompt, dataset_stats_for_prompt
 import background as bg
 from persistence_ui import render_persistence_controls, render_metadata_panel
 from latent_opt import (
     init_latent_state,
     propose_next_pair,
-    z_to_latents,
     z_from_prompt,
     update_latent_ridge,
     save_state,
@@ -51,6 +34,12 @@ from flux_local import (
     generate_flux_image_latents,
     set_model,
 )
+from pair_ui import (
+    generate_pair as _pair_generate,
+    _prefetch_next_for_generate as _pair_prefetch,
+    _pair_scores as _pair_scores_impl,
+)
+from modes import run_mode
 # Optional helpers (text-only path and debug accessor) — may be absent in tests
 try:
     from flux_local import generate_flux_image  # type: ignore
@@ -65,6 +54,21 @@ except Exception:  # pragma: no cover
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 # Streamlit rerun API shim: prefer st.rerun(), fallback to experimental in older versions
 st_rerun = getattr(st, 'rerun', getattr(st, 'experimental_rerun', None))
+
+def _toast(msg: str) -> None:
+    """Lightweight toast; falls back to sidebar write in test stubs."""
+    t = getattr(st, 'toast', None)
+    if callable(t):
+        try:
+            t(str(msg))
+            return
+        except Exception:
+            pass
+    # fallback for stubs
+    try:
+        st.sidebar.write(str(msg))
+    except Exception:
+        pass
 
 def image_to_z(img: Image.Image, lstate) -> np.ndarray:
     """Convert an uploaded RGB image to a latent vector matching lstate.d."""
@@ -111,7 +115,11 @@ def _image_fragment(img, caption: str, v_label: str | None = None, v_val: float 
 
 # Apply fragment decorator dynamically if available
 _frag = getattr(st, 'fragment', None)
-if callable(_frag):
+try:
+    _use_frags = bool(getattr(st.session_state, 'use_fragments', True))
+except Exception:
+    _use_frags = True
+if _use_frags and callable(_frag):
     _image_fragment = _frag(_image_fragment)
 
 def _apply_state(new_state) -> None:
@@ -216,7 +224,6 @@ st.session_state['vm_train_choice'] = vm_choice
 
 # Batch/queue controls near top for quick access
 _exp = getattr(st.sidebar, 'expander', None)
-from ui_controls import build_batch_controls, build_queue_controls
 batch_size = None
 queue_size = None
 if selected_gen_mode == _gen_opts[0]:  # Batch curation
@@ -265,6 +272,13 @@ except Exception:
 # Quick data strip
 try:
     st.sidebar.subheader("Training data & scores")
+    # Periodic 1s refresh for lightweight liveness (if available)
+    try:
+        _ar = getattr(st, 'autorefresh', None)
+        if callable(_ar):
+            _ar(interval=1000, key='rows_auto_refresh')
+    except Exception:
+        pass
     # Dataset rows from persisted NPZ
     try:
         rows_disk = int(dataset_rows_for_prompt(base_prompt))
@@ -275,6 +289,14 @@ try:
     except Exception:
         rows_live = 0
     _rows_cnt = max(rows_disk, rows_live)
+    # Tiny spinner artifact to show liveness next to Dataset rows.
+    try:
+        import time as _time
+        _spin = "|/-\\"
+        _art = _spin[int(_time.time()) % len(_spin)]
+        _rows_display = f"{_rows_cnt} {_art}"
+    except Exception:
+        _rows_display = str(_rows_cnt)
     # Train score using selected value model (Ridge/XGBoost)
     try:
         # Prefer on-disk dataset; fall back to in-memory X/y if present, but
@@ -399,7 +421,15 @@ try:
     except Exception:
         _vm_type, _vm_settings = "Ridge", "λ=1e-3"
 
-    sidebar_metric_rows([("Dataset rows", _rows_cnt), ("Train score", _train_score)], per_row=2)
+    sidebar_metric_rows([("Dataset rows", _rows_display), ("Train score", _train_score)], per_row=2)
+    # Dimension-scoped and total rows for clarity
+    try:
+        from persistence import dataset_rows_for_prompt_dim as _rows_dim, dataset_rows_all_for_prompt as _rows_all
+        rows_this_d = _rows_dim(base_prompt, int(getattr(lstate, 'd', 0)))
+        rows_all = _rows_all(base_prompt)
+        sidebar_metric_rows([("Rows (this d)", rows_this_d), ("Rows (all)", rows_all)], per_row=2)
+    except Exception:
+        pass
     try:
         min_train_interval = getattr(st.sidebar, "number_input", _sb_num)(
             "Min seconds between trains", min_value=0.0, max_value=3600.0,
@@ -494,7 +524,29 @@ except Exception:
 
 # Model & decode settings
 st.sidebar.header("Model & decode settings")
-from ui_controls import build_size_controls
+try:
+    # Fragment toggle for image tiles
+    use_frags = bool(getattr(st.sidebar, 'checkbox', lambda *a, **k: True)(
+        "Use fragments (isolate image tiles)", value=bool(st.session_state.get('use_fragments', True))
+    ))
+    st.session_state['use_fragments'] = use_frags
+    use_srv = bool(getattr(st.sidebar, 'checkbox', lambda *a, **k: False)(
+        "Use image server", value=bool(st.session_state.get('use_image_server', False))
+    ))
+    st.session_state['use_image_server'] = use_srv
+    srv_url = getattr(st.sidebar, 'text_input', lambda *a, **k: os.getenv('IMAGE_SERVER_URL', ''))(
+        "Image server URL", value=str(st.session_state.get('image_server_url', os.getenv('IMAGE_SERVER_URL', '')))
+    )
+    st.session_state['image_server_url'] = srv_url
+    try:
+        import flux_local as _fl
+        _uis = getattr(_fl, 'use_image_server', None)
+        if callable(_uis):
+            _uis(use_srv, srv_url)
+    except Exception:
+        pass
+except Exception:
+    pass
 width, height, steps, guidance, _apply_clicked = build_size_controls(st, lstate)
 try:
     st.session_state['steps'] = int(steps)
@@ -519,60 +571,84 @@ else:
 ## Generation mode moved to top-of-sidebar (see "Mode" section above)
 # Proposer controls (alpha/beta/etc.) are still rendered for maintainability and tests,
 # but they are only used by Async/DistanceHill proposers internally.
-from constants import DEFAULT_ALPHA, DEFAULT_BETA, DEFAULT_TRUST_R, DEFAULT_LR_MU, DEFAULT_GAMMA_ORTH, DEFAULT_ITER_STEPS
-from ui_controls import build_pair_controls
 
-# Optimization controls
-st.sidebar.subheader("Latent optimization")
-# Proposer controls (Alpha/Beta/etc.) shared across modes; implemented via a single helper.
-alpha, beta, trust_r, lr_mu_ui, gamma_orth, iter_steps, iter_eta = build_pair_controls(st, expanded=False)
-try:
-    st.session_state['alpha'] = float(alpha)
-except Exception:
-    pass
-try:
-    st.session_state['trust_r'] = float(trust_r)
-except Exception:
-    pass
-try:
-    st.session_state['lr_mu_ui'] = float(lr_mu_ui)
-except Exception:
-    pass
-
-# Hill-climb μ controls (shared across modes)
-st.sidebar.subheader("Hill-climb μ")
-eta_mu = _sb_num("η (step)", min_value=0.01, max_value=1.0, value=0.2, step=0.01, format="%.2f")
-gamma_mu = _sb_num("γ (sigmoid)", min_value=0.1, max_value=5.0, value=0.5, step=0.1, format="%.1f")
-trust_mu = _sb_num("Trust radius r (0=off)", min_value=0.0, max_value=1e3, value=0.0, step=1.0, format="%.1f")
-hill_label = "Hill-climb μ (XGBoost)" if vm_choice == "XGBoost" else "Hill-climb μ (distance)"
-if st.sidebar.button(hill_label):
-    from persistence import get_dataset_for_prompt_or_session
-    Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
+def _render_advanced_controls():
+    # Optimization controls
+    st.sidebar.subheader("Latent optimization")
+    # Proposer controls (Alpha/Beta/etc.) shared across modes; implemented via a single helper.
+    _alpha, _beta, _trust_r, _lr_mu_ui, _gamma_orth, _iter_steps, _iter_eta = build_pair_controls(st, expanded=False)
     try:
-        if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-            r_val = None if float(trust_mu) <= 0.0 else float(trust_mu)
-            if vm_choice == "XGBoost":
-                # XGB-guided multi-step hill climb: use Ridge for direction and XGB as critic.
-                from value_scorer import get_value_scorer
-                cache = st.session_state.get('xgb_cache') or {}
-                mdl = cache.get('model')
-                if mdl is not None:
-                    scorer = get_value_scorer("XGBoost", lstate, base_prompt, st.session_state)
-                    step_scale = float(lr_mu_ui) * float(getattr(lstate, "sigma", 1.0))
-                    # Use Optimization steps (latent) numeric control for XGB hill steps.
-                    try:
-                        steps_now = int(st.session_state.get("iter_steps", iter_steps))
-                    except Exception:
-                        steps_now = int(iter_steps)
-                    ll.hill_climb_mu_xgb(lstate, base_prompt, scorer, steps=steps_now, step_scale=step_scale, trust_r=r_val)
-                    save_state(lstate, st.session_state.state_path)
-            else:
-                ll.hill_climb_mu_distance(lstate, base_prompt, Xd, yd, eta=float(eta_mu), gamma=float(gamma_mu), trust_r=r_val)
-                save_state(lstate, st.session_state.state_path)
+        st.session_state['alpha'] = float(_alpha)
     except Exception:
         pass
-    if callable(st_rerun):
-        st_rerun()
+    try:
+        st.session_state['trust_r'] = float(_trust_r)
+    except Exception:
+        pass
+    try:
+        st.session_state['lr_mu_ui'] = float(_lr_mu_ui)
+    except Exception:
+        pass
+
+    # Expose to outer scope for hill-climb use
+    nonlocal_vars = {
+        'lr_mu_ui': _lr_mu_ui,
+        'iter_steps': _iter_steps,
+        'iter_eta': _iter_eta,
+    }
+
+    # Hill-climb μ controls (shared across modes)
+    st.sidebar.subheader("Hill-climb μ")
+    _eta_mu = _sb_num("η (step)", min_value=0.01, max_value=1.0, value=0.2, step=0.01, format="%.2f")
+    _gamma_mu = _sb_num("γ (sigmoid)", min_value=0.1, max_value=5.0, value=0.5, step=0.1, format="%.1f")
+    _trust_mu = _sb_num("Trust radius r (0=off)", min_value=0.0, max_value=1e3, value=0.0, step=1.0, format="%.1f")
+    _hill_label = "Hill-climb μ (XGBoost)" if vm_choice == "XGBoost" else "Hill-climb μ (distance)"
+    if st.sidebar.button(_hill_label):
+        from persistence import get_dataset_for_prompt_or_session
+        Xd, yd = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
+        try:
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                r_val = None if float(_trust_mu) <= 0.0 else float(_trust_mu)
+                if vm_choice == "XGBoost":
+                    # XGB-guided multi-step hill climb: use Ridge for direction and XGB as critic.
+                    from value_scorer import get_value_scorer
+                    cache = st.session_state.get('xgb_cache') or {}
+                    mdl = cache.get('model')
+                    if mdl is not None:
+                        scorer = get_value_scorer("XGBoost", lstate, base_prompt, st.session_state)
+                        step_scale = float(nonlocal_vars['lr_mu_ui']) * float(getattr(lstate, "sigma", 1.0))
+                        # Use Optimization steps (latent) numeric control for XGB hill steps.
+                        try:
+                            steps_now = int(st.session_state.get("iter_steps", nonlocal_vars['iter_steps']))
+                        except Exception:
+                            steps_now = int(nonlocal_vars['iter_steps'])
+                        ll.hill_climb_mu_xgb(lstate, base_prompt, scorer, steps=steps_now, step_scale=step_scale, trust_r=r_val)
+                        save_state(lstate, st.session_state.state_path)
+                else:
+                    ll.hill_climb_mu_distance(lstate, base_prompt, Xd, yd, eta=float(_eta_mu), gamma=float(_gamma_mu), trust_r=r_val)
+                    save_state(lstate, st.session_state.state_path)
+        except Exception:
+            pass
+        if callable(st_rerun):
+            st_rerun()
+
+
+# In compact mode, tuck advanced controls into an expander; otherwise render inline
+_adv_expander = None
+try:
+    if bool(st.session_state.get('sidebar_compact', False)) and callable(getattr(st.sidebar, 'expander', None)):
+        _adv_expander = st.sidebar.expander("Advanced", expanded=False)
+except Exception:
+    _adv_expander = None
+
+if _adv_expander is not None:
+    try:
+        with _adv_expander:
+            _render_advanced_controls()
+    except TypeError:
+        _render_advanced_controls()
+else:
+    _render_advanced_controls()
 # Value function option: controlled solely by the dropdown above
 use_xgb = (vm_choice == "XGBoost")
 
@@ -596,21 +672,19 @@ def _resolve_modes():
     return (bool(curation_mode_cb), bool(async_queue_mode_cb))
 
 curation_mode, async_queue_mode = _resolve_modes()
-# Regularization λ: slider plus direct input for precise edits
-reg_lambda = _sb_sld("Ridge λ (regularization)", 0.0, 1e5, value=1e-3)
-# Allow precise manual entry; overrides slider when edited; default to 0.0 when unset
+# Regularization λ: single precise input (slider removed)
 try:
-    reg_lambda = float(_sb_num("Ridge λ (edit)", min_value=0.0, max_value=1e5, value=float(reg_lambda), step=1e-3, format="%.6f"))
+    reg_lambda = float(_sb_num("Ridge λ", min_value=0.0, max_value=1e5, value=1e-3, step=1e-3, format="%.6f"))
 except Exception:
-    reg_lambda = float(reg_lambda)
+    reg_lambda = 1e-3
 try:
     st.session_state['reg_lambda'] = float(reg_lambda)
 except Exception:
     pass
 try:
-    eta_default = float(getattr(st.session_state, "iter_eta", iter_eta))
+    eta_default = float(getattr(st.session_state, "iter_eta", 0.1))
 except Exception:
-    eta_default = float(iter_eta)
+    eta_default = 0.1
 iter_eta_num = _sb_num("Iterative step (eta)", min_value=0.0, max_value=1.0, value=eta_default, step=0.01, format="%.2f")
 try:
     st.session_state["iter_eta"] = float(iter_eta_num)
@@ -623,9 +697,13 @@ except Exception:
 
 # Numeric control for Optimization steps (latent); overrides any prior default.
 try:
-    steps_default = int(getattr(st.session_state, "iter_steps", iter_steps))
+    from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
 except Exception:
-    steps_default = int(iter_steps)
+    _DEF_STEPS = 10
+try:
+    steps_default = int(getattr(st.session_state, "iter_steps", _DEF_STEPS))
+except Exception:
+    steps_default = int(_DEF_STEPS)
 iter_steps_num = _sb_num("Optimization steps (latent)", min_value=0, max_value=10000, value=steps_default, step=1)
 try:
     st.session_state["iter_steps"] = int(iter_steps_num)
@@ -655,9 +733,13 @@ st.sidebar.subheader("State persistence")
 _export_state_bytes = export_state_bytes  # back-compat for tests
 render_persistence_controls(lstate, st.session_state.prompt, st.session_state.state_path, _apply_state, st_rerun)
 
-from ui_metrics import render_iter_step_scores, render_mu_value_history
 def _render_iter_step_scores():
-    return render_iter_step_scores(st, lstate, base_prompt, vm_choice, int(iter_steps), float(iter_eta) if iter_eta is not None else None, trust_r)
+    try:
+        _tr = st.session_state.get('trust_r', 0.0)
+        trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
+    except Exception:
+        trust_val = None
+    return render_iter_step_scores(st, lstate, base_prompt, vm_choice, int(iter_steps), float(iter_eta) if iter_eta is not None else None, trust_val)
 _render_iter_step_scores()
 render_mu_value_history(st, lstate, base_prompt)
 
@@ -676,27 +758,7 @@ if not hasattr(st.sidebar, 'write'):
 if not hasattr(st.sidebar, 'metric'):
     st.sidebar.metric = lambda label, value, **k: st.sidebar.write(f"{label}: {value}")
 
-# Training data details (collapsed)
-try:
-    # Explain how we build z and latents
-    _exp2 = getattr(st.sidebar, 'expander', None)
-    def _latent_creation_writes():
-        import hashlib as _hl
-        z_p = z_from_prompt(lstate, base_prompt)
-        h = _hl.sha1(base_prompt.encode('utf-8')).hexdigest()[:10]
-        st.sidebar.subheader("Latent creation details")
-        st.sidebar.write(f"Prompt hash: {h}")
-        st.sidebar.write("z_prompt = RNG(prompt_sha1) → N(0,1)^d · σ")
-        st.sidebar.write("Batch sample: z = z_prompt + σ · 0.8 · r, r=unit Gaussian")
-        st.sidebar.write(f"‖z_prompt‖ = {float(np.linalg.norm(z_p)):.3f}, σ = {float(lstate.sigma):.3f}")
-        st.sidebar.write(f"Latents shape: (1,4,{lstate.height//8},{lstate.width//8}), noise_gamma=0.35, per‑channel zero‑mean")
-    if callable(_exp2):
-        with _exp2("Latent creation", expanded=False):
-            _latent_creation_writes()
-    else:
-        _latent_creation_writes()
-except Exception:
-    pass
+## Latent creation sidebar expander removed to reduce clutter
 
 try:
     exp = getattr(st.sidebar, 'expander', None)
@@ -719,52 +781,27 @@ try:
     exp = getattr(st.sidebar, 'expander', None)
     if callable(exp):
         with exp("Value model", expanded=False):
-            # Model type and status
+            # Model type and status (kept visible)
             vm = "Ridge"
             cache = st.session_state.get('xgb_cache') or {}
             if use_xgb and cache.get('model') is not None:
                 vm = "XGBoost"
             st.sidebar.write(f"Value model: {vm}")
-            # Value scorer status via helper
             try:
                 from value_scorer import get_value_scorer_with_status
                 _scorer_vm, scorer_status = get_value_scorer_with_status(vm_choice, lstate, base_prompt, st.session_state)
             except Exception:
                 scorer_status = "unknown"
             st.sidebar.write(f"Value scorer status: {scorer_status}")
-            if vm == "Ridge":
-                try:
-                    w_norm = float(np.linalg.norm(lstate.w))
-                except Exception:
-                    w_norm = 0.0
-                rows = 0
-                try:
-                    rows = int(dataset_rows_for_prompt(base_prompt))
-                except Exception:
-                    rows = 0
-                st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
-            else:
-                # Show cached rows used for last fit and basic params
-                n_fit = cache.get('n') or 0
-                try:
-                    n_estim = int(st.session_state.get("xgb_n_estimators", 50))
-                except Exception:
-                    n_estim = 50
-                try:
-                    max_depth = int(st.session_state.get("xgb_max_depth", 3))
-                except Exception:
-                    max_depth = 3
-                st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
-                # When XGBoost is active and enough data is available, show
-                # both XGB- and Ridge-based CV scores for transparency.
-                try:
-                    from persistence import get_dataset_for_prompt_or_session as _get_ds_vm
-                    from metrics import ridge_cv_accuracy as _rcv_vm, xgb_cv_accuracy as _xcv_vm
-                    Xv, yv = _get_ds_vm(base_prompt, st.session_state)
-                    if Xv is not None and yv is not None and len(yv) >= 4:
-                        import numpy as _np
-                        n_rows_vm = int(len(yv))
-                        # XGB-based CV (mirrors Data block behaviour, but uses a fixed small k for speed)
+            # CV lines (kept visible)
+            try:
+                from persistence import get_dataset_for_prompt_or_session as _get_ds_vm
+                from metrics import ridge_cv_accuracy as _rcv_vm, xgb_cv_accuracy as _xcv_vm
+                Xv, yv = _get_ds_vm(base_prompt, st.session_state)
+                if Xv is not None and yv is not None and len(yv) >= 4:
+                    import numpy as _np
+                    n_rows_vm = int(len(yv))
+                    if vm == "XGBoost":
                         try:
                             k_xgb = min(3, n_rows_vm)
                             cv_xgb = float(_xcv_vm(Xv, yv, k_xgb))
@@ -772,16 +809,41 @@ try:
                                 st.sidebar.write(f"CV (XGBoost): {cv_xgb*100:.0f}% (k={k_xgb})")
                         except Exception:
                             pass
-                        # Ridge-based CV for comparison
+                    try:
+                        k_ridge = min(5, n_rows_vm)
+                        cv_r = float(_rcv_vm(Xv, yv, lam=float(st.session_state.get('reg_lambda', 1e-3)), k=k_ridge))
+                        if not _np.isnan(cv_r):
+                            st.sidebar.write(f"CV (Ridge): {cv_r*100:.0f}% (k={k_ridge})")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            # Details tucked behind a sub-expander to reduce clutter
+            subexp = getattr(st.sidebar, 'expander', None)
+            if callable(subexp):
+                with subexp("Details", expanded=False):
+                    if vm == "Ridge":
                         try:
-                            k_ridge = min(5, n_rows_vm)
-                            cv_r = float(_rcv_vm(Xv, yv, lam=float(st.session_state.get('reg_lambda', 1e-3)), k=k_ridge))
-                            if not _np.isnan(cv_r):
-                                st.sidebar.write(f"CV (Ridge): {cv_r*100:.0f}% (k={k_ridge})")
+                            w_norm = float(np.linalg.norm(lstate.w))
                         except Exception:
-                            pass
-                except Exception:
-                    pass
+                            w_norm = 0.0
+                        rows = 0
+                        try:
+                            rows = int(dataset_rows_for_prompt(base_prompt))
+                        except Exception:
+                            rows = 0
+                        st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
+                    else:
+                        n_fit = cache.get('n') or 0
+                        try:
+                            n_estim = int(st.session_state.get("xgb_n_estimators", 50))
+                        except Exception:
+                            n_estim = 50
+                        try:
+                            max_depth = int(st.session_state.get("xgb_max_depth", 3))
+                        except Exception:
+                            max_depth = 3
+                        st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
     else:
         st.sidebar.write("Value model: Ridge")
 except Exception:
@@ -890,7 +952,7 @@ status_panel(st.session_state.images, st.session_state.mu_image)
 
 # (legacy Debug checkbox block removed; unified Debug expander exists above)
 
-from pair_ui import generate_pair as _pair_generate, _prefetch_next_for_generate as _pair_prefetch, _pair_scores as _pair_scores_impl
+## imports moved to top
 
 
 def generate_pair():
@@ -926,10 +988,6 @@ def _curation_new_batch() -> None:
     return _batch_ui._curation_new_batch()
 
 
-def _curation_sample_one() -> np.ndarray:
-    return _batch_ui._sample_around_prompt(0.8)
-
-
 def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     return _batch_ui._sample_around_prompt(scale)
 
@@ -941,11 +999,26 @@ def _curation_replace_at(idx: int) -> None:
 def _proposer_opts():
     """Return a ProposerOpts built from current sidebar settings (delegates)."""
     from proposer import build_proposer_opts
+    # Read from session to avoid free-name leaks when controls are hidden
     try:
-        ie = float(iter_eta) if iter_eta is not None else None
+        it_steps = int(st.session_state.get("iter_steps", 10))
+    except Exception:
+        it_steps = 10
+    try:
+        ie = st.session_state.get("iter_eta", None)
+        ie = float(ie) if ie is not None else None
     except Exception:
         ie = None
-    return build_proposer_opts(int(iter_steps), ie, trust_r, gamma_orth)
+    try:
+        tr = st.session_state.get("trust_r", None)
+        tr = float(tr) if (tr is not None and float(tr) > 0.0) else None
+    except Exception:
+        tr = None
+    try:
+        g = float(st.session_state.get("gamma_orth", 0.0))
+    except Exception:
+        g = 0.0
+    return build_proposer_opts(int(it_steps), ie, tr, g)
 
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
@@ -980,6 +1053,16 @@ def _label_and_persist(z: np.ndarray, label: int, retrain: bool = True) -> None:
             pass
 
 
+def _queue_fill_up_to() -> None:
+    import queue_ui as _q
+    return _q._queue_fill_up_to()
+
+
+def _queue_label(idx: int, label: int) -> None:
+    import queue_ui as _q
+    return _q._queue_label(idx, label)
+
+
 def _choose_preference(side: str) -> None:
     """Handle pair preference: update state, persist both labels, propose next pair."""
     import streamlit as _st
@@ -989,7 +1072,11 @@ def _choose_preference(side: str) -> None:
     feats_b = z_b - z_p
     winner = 'a' if side == 'a' else 'b'
     lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-    update_latent_ridge(lstate, z_a, z_b, winner, lr_mu=float(lr_mu_ui), lam=lam_now, feats_a=feats_a, feats_b=feats_b)
+    try:
+        lr_mu_now = float(_st.session_state.get('lr_mu_ui', 0.3))
+    except Exception:
+        lr_mu_now = 0.3
+    update_latent_ridge(lstate, z_a, z_b, winner, lr_mu=lr_mu_now, lam=lam_now, feats_a=feats_a, feats_b=feats_b)
     try:
         from datetime import datetime, timezone
         _st.session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
@@ -1105,14 +1192,14 @@ def run_upload_mode() -> None:
             key=f"upl_w_{nonce}_{idx}",
         )
         if st.button(f"Good (+1) upload {idx}", key=f"upl_good_{nonce}_{idx}"):
-            _curation_add(float(w_slider), z, img_dec)
+            _curation_add(float(w_slider), z, img=None)
             _curation_train_and_next()
         if st.button(f"Bad (-1) upload {idx}", key=f"upl_bad_{nonce}_{idx}"):
-            _curation_add(-float(w_slider), z, img_dec)
+            _curation_add(-float(w_slider), z, img=None)
             _curation_train_and_next()
 
 
-from modes import run_mode
+## import moved to top
 # Run selected mode (Batch default vs Async queue)
 try:
     async_queue_mode
@@ -1146,17 +1233,4 @@ if recent:
 ## First-round prompt seeding is handled in _apply_state; no duplicate logic here
 
     # μ preview UI removed
-def _toast(msg: str) -> None:
-    """Lightweight toast; falls back to sidebar write in test stubs."""
-    t = getattr(st, 'toast', None)
-    if callable(t):
-        try:
-            t(str(msg))
-            return
-        except Exception:
-            pass
-    # fallback for stubs
-    try:
-        st.sidebar.write(str(msg))
-    except Exception:
-        pass
+## _toast already defined above; avoid duplicate definitions

@@ -10,7 +10,6 @@ Minimal, no deps. Exits non‑zero if nvidia-smi is unavailable.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 
@@ -86,4 +85,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

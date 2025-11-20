@@ -1,7 +1,7 @@
 from typing import Optional
+import hashlib
 import numpy as np
 from latent_state import LatentState
-import numpy as np
 
 
 def append_pair(state: LatentState, z_a: np.ndarray, z_b: np.ndarray, label: float) -> None:
@@ -13,9 +13,20 @@ def append_pair(state: LatentState, z_a: np.ndarray, z_b: np.ndarray, label: flo
 
 
 def ridge_fit(X: np.ndarray, y: np.ndarray, lam: float) -> np.ndarray:
-    dfeat = X.shape[1]
-    return np.linalg.solve(X.T @ X + lam * np.eye(dfeat), X.T @ y)
-import hashlib
+    """Closed-form ridge using the dual to avoid a d×d solve.
+
+    w = X^T (XX^T + λI)^{-1} y
+    This is much faster/stabler when feature dim d ≫ rows n (our case).
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).ravel()
+    if X.size == 0 or y.size == 0:
+        return np.zeros(X.shape[1] if X.ndim == 2 else 0, dtype=float)
+    K = X @ X.T
+    # add λ to the diagonal in-place (works for any square K)
+    K.ravel()[::K.shape[1] + 1] += float(lam)
+    alpha = np.linalg.solve(K, y)
+    return X.T @ alpha
 
 
 def _clamp_norm(y: np.ndarray, r: Optional[float]) -> np.ndarray:
