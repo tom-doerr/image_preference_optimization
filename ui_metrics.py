@@ -19,16 +19,36 @@ def render_iter_step_scores(
     latent_logic scorers or Ridge/XGB depending on `vm_choice`.
     """
     try:
-        # Minimal local import to avoid missing-name crash; keeps deps light.
         from latent_logic import z_from_prompt  # type: ignore
-        try:
-            from persistence import get_dataset_for_prompt_or_session
-            get_dataset_for_prompt_or_session(prompt, st.session_state)
-        except Exception:
-            pass
+        # Gather weights and scorer status
         w = getattr(lstate, 'w', None)
         w = w[: lstate.d] if w is not None else None
         n = float(np.linalg.norm(w)) if w is not None else 0.0
+        scorer = None
+        status = "ok"
+        try:
+            from value_scorer import get_value_scorer_with_status as _gvs
+            scorer, status = _gvs(vm_choice, lstate, prompt, st.session_state)
+        except Exception:
+            try:
+                from value_scorer import get_value_scorer as _gvs2
+                scorer = _gvs2(vm_choice, lstate, prompt, st.session_state)
+                status = "ok"
+            except Exception:
+                scorer = None
+                status = "unavailable"
+
+        # If no usable weights/scorer, prefer showing n/a rather than zeros
+        if (vm_choice == "Ridge" and (w is None or n == 0.0)) or (vm_choice != "Ridge" and status != "ok"):
+            st.sidebar.write("Step scores: n/a")
+            try:
+                from ui import sidebar_metric_rows
+                sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
+            except Exception:
+                pass
+            return
+
+        # Compute step scores along d1 ∥ w
         d1 = w / n
         n_steps = max(1, int(iter_steps))
         if iter_eta is not None and float(iter_eta) > 0.0:
@@ -38,16 +58,8 @@ def render_iter_step_scores(
         else:
             step_len = float(lstate.sigma) / n_steps
         z_p = z_from_prompt(lstate, prompt)
-        try:
-            from value_scorer import get_value_scorer as _get_vs
-            scorer = _get_vs(vm_choice, lstate, prompt, st.session_state)
-        except Exception:
-            scorer = None
         scores: list[float] = []
         for k in range(1, n_steps + 1):
-            if w is None or n == 0.0:
-                scores.append(0.0)
-                continue
             zc = z_p + (k * step_len) * d1
             try:
                 if scorer is not None:
@@ -57,18 +69,15 @@ def render_iter_step_scores(
             except Exception:
                 s = float(np.dot(lstate.w[: lstate.d], (zc - z_p)))
             scores.append(s)
+
         try:
-            if scores:
-                st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
-            else:
-                st.sidebar.write("Step scores: n/a")
+            st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
         except Exception:
             pass
         try:
             from ui import sidebar_metric_rows
-            pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)] if scores else [("Step scores", "n/a")]
-            if pairs:
-                sidebar_metric_rows(pairs, per_row=2)
+            pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
+            sidebar_metric_rows(pairs, per_row=2)
         except Exception:
             pass
     except Exception:
