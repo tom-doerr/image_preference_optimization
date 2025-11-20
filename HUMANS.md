@@ -28,3 +28,6 @@ Open questions (architecture):
 2) Do you want all modules to switch to the `ipo` logger now (batch_ui/queue_ui/app) or keep prints for a while and converge gradually?
 3) Would you like a simple “decode service” interface (local vs image server) to formalize the boundary, or should we keep direct `flux_local` calls for now?
 4) Is it okay to move additional sidebar pieces into `ui_sidebar.py` to slim down `app.py` further, or do you prefer to defer until the next UI pass?
+Race when saving many (Nov 20, 2025):
+- Cause: dataset row directories were picked by scanning and then creating with `exist_ok=True`, so two fast saves could occasionally choose the same next index.
+- Fix: we now create the directory atomically with `os.mkdir(sample_dir)` in a small incrementing loop until success. Folder names remain numeric (`000001`, `000002`, …), and this avoids collisions without adding heavy locking.

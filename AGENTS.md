@@ -894,6 +894,7 @@ Updates (Nov 20, 2025):
   - `RICH_CLI=0` disables coloring.
   - `RICH_CLI_DETAILS=0` disables the parsed details line.
 - Legacy purge (Nov 20, 2025, late): removed `dataset_path_for_prompt` and any remaining aggregate dataset NPZ helpers. Training/counters/stats are folder-only (`data/<hash>/*/sample.npz`). Tests that imported or patched `dataset_path_for_prompt` were updated to stop referencing it.
+- Sidebar simplification (Nov 20, 2025, late): Removed “Rows (all)”. The Data block now shows only “Dataset rows” (with spinner) and “Rows (this d)”.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
@@ -953,3 +954,5 @@ Vast.ai quickstart (Nov 20, 2025)
 - Expose 8501 via Vast’s Port panel (or use SSH tunneling) and open the public URL.
 - Optional image server: run a second container on the same box serving `/generate(_latents)` and set `IMAGE_SERVER_URL` or the sidebar URL; keep the app’s “Use image server” checked.
 - Bare‑metal (no Docker): `bash scripts/setup_venv.sh cu121 && source .venv/bin/activate && pip install -r requirements.txt && streamlit run app.py` (GPU required).
+Save race fix (Nov 20, 2025):
+- Observed occasional race when many samples are saved quickly (duplicate row index). `persistence.append_dataset_row` now allocates the next folder by scanning once, then atomically creating the directory with `os.mkdir(...)` in a short incrementing loop. This avoids collisions across concurrent saves while keeping numeric folder names and minimal code.

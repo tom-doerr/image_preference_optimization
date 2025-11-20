@@ -104,7 +104,8 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
     root = os.path.join("data", h)
     os.makedirs(root, exist_ok=True)
-    # Determine next row index from existing sample folders
+    # Determine next row index from existing sample folders, then atomically
+    # create a new directory to avoid races when many saves happen quickly.
     try:
         import re as _re
         idxs = []
@@ -115,13 +116,28 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
         next_idx = (max(idxs) + 1) if idxs else 1
     except Exception:
         next_idx = 1
-    sample_dir = os.path.join(root, f"{next_idx:06d}")
-    os.makedirs(sample_dir, exist_ok=True)
+    # Attempt to create a unique directory by incrementing until it succeeds.
+    # Keeps names numeric for simplicity and test compatibility.
+    attempts = 0
+    while True:
+        attempts += 1
+        sample_dir = os.path.join(root, f"{next_idx:06d}")
+        try:
+            os.mkdir(sample_dir)
+            break
+        except FileExistsError:
+            next_idx += 1
+            if attempts > 1000:
+                # Failsafe: give up with a new high index if something is odd
+                next_idx += 1000
+        except Exception:
+            # Best effort: try the next index
+            next_idx += 1
     sample_path = os.path.join(sample_dir, "sample.npz")
     np.savez_compressed(sample_path, X=feat, y=np.array([label], dtype=float))
     # Maintain a minimal backup of the sample file (legacy backup test)
     try:
-        base = f"sample_{h}_{next_idx:06d}.npz"
+    base = f"sample_{h}_{next_idx:06d}.npz"
         tmp_copy = os.path.join('.', base)
         # create a copy named deterministically for backup routine
         import shutil as _sh

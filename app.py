@@ -450,12 +450,11 @@ try:
         _vm_type, _vm_settings = "Ridge", "λ=1e-3"
 
     sidebar_metric_rows([("Dataset rows", _rows_display), ("Train score", _train_score)], per_row=2)
-    # Dimension-scoped and total rows for clarity
+    # Dimension-scoped rows only (simplify sidebar)
     try:
-        from persistence import dataset_rows_for_prompt_dim as _rows_dim, dataset_rows_all_for_prompt as _rows_all
+        from persistence import dataset_rows_for_prompt_dim as _rows_dim
         rows_this_d = _rows_dim(base_prompt, int(getattr(lstate, 'd', 0)))
-        rows_all = _rows_all(base_prompt)
-        sidebar_metric_rows([("Rows (this d)", rows_this_d), ("Rows (all)", rows_all)], per_row=2)
+        sidebar_metric_rows([("Rows (this d)", rows_this_d)], per_row=1)
     except Exception:
         pass
     try:
