@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
+from constants import Keys
 
 __all__ = [
     'fit_value_model',
@@ -55,7 +56,7 @@ def fit_value_model(
                     print(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
                 except Exception:
                     pass
-                cache = getattr(session_state, 'xgb_cache', {}) or {}
+                cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
                 last_n = int(cache.get('n') or 0)
                 # Read simple hyperparams from session_state; default to 50/3.
                 try:
@@ -95,23 +96,23 @@ def fit_value_model(
 
     # Training bookkeeping
     try:
-        session_state['last_train_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec='seconds')
     except Exception:
         pass
     try:
-        session_state['last_train_ms'] = float((_time.perf_counter() - t0) * 1000.0)
-        print(f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state['last_train_ms']:.1f} ms")
+        session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t0) * 1000.0)
+        print(f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state[Keys.LAST_TRAIN_MS]:.1f} ms")
     except Exception:
         pass
     # Mark async fit as done if we were running in background
     try:
-        session_state["xgb_train_status"] = {"state": "ok", "rows": int(X.shape[0]), "lam": float(lam)}
+        session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(X.shape[0]), "lam": float(lam)}
         session_state["xgb_last_updated_rows"] = int(X.shape[0])
         session_state["xgb_last_updated_lam"] = float(lam)
     except Exception:
         pass
     try:
-        fut = session_state.get("xgb_fit_future")
+        fut = session_state.get(Keys.XGB_FIT_FUTURE)
         if fut is not None and hasattr(fut, "done"):
             fut._done = True  # simple flag; don't rely on Future internals
     except Exception:

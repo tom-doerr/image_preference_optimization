@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 import numpy as np
+from constants import Keys
 
 __all__ = [
     '_lstate_and_prompt',
@@ -57,13 +58,13 @@ def _curation_new_batch() -> None:
     z_p = z_from_prompt(lstate, prompt)
     batch_n = int(st.session_state.get('batch_size', 6))
     # Optional XGBoost-guided hill climb per image when XGB is active.
-    vm_choice = str(st.session_state.get('vm_choice') or "")
+    vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
     use_xgb = (vm_choice == "XGBoost")
     scorer = None
     scorer_status = None
-    steps = int(st.session_state.get('iter_steps', 10))
-    lr_mu = float(st.session_state.get('lr_mu_ui', 0.3))
-    trust = st.session_state.get('trust_r', None)
+    steps = int(st.session_state.get(Keys.ITER_STEPS, 10))
+    lr_mu = float(st.session_state.get(Keys.LR_MU_UI, 0.3))
+    trust = st.session_state.get(Keys.TRUST_R, None)
     trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
     if use_xgb:
         try:
@@ -75,7 +76,7 @@ def _curation_new_batch() -> None:
                     d_x = int(getattr(X_ds, "shape", (0, 0))[1])
                     d_lat = int(getattr(lstate, "d", d_x))
                     if d_x == d_lat:
-                        lam_now = float(st.session_state.get("reg_lambda", 1e-3))
+                        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
                         vm_train_choice = str(st.session_state.get("vm_train_choice", vm_choice))
                         ensure_fitted(vm_train_choice, lstate, X_ds, y_ds, lam_now, st.session_state)
                 except Exception:
@@ -151,8 +152,8 @@ def _curation_train_and_next() -> None:
     from value_model import fit_value_model, ensure_fitted
     lstate, prompt = _lstate_and_prompt()
     # Track async XGB training status in session for UI/reruns
-    st.session_state.pop("xgb_fit_future", None)
-    st.session_state.pop("xgb_train_status", None)
+    st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
+    st.session_state.pop(Keys.XGB_TRAIN_STATUS, None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         # Guard against resolution changes: ignore datasets whose feature dim
@@ -161,19 +162,19 @@ def _curation_train_and_next() -> None:
             d_x = int(getattr(X, 'shape', (0, 0))[1])
             d_lat = int(getattr(lstate, 'd', d_x))
             if d_x != d_lat:
-                st.session_state['dataset_dim_mismatch'] = (d_x, d_lat)
+                st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
                 X, y = None, None
         except Exception:
             X, y = None, None
     if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
         try:
-            lam_now = float(getattr(st.session_state, 'reg_lambda', 1e-3))
-            vm_train = str(st.session_state.get('vm_choice'))
+            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
+            vm_train = str(st.session_state.get(Keys.VM_CHOICE))
             # First ensure an initial fit when needed; keep async inside fit_value_model
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
-            last_at = st.session_state.get("last_train_at")
+            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
             if min_wait > 0 and last_at:
                 try:
                     last_dt = datetime.fromisoformat(last_at)
@@ -182,9 +183,9 @@ def _curation_train_and_next() -> None:
                 if last_dt:
                     elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
                     if elapsed < min_wait:
-                        st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+                        st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
-            st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
@@ -209,18 +210,18 @@ def _refit_from_dataset_keep_batch() -> None:
             d_x = int(getattr(X, 'shape', (0, 0))[1])
             d_lat = int(getattr(lstate, 'd', d_x))
             if d_x != d_lat:
-                st.session_state['dataset_dim_mismatch'] = (d_x, d_lat)
+                st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
                 X, y = None, None
         except Exception:
             X, y = None, None
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
-            lam_now = float(getattr(st.session_state, 'reg_lambda', 1e-3))
-            vm_train = str(st.session_state.get('vm_choice'))
+            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
+            vm_train = str(st.session_state.get(Keys.VM_CHOICE))
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
             from datetime import datetime, timezone
             min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
-            last_at = st.session_state.get("last_train_at")
+            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
             if min_wait > 0 and last_at:
                 try:
                     last_dt = datetime.fromisoformat(last_at)
@@ -229,9 +230,9 @@ def _refit_from_dataset_keep_batch() -> None:
                 if last_dt:
                     elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
                     if elapsed < min_wait:
-                        st.session_state["xgb_train_status"] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+                        st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
                         return
-            st.session_state["xgb_train_status"] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+            st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:

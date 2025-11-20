@@ -9,7 +9,7 @@ from constants import (
     DEFAULT_MODEL,
     MODEL_CHOICES,
 )
-from constants import Config
+from constants import Config, Keys
 from env_info import get_env_summary
 from ui import sidebar_metric_rows, env_panel, status_panel, perf_panel
 import batch_ui as _batch_ui
@@ -473,10 +473,10 @@ try:
     # Tiny visibility line for XGBoost readiness
     try:
         if vm_choice == "XGBoost":
-            fut = st.session_state.get("xgb_fit_future")
+            fut = st.session_state.get(Keys.XGB_FIT_FUTURE)
             fut_running = bool(fut is not None and not getattr(fut, "done", lambda: False)())
             active = "yes" if (_vs_status == "ok") else "no"
-            status = st.session_state.get("xgb_train_status")
+            status = st.session_state.get(Keys.XGB_TRAIN_STATUS)
             st.sidebar.write(f"XGBoost active: {active}")
             if isinstance(status, dict):
                 state = status.get("state")
@@ -490,7 +490,7 @@ try:
                     st.sidebar.write(f"Updated XGB (rows={rows}, λ={lam})")
             # If a background fit just finished, clear the future; we avoid full page rerun by default.
             if fut is not None and getattr(fut, "done", lambda: False)():
-                st.session_state.pop("xgb_fit_future", None)
+                st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
     except Exception:
         pass
     # Tiny hint when XGBoost is selected but no model is trained yet.
@@ -948,7 +948,7 @@ except Exception:
 render_metadata_panel(st.session_state.state_path, st.session_state.prompt)
 # Paths/Dataset viewer and Manage states panels removed to declutter sidebar
 
-status_panel(st.session_state.images, st.session_state.mu_image)
+# Images status panel removed to declutter the sidebar
 
 # (legacy Debug checkbox block removed; unified Debug expander exists above)
 

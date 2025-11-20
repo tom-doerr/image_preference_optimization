@@ -42,3 +42,19 @@ DEFAULT_BATCH_SIZE = 25
 # Scoring defaults (avoid scattered literals)
 DISTANCEHILL_GAMMA = 0.5
 COSINEHILL_BETA = 5.0
+
+
+class Keys:
+    REG_LAMBDA = "reg_lambda"
+    ITER_STEPS = "iter_steps"
+    ITER_ETA = "iter_eta"
+    XGB_TRAIN_ASYNC = "xgb_train_async"
+    XGB_CACHE = "xgb_cache"
+    XGB_FIT_FUTURE = "xgb_fit_future"
+    XGB_TRAIN_STATUS = "xgb_train_status"
+    LAST_TRAIN_AT = "last_train_at"
+    LAST_TRAIN_MS = "last_train_ms"
+    VM_CHOICE = "vm_choice"
+    TRUST_R = "trust_r"
+    LR_MU_UI = "lr_mu_ui"
+    DATASET_DIM_MISMATCH = "dataset_dim_mismatch"

@@ -883,6 +883,7 @@ Updates (Nov 20, 2025):
   - POST /generate_latents → JSON {image: base64_png}, body also includes `latents` and `latents_shape`.
 - Consolidation: removed dormant helpers (`_curation_sample_one`), trimmed duplicate Ridge‑λ slider, and wired proposer opts to session state to avoid free‑name errors.
 - UI: added “Use fragments (isolate image tiles)” checkbox — controls whether tiles render inside `st.fragment` wrappers (default on). Helpful when debugging rerun behavior.
+- Sidebar trim (Nov 20, 2025): Removed the “Images status” block (Left/Right ready/empty) to reduce clutter; metrics panels remain.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
