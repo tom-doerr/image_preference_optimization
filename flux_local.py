@@ -202,29 +202,28 @@ def _run_pipe(**kwargs):
         steps = int(kwargs.get("num_inference_steps", 20))
     except Exception:
         steps = 20
-    try:
-        sched = getattr(PIPE, "scheduler", None)
-        if sched is not None and hasattr(sched, "set_timesteps"):
+    def _prepare_scheduler():
+        try:
+            sched = getattr(PIPE, "scheduler", None)
+            if sched is None or not hasattr(sched, "set_timesteps"):
+                return
             try:
-                # LCM requires _step_index and num_inference_steps to be initialized.
                 sched.set_timesteps(int(steps), device="cuda")
             except TypeError:
-                sched.set_timesteps(int(steps))  # older signatures
-            # Guard against buggy schedulers leaving _step_index=None
+                sched.set_timesteps(int(steps))
             if getattr(sched, "_step_index", None) is None:
                 try:
                     sched._step_index = 0  # type: ignore[attr-defined]
                 except Exception:
                     pass
-            # Some schedulers (e.g. newer LCM) require num_inference_steps
-            # to be set explicitly; mirror what set_timesteps would do.
             try:
                 if getattr(sched, "num_inference_steps", None) is None:
                     sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
             except Exception:
                 pass
-    except Exception:
-        pass
+        except Exception:
+            pass
+    _prepare_scheduler()
     import time as _time
     retries = 0
     try:
@@ -249,24 +248,26 @@ def _run_pipe(**kwargs):
                 pass
             if hasattr(out, "images") and getattr(out, "images"):
                 img0 = out.images[0]
-                try:
-                    import numpy as _np  # type: ignore
-                    arr = _np.asarray(img0)
-                    LAST_CALL.update({
-                        "img0_mean": float(arr.mean()),
-                        "img0_std": float(arr.std()),
-                        "img0_min": float(arr.min()),
-                        "img0_max": float(arr.max()),
-                    })
-                    LOGGER.info(
-                        "img0 stats mean=%.3f std=%.3f min=%s max=%s",
-                        float(arr.mean()),
-                        float(arr.std()),
-                        arr.min(),
-                        arr.max(),
-                    )
-                except Exception:
-                    pass
+                def _record_img_stats():
+                    try:
+                        import numpy as _np  # type: ignore
+                        arr = _np.asarray(img0)
+                        LAST_CALL.update({
+                            "img0_mean": float(arr.mean()),
+                            "img0_std": float(arr.std()),
+                            "img0_min": float(arr.min()),
+                            "img0_max": float(arr.max()),
+                        })
+                        LOGGER.info(
+                            "img0 stats mean=%.3f std=%.3f min=%s max=%s",
+                            float(arr.mean()),
+                            float(arr.std()),
+                            arr.min(),
+                            arr.max(),
+                        )
+                    except Exception:
+                        pass
+                _record_img_stats()
                 return img0
             raise RuntimeError("Local FLUX pipeline returned no images")
         except RuntimeError as e:

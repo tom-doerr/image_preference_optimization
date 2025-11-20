@@ -77,9 +77,13 @@ def _queue_add_one() -> None:
     q.append(item)
     st.session_state.queue = q
     try:
-        print(f"[queue] added item idx={len(q)-1} prompt={prompt!r} steps={steps} size={lstate.width}x{lstate.height}")
+        from logging import getLogger
+        getLogger("ipo").info(f"[queue] added item idx={len(q)-1} prompt={prompt!r} steps={steps} size={lstate.width}x{lstate.height}")
     except Exception:
-        pass
+        try:
+            print(f"[queue] added item idx={len(q)-1} prompt={prompt!r} steps={steps} size={lstate.width}x{lstate.height}")
+        except Exception:
+            pass
 
 
 def _queue_fill_up_to() -> None:
@@ -93,9 +97,13 @@ def _queue_fill_up_to() -> None:
         _queue_add_one()
     try:
         dt_ms = (_time.perf_counter() - t0) * 1000.0
-        print(f"[queue] filled to size={len(st.session_state.queue)} in {dt_ms:.1f} ms")
+        from logging import getLogger
+        getLogger("ipo").info(f"[queue] filled to size={len(st.session_state.queue)} in {dt_ms:.1f} ms")
     except Exception:
-        pass
+        try:
+            print(f"[queue] filled to size={len(st.session_state.queue)} in {dt_ms:.1f} ms")
+        except Exception:
+            pass
 
 
 def _queue_label(idx: int, label: int, img=None) -> None:
@@ -138,9 +146,13 @@ def _render_queue_ui() -> None:
             img = it['future'].result()
             try:
                 dt_ms = (_time.perf_counter() - t0) * 1000.0
-                print(f"[queue] decoded and showing item 0 in {dt_ms:.1f} ms")
+                from logging import getLogger
+                getLogger("ipo").info(f"[queue] decoded and showing item 0 in {dt_ms:.1f} ms")
             except Exception:
-                pass
+                try:
+                    print(f"[queue] decoded and showing item 0 in {dt_ms:.1f} ms")
+                except Exception:
+                    pass
             # Predicted value per queue item
             v_text = "Value: n/a"
             try:

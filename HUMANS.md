@@ -31,3 +31,6 @@ Open questions (architecture):
 Race when saving many (Nov 20, 2025):
 - Cause: dataset row directories were picked by scanning and then creating with `exist_ok=True`, so two fast saves could occasionally choose the same next index.
 - Fix: we now create the directory atomically with `os.mkdir(sample_dir)` in a small incrementing loop until success. Folder names remain numeric (`000001`, `000002`, …), and this avoids collisions without adding heavy locking.
+Q (Nov 20, 2025): Please show Train score in the sidebar.
+
+A: It is shown in two places: (1) a small metric row near the top next to “Dataset rows”, and (2) inside the “Train results” expander. With no usable rows yet, it displays “n/a” until at least one labeled pair exists (and dims match the current latent size).

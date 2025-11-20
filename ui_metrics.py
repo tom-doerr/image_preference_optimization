@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional, List
 import numpy as np
 
 
-def render_iter_step_scores(
-    st: Any,
+def compute_step_scores(
     lstate: Any,
     prompt: str,
     vm_choice: str,
     iter_steps: int,
-    iter_eta: float | None,
-    trust_r: float | None,
-) -> None:
-    """Render per-step latent optimization scores into the sidebar.
-
-    Minimal dependency surface; reads dataset via persistence helper and uses
-    latent_logic scorers or Ridge/XGB depending on `vm_choice`.
-    """
+    iter_eta: Optional[float],
+    trust_r: Optional[float],
+    session_state: Any,
+) -> Optional[List[float]]:
+    """Compute per-step scores along d1. Returns None when unfitted/unavailable."""
     try:
         from latent_logic import z_from_prompt  # type: ignore
         # Gather weights and scorer status
@@ -28,11 +24,11 @@ def render_iter_step_scores(
         status = "ok"
         try:
             from value_scorer import get_value_scorer_with_status as _gvs
-            scorer, status = _gvs(vm_choice, lstate, prompt, st.session_state)
+            scorer, status = _gvs(vm_choice, lstate, prompt, session_state)
         except Exception:
             try:
                 from value_scorer import get_value_scorer as _gvs2
-                scorer = _gvs2(vm_choice, lstate, prompt, st.session_state)
+                scorer = _gvs2(vm_choice, lstate, prompt, session_state)
                 status = "ok"
             except Exception:
                 scorer = None
@@ -40,13 +36,7 @@ def render_iter_step_scores(
 
         # If no usable weights/scorer, prefer showing n/a rather than zeros
         if (vm_choice == "Ridge" and (w is None or n == 0.0)) or (vm_choice != "Ridge" and status != "ok"):
-            st.sidebar.write("Step scores: n/a")
-            try:
-                from ui import sidebar_metric_rows
-                sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
-            except Exception:
-                pass
-            return
+            return None
 
         # Compute step scores along d1 ∥ w
         d1 = w / n
@@ -69,17 +59,37 @@ def render_iter_step_scores(
             except Exception:
                 s = float(np.dot(lstate.w[: lstate.d], (zc - z_p)))
             scores.append(s)
+        return scores
+    except Exception:
+        return None
 
+
+def render_iter_step_scores(
+    st: Any,
+    lstate: Any,
+    prompt: str,
+    vm_choice: str,
+    iter_steps: int,
+    iter_eta: float | None,
+    trust_r: float | None,
+) -> None:
+    scores = compute_step_scores(lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state)
+    if scores is None:
         try:
-            st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
-        except Exception:
-            pass
-        try:
+            st.sidebar.write("Step scores: n/a")
             from ui import sidebar_metric_rows
-            pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
-            sidebar_metric_rows(pairs, per_row=2)
+            sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
         except Exception:
             pass
+        return
+    try:
+        st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
+    except Exception:
+        pass
+    try:
+        from ui import sidebar_metric_rows
+        pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
+        sidebar_metric_rows(pairs, per_row=2)
     except Exception:
         pass
 

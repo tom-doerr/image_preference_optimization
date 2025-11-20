@@ -956,3 +956,5 @@ Vast.ai quickstart (Nov 20, 2025)
 - Bare‑metal (no Docker): `bash scripts/setup_venv.sh cu121 && source .venv/bin/activate && pip install -r requirements.txt && streamlit run app.py` (GPU required).
 Save race fix (Nov 20, 2025):
 - Observed occasional race when many samples are saved quickly (duplicate row index). `persistence.append_dataset_row` now allocates the next folder by scanning once, then atomically creating the directory with `os.mkdir(...)` in a short incrementing loop. This avoids collisions across concurrent saves while keeping numeric folder names and minimal code.
+Train score visibility (Nov 20, 2025):
+- Confirmed the sidebar renders Train score in two places: a concise strip near the top via `sidebar_metric_rows([("Dataset rows", …), ("Train score", …)])`, and again inside the “Train results” expander as plain text. When no data is available or dims mismatch, it shows `n/a` by design.

@@ -3,6 +3,27 @@ from __future__ import annotations
 from typing import Any, Tuple
 import numpy as np
 from constants import Keys
+import logging as _logging
+
+LOGGER = _logging.getLogger("ipo")
+if not LOGGER.handlers:
+    try:
+        _h = _logging.FileHandler("ipo.debug.log")
+        _h.setFormatter(_logging.Formatter("%(asctime)s %(levelname)s batch_ui: %(message)s"))
+        LOGGER.addHandler(_h)
+        LOGGER.setLevel(_logging.INFO)
+    except Exception:
+        pass
+
+def _log(msg: str, level: str = "info") -> None:
+    try:
+        print(msg)
+    except Exception:
+        pass
+    try:
+        getattr(LOGGER, level, LOGGER.info)(msg)
+    except Exception:
+        pass
 
 __all__ = [
     '_lstate_and_prompt',
@@ -35,10 +56,7 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     r = lstate.rng.standard_normal(lstate.d)
     r = r / (np.linalg.norm(r) + 1e-12)
     z = z_p + lstate.sigma * float(scale) * r
-    try:
-        print(f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}")
-    except Exception:
-        pass
+    _log(f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}")
     return z
 
 
@@ -108,9 +126,9 @@ def _curation_new_batch() -> None:
         pass
     try:
         dt_ms = (_time.perf_counter() - t0) * 1000.0
-        print(f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} in {dt_ms:.1f} ms")
     except Exception:
-        pass
+        dt_ms = -1.0
+    _log(f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} in {dt_ms:.1f} ms")
 
 
 def _curation_replace_at(idx: int) -> None:
@@ -339,9 +357,9 @@ def _render_batch_ui() -> None:
                 )
                 try:
                     dt_ms = (_time.perf_counter() - t0) * 1000.0
-                    print(f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})")
                 except Exception:
-                    pass
+                    dt_ms = -1.0
+                _log(f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})")
                 # Predicted value using current value model scorer
                 v_text = "Value: n/a"
                 if scorer is not None and z_p is not None:
@@ -371,10 +389,7 @@ def _render_batch_ui() -> None:
                             getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
                         except Exception:
                             pass
-                        try:
-                            print(f"[perf] best_of choose item={i} took {(_time.perf_counter()-t0b)*1000:.1f} ms")
-                        except Exception:
-                            pass
+                        _log(f"[perf] best_of choose item={i} took {(_time.perf_counter()-t0b)*1000:.1f} ms")
                 else:
                     btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
@@ -412,10 +427,7 @@ def _render_batch_ui() -> None:
                             getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
                         except Exception:
                             pass
-                        try:
-                            print(f"[perf] good_label item={i} took {(_time.perf_counter()-t0g)*1000:.1f} ms")
-                        except Exception:
-                            pass
+                        _log(f"[perf] good_label item={i} took {(_time.perf_counter()-t0g)*1000:.1f} ms")
                     if _bad_clicked():
                         t0b2 = _time.perf_counter()
                         _curation_add(-1, z_i, img_i)
@@ -426,10 +438,7 @@ def _render_batch_ui() -> None:
                             getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
                         except Exception:
                             pass
-                        try:
-                            print(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0b2)*1000:.1f} ms")
-                        except Exception:
-                            pass
+                        _log(f"[perf] bad_label item={i} took {(_time.perf_counter()-t0b2)*1000:.1f} ms")
 
             # Wrap each tile in its own fragment when available so the
             # latent sampling, decode, buttons, and saves are scoped per
