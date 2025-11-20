@@ -14,7 +14,8 @@ class TestPromptAnchorOrth(unittest.TestCase):
 
     def test_has_orth_component(self):
         st = init_latent_state(width=320, height=256, seed=1)
-        w = np.zeros(st.d); w[0] = 1.0
+        w = np.zeros(st.d)
+        w[0] = 1.0
         st.w = w
         z1, z2 = propose_pair_prompt_anchor_iterative(st, "q", steps=2, trust_r=1.0, gamma=0.3)
         zp = z_from_prompt(st, "q")
@@ -27,4 +28,3 @@ class TestPromptAnchorOrth(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

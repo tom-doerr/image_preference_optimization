@@ -1,7 +1,5 @@
-import sys
 import types
 import unittest
-import numpy as np
 
 
 class Session(dict):

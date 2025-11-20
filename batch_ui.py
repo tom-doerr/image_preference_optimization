@@ -382,19 +382,25 @@ def _render_batch_ui() -> None:
 
                     nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
-                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
+                    def _btn_key(prefix: str, idx: int) -> str:
+                        try:
+                            seq = int(st.session_state.get("btn_seq", 0)) + 1
+                        except Exception:
+                            seq = 1
+                        st.session_state["btn_seq"] = seq
+                        return f"{prefix}_{render_nonce}_{nonce}_{idx}_{seq}"
 
                     def _good_clicked() -> bool:
                         if gcol is not None:
                             with gcol:
-                                return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{nonce}_{i}", width="stretch")
-                        return st.button(f"Good (+1) {i}", key=f"good_{render_nonce}_{nonce}_{i}", width="stretch")
+                                return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
+                        return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
 
                     def _bad_clicked() -> bool:
                         if bcol is not None:
                             with bcol:
-                                return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{nonce}_{i}", width="stretch")
-                        return st.button(f"Bad (-1) {i}", key=f"bad_{render_nonce}_{nonce}_{i}", width="stretch")
+                                return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
+                        return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
 
                     if _good_clicked():
                         t0g = _time.perf_counter()

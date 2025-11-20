@@ -145,7 +145,7 @@ class TestExportImportPromptMeta(unittest.TestCase):
         fl.set_model = lambda *a, **kw: None
         sys.modules['flux_local'] = fl
         import app as maker
-        data = maker._export_state_bytes(maker.st.session_state.lstate, 'prompt B')
+        _ = maker._export_state_bytes(maker.st.session_state.lstate, 'prompt B')
 
         # Upload/import path removed; nothing to assert here
         return

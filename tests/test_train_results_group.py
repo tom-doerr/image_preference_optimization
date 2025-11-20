@@ -25,7 +25,6 @@ class TestTrainResultsGroup(unittest.TestCase):
         fl.get_last_call = lambda: {}
         sys.modules['flux_local'] = fl
 
-        import app  # render sidebar
         out = "\n".join(writes)
         self.assertIn('Train results', labels)
         self.assertIn('Train score:', out)

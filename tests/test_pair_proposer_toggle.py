@@ -30,7 +30,9 @@ class TestPairProposerToggle(unittest.TestCase):
             del sys.modules['app']
         import app
         # Inject a tiny dataset so cosinehill proposer is used
-        X = np.zeros((2, app.st.session_state.lstate.d)); X[0,0]=1; X[1,0]=-1
+        X = np.zeros((2, app.st.session_state.lstate.d))
+        X[0,0] = 1
+        X[1,0] = -1
         y = np.array([1.0, -1.0], dtype=float)
         app.st.session_state.dataset_X = X
         app.st.session_state.dataset_y = y

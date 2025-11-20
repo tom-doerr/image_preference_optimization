@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import unittest
 from persistence import append_dataset_row
@@ -11,7 +10,6 @@ class TestDatasetBackups(unittest.TestCase):
         feat = np.zeros((1, 8))
         # Append one row; this writes a folder sample and its backup
         append_dataset_row(prompt, feat, +1.0)
-        h = __import__("hashlib").sha1(prompt.encode("utf-8")).hexdigest()[:10]
         root = "."
         # Check backups folders are non-empty
         mins = os.listdir(os.path.join(root, 'backups', 'minutely'))

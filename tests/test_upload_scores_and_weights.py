@@ -53,17 +53,18 @@ class UploadScoresWeightsTest(unittest.TestCase):
         lo = types.ModuleType("latent_opt")
         lo.z_to_latents = lambda z, lstate: z.reshape(1, 1, 2, 2)
         lo.z_from_prompt = ll.z_from_prompt
-        lo.loads_state = lambda *a, **k: state
+        # Minimal state passthroughs use the current session state's lstate
+        lo.loads_state = lambda *a, **k: st.session_state.lstate
         lo.save_state = lambda *a, **k: None
-        lo.init_latent_state = lambda *a, **k: state
-        lo.load_state = lambda *a, **k: state
-        lo.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(state.d), np.zeros(state.d))
-        lo.propose_pair_prompt_anchor = lambda *a, **k: (np.zeros(state.d), np.zeros(state.d))
-        lo.propose_pair_prompt_anchor_iterative = lambda *a, **k: (np.zeros(state.d), np.zeros(state.d))
-        lo.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (np.zeros(state.d), np.zeros(state.d))
+        lo.init_latent_state = lambda *a, **k: st.session_state.lstate
+        lo.load_state = lambda *a, **k: st.session_state.lstate
+        lo.propose_latent_pair_ridge = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_pair_prompt_anchor = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_pair_prompt_anchor_iterative = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
+        lo.propose_pair_prompt_anchor_linesearch = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
         lo.update_latent_ridge = lambda *a, **k: None
         lo.dumps_state = lambda *a, **k: b""
-        lo.propose_next_pair = lambda *a, **k: (np.zeros(state.d), np.zeros(state.d))
+        lo.propose_next_pair = lambda *a, **k: (np.zeros(st.session_state.lstate.d), np.zeros(st.session_state.lstate.d))
         lo.state_summary = lambda *a, **k: {
             "pairs": 0,
             "choices": 0,

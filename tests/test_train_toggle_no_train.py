@@ -1,7 +1,6 @@
 import sys
 import types
 import unittest
-import numpy as np
 from tests.helpers.st_streamlit import stub_basic
 
 

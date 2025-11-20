@@ -1,5 +1,3 @@
-import sys
-import types
 import unittest
 import numpy as np
 from latent_opt import init_latent_state, z_from_prompt
@@ -21,7 +19,8 @@ class TestPromptAnchorProposal(unittest.TestCase):
         st = init_latent_state(width=320, height=256, seed=1)
         zp = z_from_prompt(st, "p2")
         # Create a synthetic pair around zp
-        d = np.zeros(st.d); d[0] = 1.0
+        d = np.zeros(st.d)
+        d[0] = 1.0
         za = zp + d
         zb = zp - d
         update_latent_ridge(st, za, zb, 'a', feats_a=(za - zp), feats_b=(zb - zp))
@@ -34,4 +33,3 @@ class TestPromptAnchorProposal(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

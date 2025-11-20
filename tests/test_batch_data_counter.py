@@ -1,9 +1,7 @@
-import os
 import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_with_writes
-from persistence import dataset_rows_for_prompt
 
 
 class TestBatchDataCounter(unittest.TestCase):
@@ -46,7 +44,6 @@ class TestBatchDataCounter(unittest.TestCase):
         del sys.modules['app']
         sys.modules['streamlit'] = st
         sys.modules['flux_local'] = fl
-        import app as app2
         out = "\n".join(writes)
         self.assertIn('Dataset rows:', out)
 

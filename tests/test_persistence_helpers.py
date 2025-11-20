@@ -32,7 +32,8 @@ class TestPersistenceHelpers(unittest.TestCase):
             items = {k: data[k] for k in data.files}
         items['created_at'] = np.array('2025-11-13T00:00:00+00:00')
         items['app_version'] = np.array('0.1.0')
-        buf = io.BytesIO(); np.savez_compressed(buf, **items)
+        buf = io.BytesIO()
+        np.savez_compressed(buf, **items)
         with open(path, 'wb') as f:
             f.write(buf.getvalue())
         meta = read_metadata(path)
@@ -42,4 +43,3 @@ class TestPersistenceHelpers(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

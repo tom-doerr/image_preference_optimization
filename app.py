@@ -16,7 +16,7 @@ from constants import (
 )
 from constants import Config, Keys
 from env_info import get_env_summary
-from ui import sidebar_metric_rows, env_panel, status_panel, perf_panel
+from ui import sidebar_metric_rows, env_panel, perf_panel
 import batch_ui as _batch_ui
 from ui_metrics import render_iter_step_scores, render_mu_value_history
 from ui_controls import build_batch_controls, build_queue_controls, build_size_controls, build_pair_controls

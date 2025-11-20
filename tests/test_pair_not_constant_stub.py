@@ -64,10 +64,10 @@ class TestPairNotConstantStub(unittest.TestCase):
         return recorded
 
     def test_pair_images_have_variance_stub(self):
-        recorded = self._stub_stack()
+        self._stub_stack()
         import flux_local
         importlib.reload(flux_local)
-        from latent_opt import init_latent_state, z_from_prompt, z_to_latents, ProposerOpts, propose_next_pair
+        from latent_opt import init_latent_state, z_to_latents, ProposerOpts, propose_next_pair
 
         st = init_latent_state(width=320, height=256, seed=0)
         prompt = 'stub pair variance'
@@ -86,4 +86,3 @@ class TestPairNotConstantStub(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

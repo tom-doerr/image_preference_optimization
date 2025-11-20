@@ -18,6 +18,11 @@ Update (Nov 20, 2025): CV is now on-demand
 New (Nov 20, 2025): Ridge async toggle
 - Added a tiny policy flag `ridge_train_async` (default False). When set to True (via sidebar checkbox or by setting `st.session_state.ridge_train_async = True`), Ridge fits run in the background using the existing executor. UI stays responsive even for very large d.
 - Status isn’t shown separately; you can inspect `st.session_state.ridge_fit_future` if you need to know when it finished. Kept minimal to avoid extra UI.
+
+Open questions (architecture):
+1) OK to add a tiny lock around `lstate.w` writes when Ridge async is on? It’s minimal and removes any race risk.
+2) Should we unify training status under a single `train_status` dict keyed by model (`{"ridge": "running|ok", "xgb": …}`) instead of separate keys?
+3) Do you want CV cache entries keyed by a small fingerprint (rows, λ, xgb params) to avoid confusion when hyperparams change between CV runs?
 - Architecture questions (Nov 20, 2025):
 1) Is it acceptable to add a tiny lock around `lstate` updates when Ridge async is on (to avoid any chance of races), or do you prefer we keep it minimal and only revisit if we see issues?
 2) Do you want all modules to switch to the `ipo` logger now (batch_ui/queue_ui/app) or keep prints for a while and converge gradually?

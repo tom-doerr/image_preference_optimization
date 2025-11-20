@@ -671,7 +671,11 @@ Dataset versioning (Nov 18, 2025):
 
 Batch labeling (Nov 18, 2025):
 - Bei „Good/Bad“ im Batch wird jetzt der gesamte Batch neu erzeugt (statt nur das angeklickte Item zu ersetzen). Das hält den Flow konsistent und vermeidet halb‑alten Batch‑Zustand. Test: `tests/test_batch_label_refreshes_full_batch.py` (mind. zwei Items ändern sich).
- - Zusätzlich: Nach jedem neuen Sample wird das Value‑Modell unmittelbar neu trainiert (Refit aus Dataset) – sowohl im Batch‑Klickpfad als auch in Queue/Pair (dort ohnehin vorhanden). Timestamp „Last train“ wird aktualisiert. Test: `tests/test_batch_click_trains_sets_timestamp.py`.
+- Zusätzlich: Nach jedem neuen Sample wird das Value‑Modell unmittelbar neu trainiert (Refit aus Dataset) – sowohl im Batch‑Klickpfad als auch in Queue/Pair (dort ohnehin vorhanden). Timestamp „Last train“ wird aktualisiert. Test: `tests/test_batch_click_trains_sets_timestamp.py`.
+
+Duplicate key guard (Nov 20, 2025):
+- We hit a `StreamlitDuplicateElementKey` for `good_*` under fragment re-renders in the wild. Keys already included `(render_nonce, batch_nonce, idx)`, but rare double executions within a tile could still collide.
+- Fix: add a tiny per-render sequence `btn_seq` and incorporate it into Good/Bad keys via a helper `_btn_key(prefix, idx)`. This keeps keys unique even if a tile renders twice in a single pass.
 - Neue Option: „Best-of batch (one winner)“ im Batch-Modus. Ein Klick auf „Choose i“ markiert das gewählte Bild als +1 und alle übrigen im aktuellen Batch als −1, schreibt alle Labels ins Dataset und erzeugt danach einen frischen Batch. Test: `tests/test_batch_best_of_mode.py`.
 
 Ridge‑λ Bedienung (Nov 18, 2025):
@@ -904,6 +908,11 @@ Architecture notes (Nov 20, 2025, further):
 - Logging: `value_model` now logs via the shared `ipo` logger and still prints for tests. Converge other modules (batch_ui/queue_ui/app) to the same logger over time.
 - Module size: app.py remains large. We already split helpers (`ui_controls.py`, `ui_metrics.py`, `persistence_ui.py`); consider a small `ui_sidebar.py` if we touch the sidebar again.
 - Decode backend: `flux_local` is the single gateway with a global PIPE and `PIPE_LOCK` — keep all decode paths going through it. If the image server grows, introduce a tiny decode interface without adding fallbacks.
+
+Architecture notes (Nov 20, 2025, latest):
+- CV cache invalidation: with on‑demand CV, cache should be keyed by (rows, lam, xgb hyperparams). Right now it’s overwritten on button press only; acceptable, but add a simple fingerprint later if confusion arises.
+- Unified training status: XGB has `xgb_train_status`; Ridge async sets a Future but no status line. If desired, mirror a tiny `ridge_train_status` or reuse a generic `train_status[model]` map.
+- Button key counter: `btn_seq` increments per render to avoid duplicate keys; low risk but monotonically increases across reruns. If needed, reset it at the start of `_render_batch_ui()`.
 
 Keys constants (Nov 20, 2025):
 - Introduced `constants.Keys` for common `st.session_state` keys used in hot paths:

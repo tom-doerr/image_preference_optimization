@@ -23,7 +23,7 @@ def test_set_model_uses_lcm_for_turbo(monkeypatch):
         def from_config(cls, cfg):
             calls["cfg"] = cfg
             return "LCM_SCHEDULER"
-    import sys, types
+    import sys
     fake_diffusers = types.SimpleNamespace(LCMScheduler=_LCM)
     monkeypatch.setitem(sys.modules, 'diffusers', fake_diffusers)
 

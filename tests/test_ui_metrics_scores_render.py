@@ -24,7 +24,8 @@ class TestUIMetricsScoresRender(unittest.TestCase):
         lstate = types.SimpleNamespace(d=d, w=np.ones(d, dtype=float), sigma=1.0)
         # Session dataset
         X = np.zeros((2, d), dtype=float)
-        X[0, 0] = 1.0; X[1, 1] = -1.0
+        X[0, 0] = 1.0
+        X[1, 1] = -1.0
         y = np.array([+1.0, -1.0], dtype=float)
         st.session_state['dataset_X'] = X
         st.session_state['dataset_y'] = y
@@ -35,4 +36,3 @@ class TestUIMetricsScoresRender(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

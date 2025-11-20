@@ -1,5 +1,3 @@
-import sys
-import types
 import unittest
 import numpy as np
 from latent_state import init_latent_state
@@ -13,7 +11,8 @@ class TestHillClimbDistance(unittest.TestCase):
         z_p = z_from_prompt(st, prompt)
         d = st.d
         # Construct one positive near +e1 and one negative near -e1
-        e1 = np.zeros(d); e1[0] = 3.0
+        e1 = np.zeros(d)
+        e1[0] = 3.0
         z_pos = z_p + e1
         z_neg = z_p - e1
         X = np.vstack([z_pos - z_p, z_neg - z_p])
@@ -32,4 +31,3 @@ class TestHillClimbDistance(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

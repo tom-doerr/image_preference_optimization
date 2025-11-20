@@ -1,7 +1,4 @@
-import sys
-import types
 import unittest
-from tests.helpers.st_streamlit import stub_with_writes
 
 
 class TestSidebarTrainScore(unittest.TestCase):
