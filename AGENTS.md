@@ -886,6 +886,9 @@ Updates (Nov 20, 2025):
 - Sidebar trim (Nov 20, 2025): Removed the “Images status” block (Left/Right ready/empty) to reduce clutter; metrics panels remain.
 - Step scores display (Nov 20, 2025): For compactness, the sidebar writes the first 8 values on one line and shows metrics for the first 4 steps. The underlying `iter_steps` can be larger (e.g., 10). If needed, expose all steps or label as “(first 4 of N)”.
 - UI polish (Nov 20, 2025): "Last train" is now rendered as a plain text line (`st.sidebar.write`) instead of a metric tile to avoid implying numeric comparison semantics; tests already assert on the textual "Last train:" line.
+- CLI polish (Nov 20, 2025): Added `rich_cli.enable_color_print()` which colors lines starting with bracketed tags (e.g., `[pipe]`, `[perf]`, `[batch]`, `[xgb]`), while preserving the original text so greps/tests continue to match. Optional details line parses `key=value` tokens for readability. Env toggles:
+  - `RICH_CLI=0` disables coloring.
+  - `RICH_CLI_DETAILS=0` disables the parsed details line.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.

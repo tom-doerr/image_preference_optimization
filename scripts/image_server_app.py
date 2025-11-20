@@ -7,6 +7,12 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+try:
+    from rich_cli import enable_color_print as _enable_color
+    _enable_color()
+except Exception:
+    pass
+
 
 def _b64_png(img) -> str:
     try:
@@ -83,4 +89,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -149,7 +149,7 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
 def _curation_train_and_next() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import fit_value_model, ensure_fitted
+    from value_model import ensure_fitted
     lstate, prompt = _lstate_and_prompt()
     # Track async XGB training status in session for UI/reruns
     st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
@@ -170,28 +170,22 @@ def _curation_train_and_next() -> None:
         try:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
             vm_train = str(st.session_state.get(Keys.VM_CHOICE))
-            # First ensure an initial fit when needed; keep async inside fit_value_model
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
-            from datetime import datetime, timezone
-            min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
-            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-            if min_wait > 0 and last_at:
-                try:
-                    last_dt = datetime.fromisoformat(last_at)
-                except Exception:
-                    last_dt = None
-                if last_dt:
-                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
-                    if elapsed < min_wait:
-                        st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
-                        return
-            st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            # fit_value_model handles async internally when vm_train==XGBoost and xgb_train_async is True.
-            fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            import value_model as _vm
+            # Ensure status is visible immediately for tests/UI
+            try:
+                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+            except Exception:
+                pass
+            tr = getattr(_vm, 'train_and_record', None)
+            if callable(tr):
+                tr(vm_train, lstate, X, y, lam_now, st.session_state)
+            else:
+                _vm.fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
         except Exception:
             pass
     _curation_new_batch()
@@ -200,7 +194,7 @@ def _curation_train_and_next() -> None:
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import fit_value_model, ensure_fitted
+    from value_model import ensure_fitted
     lstate, prompt = _lstate_and_prompt()
     st.session_state.pop("xgb_fit_future", None)
     st.session_state.pop("xgb_train_status", None)
@@ -219,25 +213,20 @@ def _refit_from_dataset_keep_batch() -> None:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
             vm_train = str(st.session_state.get(Keys.VM_CHOICE))
             ensure_fitted(vm_train, lstate, X, y, lam_now, st.session_state)
-            from datetime import datetime, timezone
-            min_wait = float(st.session_state.get("min_train_interval_s", 0.0))
-            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-            if min_wait > 0 and last_at:
-                try:
-                    last_dt = datetime.fromisoformat(last_at)
-                except Exception:
-                    last_dt = None
-                if last_dt:
-                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
-                    if elapsed < min_wait:
-                        st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
-                        return
-            st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
+            import value_model as _vm
+            try:
+                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam_now)}
+            except Exception:
+                pass
+            tr = getattr(_vm, 'train_and_record', None)
+            if callable(tr):
+                tr(vm_train, lstate, X, y, lam_now, st.session_state)
+            else:
+                _vm.fit_value_model(vm_train, lstate, X, y, lam_now, st.session_state)
     except Exception:
         pass
 

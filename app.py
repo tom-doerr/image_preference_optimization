@@ -1,4 +1,9 @@
 import streamlit as st
+try:
+    from rich_cli import enable_color_print as _enable_color
+    _enable_color()
+except Exception:
+    pass
 import numpy as np
 from typing import Optional, Tuple
 import os
@@ -1127,8 +1132,13 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, 'shape', (0,))[0] > 0:
             lam_now = float(getattr(_st.session_state, 'reg_lambda', reg_lambda))
-            fit_value_model(_st.session_state.get('vm_choice'),
-                           lstate, X, y, lam_now, _st.session_state)
+            import value_model as _vm
+            tr = getattr(_vm, 'train_and_record', None)
+            vmc = _st.session_state.get('vm_choice')
+            if callable(tr):
+                tr(vmc, lstate, X, y, lam_now, _st.session_state)
+            else:
+                fit_value_model(vmc, lstate, X, y, lam_now, _st.session_state)
     except Exception:
         pass
 

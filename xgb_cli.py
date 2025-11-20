@@ -67,3 +67,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+try:
+    from rich_cli import enable_color_print as _enable_color
+    _enable_color()
+except Exception:
+    pass

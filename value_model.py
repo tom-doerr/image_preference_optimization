@@ -10,6 +10,7 @@ from constants import Keys
 __all__ = [
     'fit_value_model',
     'ensure_fitted',
+    'train_and_record',
 ]
 
 
@@ -161,3 +162,41 @@ def ensure_fitted(
             session_state["auto_fit_done"] = True
         except Exception:
             pass
+
+
+def train_and_record(
+    vm_choice: str,
+    lstate: Any,
+    X: np.ndarray,
+    y: np.ndarray,
+    lam: float,
+    session_state: Any,
+) -> str:
+    """Single training entry used by Batch/Queue/Pair.
+
+    - Applies a minimal cooldown via session_state['min_train_interval_s'].
+    - Sets xgb_train_status to 'running' or 'waiting'.
+    - Delegates to fit_value_model and returns 'ok' when training triggered.
+    """
+    try:
+        from datetime import datetime, timezone
+        min_wait = float(session_state.get("min_train_interval_s", 0.0))
+        last_at = session_state.get(Keys.LAST_TRAIN_AT)
+        if min_wait > 0 and last_at:
+            try:
+                last_dt = datetime.fromisoformat(last_at)
+            except Exception:
+                last_dt = None
+            if last_dt is not None:
+                elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                if elapsed < min_wait:
+                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam)}
+                    return "waiting"
+    except Exception:
+        pass
+    try:
+        session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(getattr(X, 'shape', (0,))[0]), "lam": float(lam)}
+    except Exception:
+        pass
+    fit_value_model(vm_choice, lstate, X, y, lam, session_state)
+    return "ok"
