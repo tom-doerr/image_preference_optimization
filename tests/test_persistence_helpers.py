@@ -11,7 +11,7 @@ class TestPersistenceHelpers(unittest.TestCase):
     def test_state_path_for_prompt_sha(self):
         p = "hello world"
         h = hashlib.sha1(p.encode("utf-8")).hexdigest()[:10]
-        self.assertEqual(state_path_for_prompt(p), f"latent_state_{h}.npz")
+        self.assertEqual(state_path_for_prompt(p), f"data/{h}/latent_state.npz")
 
     def test_export_state_bytes_schema(self):
         st = init_latent_state(d=4, seed=0)

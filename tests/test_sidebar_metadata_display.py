@@ -15,7 +15,9 @@ class Session(dict):
 
 def state_path_for_prompt(prompt: str) -> str:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    return f"latent_state_{h}.npz"
+    path = os.path.join("data", h, "latent_state.npz")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return path
 
 
 def stub_streamlit(prompt):

@@ -31,7 +31,7 @@ def test_sidebar_tail_renders_minimal():
         st,
         _LS(),
         "demo prompt",
-        "latent_state_demo.npz",
+        "data/demo/latent_state.npz",
         "Ridge",
         3,
         None,

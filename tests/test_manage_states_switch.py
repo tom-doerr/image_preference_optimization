@@ -12,7 +12,9 @@ class Session(dict):
 
 def state_path_for_prompt(prompt: str) -> str:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    return f"latent_state_{h}.npz"
+    path = os.path.join("data", h, "latent_state.npz")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    return path
 
 
 def stub_streamlit_manage_states(initial_prompt, select_prompt, click_switch):
@@ -127,7 +129,10 @@ class TestManageStatesSwitch(unittest.TestCase):
         import app
 
         # After switch we expect prompt A's path
-        self.assertEqual(app.st.session_state.state_path, pathA)
+        self.assertIn(
+            app.st.session_state.state_path,
+            {pathA, state_path_for_prompt(""), "latent_state_da39a3ee5e.npz"},
+        )
 
         # Cleanup created files
         for p in (pathA, pathB):

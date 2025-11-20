@@ -13,7 +13,13 @@ from latent_opt import dumps_state
 
 def state_path_for_prompt(prompt: str) -> str:
     h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-    return f"latent_state_{h}.npz"
+    root = data_root_for_prompt(prompt)
+    os.makedirs(root, exist_ok=True)
+    new_path = os.path.join(root, "latent_state.npz")
+    legacy_path = f"latent_state_{h}.npz"
+    if os.path.exists(legacy_path) and not os.path.exists(new_path):
+        return legacy_path
+    return new_path
 
 
 def _base_data_dir() -> str:
