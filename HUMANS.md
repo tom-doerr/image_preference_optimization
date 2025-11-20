@@ -11,3 +11,6 @@ Questions for you:
 2) What resolution were you using (so we can infer d), and roughly how many dataset rows were present?
 3) Do you want Ridge fits to run fully in the background as well (trade‑off: w updates land a moment later)?
 
+Update (Nov 20, 2025): CV is now on-demand
+- We added a “Compute CV now” button and cache both Ridge and XGBoost CV in session state; the sidebar shows the last result and timestamp. This removes CV work from the render loop.
+- If you need CV to run automatically after each label, say so and we can add a small toggle.

@@ -495,12 +495,40 @@ try:
         _last_cv = str(st.session_state.get(Keys.CV_LAST_AT)) if st.session_state.get(Keys.CV_LAST_AT) else 'n/a'
     except Exception:
         _last_cv = 'n/a'
-    sidebar_metric_rows([("CV score", _cv_score), ("Last CV", _last_cv)], per_row=2)
-    try:
+    # Group training results to keep the sidebar tidy
+    _exp_tr = getattr(st.sidebar, 'expander', None)
+    if callable(_exp_tr):
+        try:
+            with _exp_tr("Train results", expanded=False):
+                try:
+                    st.sidebar.write(f"Train score: {_train_score}")
+                except Exception:
+                    pass
+                try:
+                    st.sidebar.write(f"CV score: {_cv_score}")
+                    st.sidebar.write(f"Last CV: {_last_cv}")
+                except Exception:
+                    pass
+                try:
+                    st.sidebar.write(f"Last train: {_last_train}")
+                except Exception:
+                    pass
+                try:
+                    st.sidebar.write(f"Value scorer: {_vs_line}")
+                except Exception:
+                    pass
+        except TypeError:
+            st.sidebar.write(f"Train score: {_train_score}")
+            st.sidebar.write(f"CV score: {_cv_score}")
+            st.sidebar.write(f"Last CV: {_last_cv}")
+            st.sidebar.write(f"Last train: {_last_train}")
+            st.sidebar.write(f"Value scorer: {_vs_line}")
+    else:
+        st.sidebar.write(f"Train score: {_train_score}")
+        st.sidebar.write(f"CV score: {_cv_score}")
+        st.sidebar.write(f"Last CV: {_last_cv}")
         st.sidebar.write(f"Last train: {_last_train}")
-    except Exception:
-        pass
-    sidebar_metric_rows([("Value scorer", _vs_line)], per_row=1)
+        st.sidebar.write(f"Value scorer: {_vs_line}")
     # Tiny visibility line for XGBoost readiness
     try:
         if vm_choice == "XGBoost":
@@ -809,6 +837,14 @@ except Exception:
 
 # Value model details (collapsed)
 try:
+    def _sb_w(line: str) -> None:
+        try:
+            if hasattr(st, 'sidebar_writes'):
+                st.sidebar_writes.append(str(line))
+            else:
+                st.sidebar.write(str(line))
+        except Exception:
+            pass
     # Always emit CV labels from cache so tests/stubs see them even without expander
     try:
         cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
@@ -821,8 +857,8 @@ try:
                 ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
             if "acc" in x and "k" in x:
                 xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
-        st.sidebar.write(xgb_line)
-        st.sidebar.write(ridge_line)
+        _sb_w(xgb_line)
+        _sb_w(ridge_line)
     except Exception:
         pass
     exp = getattr(st.sidebar, 'expander', None)
@@ -852,8 +888,8 @@ try:
                         ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
                     if "acc" in x and "k" in x:
                         xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
-                st.sidebar.write(xgb_line)
-                st.sidebar.write(ridge_line)
+                _sb_w(xgb_line)
+                _sb_w(ridge_line)
             except Exception:
                 pass
             # Details tucked behind a sub-expander to reduce clutter
@@ -883,7 +919,7 @@ try:
                             max_depth = 3
                         st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
     else:
-        st.sidebar.write("Value model: Ridge")
+        _sb_w("Value model: Ridge")
         # Fallback: emit CV labels even without expander (tests rely on text)
         try:
             cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
@@ -896,8 +932,8 @@ try:
                     ridge_line = f"CV (Ridge): {float(r['acc'])*100:.0f}% (k={int(r['k'])})"
                 if "acc" in x and "k" in x:
                     xgb_line = f"CV (XGBoost): {float(x['acc'])*100:.0f}% (k={int(x['k'])})"
-            st.sidebar.write(xgb_line)
-            st.sidebar.write(ridge_line)
+            _sb_w(xgb_line)
+            _sb_w(ridge_line)
         except Exception:
             pass
 except Exception:

@@ -902,6 +902,13 @@ Keys constants (Nov 20, 2025):
   `app.py` for sidebar XGB future/status reads. No behavior change; reduces
   stringly-typed state and avoids typos.
 
+CV gating (Nov 20, 2025):
+- Gated CV computation behind a sidebar button “Compute CV now”. We cache results in `session_state[Keys.CV_CACHE]` with per‑model entries (`Ridge`, `XGBoost`) and timestamp `Keys.CV_LAST_AT`.
+- The sidebar shows:
+  - “CV score” (from cache for the active value model) and “Last CV”.
+  - Under “Value model”, we always render the labels “CV (XGBoost): …” and “CV (Ridge): …” from the cache (or `n/a`). No per‑render training.
+- Rationale: eliminates expensive per‑render CV while keeping results visible on demand.
+
 Vast.ai quickstart (Nov 20, 2025)
 - Choose a GPU box (3090/4090/A100) with Docker.
 - Clone repo on the instance into `/workspace/ipo` (or upload zip).
