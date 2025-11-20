@@ -548,6 +548,8 @@ New learnings (Nov 20, 2025):
   - Extracted `_prepare_xgb_scorer` and `_sample_one_for_batch` from `_curation_new_batch` to reduce complexity and duplication.
   - Added `_curation_params()` to read steps/lr_mu/trust_r and VM choice once.
   - Tests cover both paths (`tests/test_sample_one_for_batch.py`).
+- Value model trainer (complexity):
+  - Split `fit_value_model` into two small helpers `_maybe_fit_xgb` and `_maybe_fit_ridge` to reduce branching and make async vs sync behavior explicit. Behavior unchanged; tests for non‑blocking training remain green.
 - Sidebar cleanup: grouped “Train results” expander (Train/CV/Last train/Scorer status); removed “Images status”.
 - Dataset is folder‑only: all rows read/written under `data/<hash>/<row>/sample.npz`. Aggregated `dataset_*.npz` is ignored.
 - “Dataset rows” autorefreshes every 1s; added dim‑scoped count “Rows (this d)”. Dropped “Rows (all)”.
