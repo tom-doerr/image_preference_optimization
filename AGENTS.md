@@ -1132,6 +1132,7 @@ New learnings (Nov 20, 2025, evening):
 - Scheduler guard for None steps: `generate_flux_image_latents` defaults `steps=None` to 20 and sets scheduler timesteps; covered by `tests/test_flux_latents_steps_default.py`.
 - Queue captions: async queue images now include the value estimate; test `tests/test_async_queue_value_caption.py` pins the caption text via stubbed scorer.
 - Consolidation status (Nov 20, 2025): main is clean and pushed at `15ac70a` with the above UI/tests updates. Temporary `.tmp_test*` artifacts were removed.
+- Consolidation check (Nov 20, 2025, later): main still clean and pushed (HEAD `dc81006`, tags clean).
 
 Keep in mind:
 - When adding any fragmentized function, never write to `st.sidebar` within it. Compute state → write in a non-fragment context.
