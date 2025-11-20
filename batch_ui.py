@@ -252,7 +252,7 @@ def _render_batch_ui() -> None:
         scorer, scorer_status = get_value_scorer_with_status(vm_choice, lstate, prompt, st.session_state)
         fut = st.session_state.get("xgb_fit_future")
         fut_running = bool(fut is not None and not getattr(fut, "done", lambda: False)())
-        if scorer_status != "ok" or fut_running:
+        if scorer_status != "ok":
             scorer = None
         z_p = z_from_prompt(lstate, prompt)
     except Exception:
@@ -336,8 +336,21 @@ def _render_batch_ui() -> None:
                         fvec = (z_i - z_p)
                         v = float(scorer(fvec))
                         v_str = f" (V={v:.3f})"
+                        try:
+                            st.caption(f"Score: {v:.3f}")
+                        except Exception:
+                            pass
                     except Exception:
-                        v_str = ""
+                        v_str = " (V=n/a)"
+                        try:
+                            st.caption("Score: n/a")
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        st.caption("Score: n/a")
+                    except Exception:
+                        pass
                 st.image(img_i, caption=f"Item {i}{v_str}", width="stretch")
 
                 if best_of:

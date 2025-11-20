@@ -1073,6 +1073,10 @@ def run_batch_mode() -> None:
 def run_upload_mode() -> None:
     st.subheader("Upload latents")
     lstate, prompt = _batch_ui._lstate_and_prompt()
+    from value_scorer import get_value_scorer_with_status
+    scorer, scorer_status = get_value_scorer_with_status(
+        st.session_state.get("vm_choice"), lstate, prompt, st.session_state
+    )
     uploads = getattr(st.sidebar, "file_uploader", lambda *a, **k: [])(
         "Upload images to use as latents", accept_multiple_files=True, type=["png", "jpg", "jpeg", "webp"]
     )
@@ -1110,6 +1114,14 @@ def run_upload_mode() -> None:
             guidance=guidance_eff,
         )
         st.image(img_dec, caption=f"Upload {idx}", width="stretch")
+        try:
+            if scorer is not None and scorer_status == "ok":
+                score_val = float(scorer(z - z_p))
+                st.caption(f"Score: {score_val:.3f}")
+            else:
+                st.caption("Score: n/a")
+        except Exception:
+            pass
         w_slider = st.slider(
             f"Weight upload {idx}",
             min_value=0.1,

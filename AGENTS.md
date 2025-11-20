@@ -780,3 +780,4 @@ New learnings (Nov 20, 2025):
 - Streamlit stub now returns the requested default for `checkbox` so async XGB stays on by default in tests; avoids false negatives in `test_xgb_train_async_default`.
 - Upload mode now has a per-image weight slider (0.1–2.0); Good/Bad applies ±weight to the stored label so stronger/weaker votes are possible without extra clicks.
 - Added a “Train value model” selector (XGBoost or Ridge) so you can choose the training backend independently of the active scorer; fit calls honor this choice across batch/auto-fit paths.
+- Scores are always shown under each batch and upload image; even during async fits we keep the cached scorer values (or display “n/a” when unavailable).
