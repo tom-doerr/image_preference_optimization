@@ -27,6 +27,13 @@ if not LOGGER.handlers:
         LOGGER.setLevel(logging.INFO)
     except Exception:
         pass
+try:
+    import os as _os
+    _lvl = (_os.getenv("IPO_LOG_LEVEL") or "").upper()
+    if _lvl:
+        LOGGER.setLevel(getattr(logging, _lvl, logging.INFO))
+except Exception:
+    pass
 
 
 def get_last_call() -> dict:

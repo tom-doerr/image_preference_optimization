@@ -34,3 +34,28 @@ Race when saving many (Nov 20, 2025):
 Q (Nov 20, 2025): Please show Train score in the sidebar.
 
 A: It is shown in two places: (1) a small metric row near the top next to “Dataset rows”, and (2) inside the “Train results” expander. With no usable rows yet, it displays “n/a” until at least one labeled pair exists (and dims match the current latent size).
+Debug logs (Nov 20, 2025):
+- Sidebar checkbox “Debug logs (set level DEBUG)” toggles the ipo logger level and shows the last N lines of `ipo.debug.log` in a small expander. Default N=200; you can change it inline.
+
+Clarifications (Nov 20, 2025):
+- Do you want `value_model` to stop touching `st.session_state` entirely (we can return a tiny status dict instead), or is the current minimal coupling acceptable?
+- OK to keep the decode boundary simple (direct `flux_local` calls) and only introduce a `DecodeBackend` shim if/when we wire the image server by default?
+- Is gating CV strictly “on button click” acceptable for now, or should we add a “run CV after each label” toggle?
+
+Update (Nov 20, 2025, later):
+- Ridge async is now ON by default (`ridge_train_async=True`) to prevent blocking fits; turn it off in the sidebar if you want strictly synchronous updates.
+- Per‑step scores: the sidebar block “Step scores: …” appears when a scorer is usable. Conditions:
+  - Ridge: requires a non‑zero `w` (at least one labeled pair). With ‖w‖≈0, it shows “Step scores: n/a”.
+  - XGBoost: requires a trained XGB model (`xgb_cache.model`); otherwise status is `xgb_unavailable` and “n/a” is expected. Use “Compute CV now” or label a few to trigger training.
+- Duplicate Good/Bad keys: fixed by adding a tiny per‑render sequence and batch nonce into keys; also reset the sequence each render to keep keys bounded.
+
+Architecture notes (my take):
+- Keep all model training funnelled through `value_model.train_and_record(...)`; no direct fits from UI components. Status lives in `Keys.XGB_TRAIN_STATUS` and `Keys.LAST_TRAIN_*`.
+- Treat `lstate.w` as shared mutable state; when Ridge async is enabled we swap‑assign under a tiny lock to avoid races.
+- Sidebar extras are now rendered via `ui_sidebar.render_sidebar_extras(...)` so `app.py` stays lean and order is deterministic.
+- Keys constants reduce typo bugs; continue the grep‑driven sweep, but don’t churn test stubs that intentionally rely on simple strings.
+
+Questions back to you:
+1) Do you want Ridge fits always async, or prefer the previous synchronous default?
+2) Shall we expose a small “Fast ridge” mode (subsample dims or rows) for very high‑res runs?
+3) OK to remove remaining inline sidebar extras from `app.py` entirely now that `ui_sidebar` covers them?

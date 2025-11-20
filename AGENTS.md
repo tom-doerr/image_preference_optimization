@@ -895,6 +895,10 @@ Updates (Nov 20, 2025):
   - `RICH_CLI_DETAILS=0` disables the parsed details line.
 - Legacy purge (Nov 20, 2025, late): removed `dataset_path_for_prompt` and any remaining aggregate dataset NPZ helpers. Training/counters/stats are folder-only (`data/<hash>/*/sample.npz`). Tests that imported or patched `dataset_path_for_prompt` were updated to stop referencing it.
 - Sidebar simplification (Nov 20, 2025, late): Removed “Rows (all)”. The Data block now shows only “Dataset rows” (with spinner) and “Rows (this d)”.
+- Complexity reductions (Nov 20, 2025, later):
+  - Split the large sidebar renderer into helpers: `_sidebar_persistence_section`, `_render_iter_step_scores_block`, `_ensure_sidebar_shims`, `_sidebar_training_data_block`, `_sidebar_value_model_block`. No behavior changes; improves readability and radon scores.
+  - Extracted `ui_metrics.compute_step_scores` used by `render_iter_step_scores`.
+  - Extracted Flux scheduler/img-stat helpers in `flux_local._run_pipe`.
 
 Things to keep in mind:
 - Avoid hidden fallbacks. The image server toggle is explicit; local Diffusers remain default.
@@ -940,6 +944,9 @@ Training policy flag (Nov 20, 2025):
 Standardized logging (Nov 20, 2025):
 - `value_model` now routes messages through the shared `ipo` logger while still printing to stdout (keeps tests simple). When no handlers are configured, it adds a FileHandler to `ipo.debug.log` with a small formatter. Existing log lines are unchanged (e.g., `[train] …`, `[ridge] …`, `[xgb] …`, `[perf] …`).
 
+Debug logs toggle (Nov 20, 2025):
+- Sidebar checkbox “Debug logs (set level DEBUG)” switches the `ipo` logger to DEBUG when enabled (or INFO when off) and shows a tail of `ipo.debug.log` in an expander. A numeric input lets you change tail size (default 200 lines). Minimal and self‑contained.
+
 Vast.ai quickstart (Nov 20, 2025)
 - Choose a GPU box (3090/4090/A100) with Docker.
 - Clone repo on the instance into `/workspace/ipo` (or upload zip).
@@ -958,3 +965,18 @@ Save race fix (Nov 20, 2025):
 - Observed occasional race when many samples are saved quickly (duplicate row index). `persistence.append_dataset_row` now allocates the next folder by scanning once, then atomically creating the directory with `os.mkdir(...)` in a short incrementing loop. This avoids collisions across concurrent saves while keeping numeric folder names and minimal code.
 Train score visibility (Nov 20, 2025):
 - Confirmed the sidebar renders Train score in two places: a concise strip near the top via `sidebar_metric_rows([("Dataset rows", …), ("Train score", …)])`, and again inside the “Train results” expander as plain text. When no data is available or dims mismatch, it shows `n/a` by design.
+
+Architecture notes (Nov 20, 2025):
+- State boundaries: `value_model` reaches into `st.session_state` in a few spots (status, caches). Prefer passing required values in and returning a small result dict the UI layer applies. Keep model code UI‑agnostic.
+- Training entry: `train_and_record` is the single entry point; keep Batch/Queue from calling raw `fit_*`. This avoids duplicate cooldown/status logic.
+- Concurrency: `flux_local` uses a module lock for PIPE; `value_model` guards `lstate.w` when Ridge async is on. This is sufficient; avoid additional global locks.
+- Exception handling: many try/except passes in UI paths hide bugs. Where feasible, log exceptions to `ipo` at DEBUG and let tests catch failures. Avoid fallback behavior unless explicitly requested.
+- Keys: continue migrating magic strings to `constants.Keys` for hot paths (sizes/steps/guidance, queue/batch, VM choice, CV cache). Leave test stubs that rely on simple strings untouched for now.
+- Decode boundary: `flux_local` vs `image_server` is behind globals; consider a tiny `DecodeBackend` shim with two implementations to make the boundary explicit (only if needed).
+
+New learnings (Nov 20, 2025, now):
+- Default Ridge training is async (`ridge_train_async=True`) to avoid UI stalls; toggleable in the sidebar.
+- Finished wiring the sidebar tail into `ui_sidebar.render_sidebar_extras(...)` (Environment/Perf/Debug/Metadata), slimming `app.py` with no behavior change.
+- Batch UI resets a small per-render `btn_seq` counter so Streamlit button keys remain unique across reruns (fixes `StreamlitDuplicateElementKey` for Good/Bad keys).
+- Keys: continued gradual sweep across hot paths via `constants.Keys`; remaining legacy string keys are left intentionally for test stubs and will be migrated incrementally.
+- Logging: app/batch/queue/value_model/flux_local route messages through `ipo` logger (stdout prints kept for tests). `IPO_LOG_LEVEL` env and a sidebar toggle control verbosity; sidebar expander tails `ipo.debug.log`.

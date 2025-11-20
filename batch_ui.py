@@ -14,6 +14,13 @@ if not LOGGER.handlers:
         LOGGER.setLevel(_logging.INFO)
     except Exception:
         pass
+try:
+    import os as _os
+    _lvl = (_os.getenv("IPO_LOG_LEVEL") or "").upper()
+    if _lvl:
+        LOGGER.setLevel(getattr(_logging, _lvl, _logging.INFO))
+except Exception:
+    pass
 
 def _log(msg: str, level: str = "info") -> None:
     try:
@@ -262,6 +269,11 @@ def _render_batch_ui() -> None:
     import time as _time
 
     (getattr(st, 'subheader', lambda *a, **k: None))("Curation batch")
+    # Reset per-render button sequence to keep keys unique yet bounded
+    try:
+        st.session_state["btn_seq"] = 0
+    except Exception:
+        pass
     try:
         st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
     except Exception:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import re
 from typing import Callable
+import os
 
 
 _ENABLED = False
@@ -17,6 +18,12 @@ def enable_color_print() -> None:
     global _ENABLED
     if _ENABLED:
         return
+    # Allow disabling via env: RICH_CLI=0 disables coloring entirely.
+    try:
+        if str(os.getenv("RICH_CLI", "1")).lower() in ("0", "false", "no"):
+            return
+    except Exception:
+        pass
     try:
         from rich.console import Console
     except Exception:
@@ -51,14 +58,14 @@ def enable_color_print() -> None:
             for i, ln in enumerate(lines):
                 m = tag_re.match(ln)
                 if not m:
-                    console.print(ln, highlight=False)
+                    console.print(ln, highlight=False, markup=False)
                     continue
                 tag = m.group("tag").lower()
                 style = style_map.get(tag)
                 if style:
-                    console.print(f"[{style}]{ln}[/]", highlight=False)
+                    console.print(f"[{style}]{ln}[/]", highlight=False, markup=False)
                 else:
-                    console.print(ln, highlight=False)
+                    console.print(ln, highlight=False, markup=False)
         except Exception:
             # If anything goes wrong, fall back to the original print
             orig_print(*args, **kwargs)

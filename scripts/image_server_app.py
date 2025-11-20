@@ -78,6 +78,12 @@ class App(BaseHTTPRequestHandler):
         except Exception as e:  # keep minimal; surface errors plainly
             return self._reply(500, {"error": str(e)})
 
+    def do_GET(self):  # noqa: N802 - stdlib API
+        # Minimal health endpoint
+        if self.path == "/health":
+            return self._reply(200, {"ok": True})
+        return self._reply(404, {"error": "unknown path"})
+
 
 def main() -> None:
     port = int(os.getenv("PORT", os.getenv("IMAGE_SERVER_PORT", "8000")))

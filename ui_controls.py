@@ -13,10 +13,10 @@ def _sb_sld(st):
 def build_size_controls(st, lstate) -> Tuple[int, int, int, float, bool]:
     num = _sb_num(st)
     sld = _sb_sld(st)
-    width = num("Width", min_value=256, max_value=1024, step=64, value=lstate.width)
-    height = num("Height", min_value=256, max_value=1024, step=64, value=lstate.height)
-    steps = sld("Steps", min_value=0, max_value=50, value=6)
-    guidance = sld("Guidance", min_value=0.0, max_value=10.0, value=3.5, step=0.1)
+    width = num("Width", step=64, value=lstate.width)
+    height = num("Height", step=64, value=lstate.height)
+    steps = sld("Steps", value=6)
+    guidance = sld("Guidance", value=3.5, step=0.1)
     # Fallbacks for stubs that return None
     width = lstate.width if width is None else width
     height = lstate.height if height is None else height
@@ -49,23 +49,23 @@ def build_pair_controls(st, expanded: bool = False):
     except Exception:
         pass
     alpha = sld(
-        "Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.05,
+        "Alpha (ridge d1)", value=0.5, step=0.05,
         help="Scale step along d1 (∥ w; value-gradient)."
     )
     beta = sld(
-        "Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.05,
+        "Beta (ridge d2)", value=0.5, step=0.05,
         help="Scale step along d2 (⟂ d1; orthogonal explore)."
     )
     trust_r = sld(
-        "Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1,
+        "Trust radius (||y||)", value=2.5, step=0.1,
         help="Clamp proposal offset norm ‖y‖ ≤ r around anchor."
     )
     lr_mu_ui = sld(
-        "Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01,
+        "Step size (lr_μ)", value=0.3, step=0.01,
         help="How far μ moves toward the winner per click."
     )
     gamma_orth = sld(
-        "Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.05,
+        "Orth explore (γ)", value=0.2, step=0.05,
         help="Add small orthogonal component (⊥ d1) to avoid stagnation."
     )
     # Optimization steps (latent) are now driven by a numeric input in app.py;
@@ -96,7 +96,7 @@ def build_pair_controls(st, expanded: bool = False):
 
 def build_batch_controls(st, expanded: bool = False) -> int:
     sld = _sb_sld(st)
-    batch_size = sld("Batch size", min_value=0, max_value=64, value=25, step=1)
+    batch_size = sld("Batch size", value=25, step=1)
     return int(batch_size)
 
 
@@ -106,7 +106,7 @@ def build_queue_controls(st, expanded: bool = False) -> int:
     if ctx is not None:
         ctx.__enter__()
     sld = _sb_sld(st)
-    queue_size = sld("Queue size", min_value=0, max_value=16, value=6, step=1)
+    queue_size = sld("Queue size", value=6, step=1)
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return int(queue_size)

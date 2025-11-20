@@ -137,7 +137,7 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
     np.savez_compressed(sample_path, X=feat, y=np.array([label], dtype=float))
     # Maintain a minimal backup of the sample file (legacy backup test)
     try:
-    base = f"sample_{h}_{next_idx:06d}.npz"
+        base = f"sample_{h}_{next_idx:06d}.npz"
         tmp_copy = os.path.join('.', base)
         # create a copy named deterministically for backup routine
         import shutil as _sh

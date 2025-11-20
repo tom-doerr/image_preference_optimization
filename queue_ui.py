@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+from constants import Keys
 
 __all__ = [
     '_ensure_queue',
@@ -14,8 +15,8 @@ __all__ = [
 
 def _ensure_queue() -> None:
     import streamlit as st
-    if 'queue' not in st.session_state:
-        st.session_state.queue = []
+    if Keys.QUEUE not in st.session_state:
+        st.session_state[Keys.QUEUE] = []
 
 
 def _queue_add_one() -> None:
@@ -34,14 +35,14 @@ def _queue_add_one() -> None:
     if not prompt:
         from constants import DEFAULT_PROMPT
         prompt = DEFAULT_PROMPT
-    raw_steps = getattr(st.session_state, 'steps', 6)
+    raw_steps = getattr(st.session_state, Keys.STEPS, 6)
     steps = int(raw_steps if raw_steps is not None else 6)
-    raw_guid = getattr(st.session_state, 'guidance_eff', 0.0)
+    raw_guid = getattr(st.session_state, Keys.GUIDANCE_EFF, 0.0)
     guidance_eff = float(raw_guid if raw_guid is not None else 0.0)
 
     from constants import DISTANCEHILL_GAMMA, COSINEHILL_BETA
     try:
-        vmc = st.session_state.get('vm_choice', 'DistanceHill')
+        vmc = st.session_state.get(Keys.VM_CHOICE, 'DistanceHill')
         pp = 'CosineHill' if vmc == 'CosineHill' else 'DistanceHill'
         Xd, yd = get_dataset_for_prompt_or_session(prompt, st.session_state)
         if Xd is not None and yd is not None and getattr(Xd, "shape", (0,))[0] > 0:
@@ -49,7 +50,7 @@ def _queue_add_one() -> None:
                 d_x = int(getattr(Xd, "shape", (0, 0))[1])
                 d_lat = int(getattr(lstate, "d", d_x))
                 if d_x != d_lat:
-                    st.session_state["dataset_dim_mismatch"] = (d_x, d_lat)
+                    st.session_state[Keys.DATASET_DIM_MISMATCH] = (d_x, d_lat)
                     Xd, yd = None, None
             except Exception:
                 Xd, yd = None, None
@@ -73,9 +74,9 @@ def _queue_add_one() -> None:
     lat = z_to_latents(lstate, za)
     fut = bg.schedule_decode_latents(prompt, lat, lstate.width, lstate.height, steps, guidance_eff)
     item = {'z': za, 'future': fut, 'label': None}
-    q = st.session_state.get('queue') or []
+    q = st.session_state.get(Keys.QUEUE) or []
     q.append(item)
-    st.session_state.queue = q
+    st.session_state[Keys.QUEUE] = q
     try:
         from logging import getLogger
         getLogger("ipo").info(f"[queue] added item idx={len(q)-1} prompt={prompt!r} steps={steps} size={lstate.width}x{lstate.height}")
@@ -89,19 +90,19 @@ def _queue_add_one() -> None:
 def _queue_fill_up_to() -> None:
     import streamlit as st
     _ensure_queue()
-    raw = getattr(st.session_state, 'queue_size', 6)
+    raw = getattr(st.session_state, Keys.QUEUE_SIZE, 6)
     size = int(raw if raw is not None else 6)
     import time as _time
     t0 = _time.perf_counter()
-    while len(st.session_state.queue) < size:
+    while len(st.session_state.get(Keys.QUEUE) or []) < size:
         _queue_add_one()
     try:
         dt_ms = (_time.perf_counter() - t0) * 1000.0
         from logging import getLogger
-        getLogger("ipo").info(f"[queue] filled to size={len(st.session_state.queue)} in {dt_ms:.1f} ms")
+        getLogger("ipo").info(f"[queue] filled to size={len(st.session_state.get(Keys.QUEUE) or [])} in {dt_ms:.1f} ms")
     except Exception:
         try:
-            print(f"[queue] filled to size={len(st.session_state.queue)} in {dt_ms:.1f} ms")
+            print(f"[queue] filled to size={len(st.session_state.get(Keys.QUEUE) or [])} in {dt_ms:.1f} ms")
         except Exception:
             pass
 
@@ -110,7 +111,7 @@ def _queue_label(idx: int, label: int, img=None) -> None:
     import streamlit as st
     from batch_ui import _curation_add, _curation_train_and_next
     _ensure_queue()
-    q = st.session_state.queue
+    q = st.session_state.get(Keys.QUEUE) or []
     if 0 <= idx < len(q):
         z = q[idx]['z']
         _curation_add(int(label), z, img)
@@ -119,11 +120,15 @@ def _queue_label(idx: int, label: int, img=None) -> None:
         except Exception:
             pass
         q.pop(idx)
-        st.session_state.queue = q
+        st.session_state[Keys.QUEUE] = q
         try:
-            print(f"[queue] labeled idx={idx} label={int(label)} remaining={len(q)}")
+            from logging import getLogger
+            getLogger("ipo").info(f"[queue] labeled idx={idx} label={int(label)} remaining={len(q)}")
         except Exception:
-            pass
+            try:
+                print(f"[queue] labeled idx={idx} label={int(label)} remaining={len(q)}")
+            except Exception:
+                pass
 
 
 def _render_queue_ui() -> None:
@@ -132,7 +137,7 @@ def _render_queue_ui() -> None:
     from latent_opt import z_from_prompt
     st.subheader("Async queue")
     _ensure_queue()
-    q = st.session_state.queue
+    q = st.session_state.get(Keys.QUEUE) or []
     if not q:
         st.write("Queue empty…")
     else:
