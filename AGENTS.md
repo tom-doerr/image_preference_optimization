@@ -890,6 +890,16 @@ Things to keep in mind:
 - Keep UI minimal; prefer a single place for each decision (trainer fit, proposer opts, dataset access).
 - Tests favor folder datasets; don’t reintroduce aggregate NPZ reads.
 
+Keys constants (Nov 20, 2025):
+- Introduced `constants.Keys` for common `st.session_state` keys used in hot paths:
+  `REG_LAMBDA`, `ITER_STEPS`, `ITER_ETA`, `XGB_TRAIN_ASYNC`, `XGB_CACHE`,
+  `XGB_FIT_FUTURE`, `XGB_TRAIN_STATUS`, `LAST_TRAIN_AT`, `LAST_TRAIN_MS`,
+  `VM_CHOICE`, `TRUST_R`, `LR_MU_UI`, `DATASET_DIM_MISMATCH`.
+- Replaced string literals in `value_model.py` (train timing/status) and `batch_ui.py`
+  (VM choice, iter params, trust radius, reg_lambda, XGB status pops), and in
+  `app.py` for sidebar XGB future/status reads. No behavior change; reduces
+  stringly-typed state and avoids typos.
+
 Vast.ai quickstart (Nov 20, 2025)
 - Choose a GPU box (3090/4090/A100) with Docker.
 - Clone repo on the instance into `/workspace/ipo` (or upload zip).

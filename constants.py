@@ -58,3 +58,5 @@ class Keys:
     TRUST_R = "trust_r"
     LR_MU_UI = "lr_mu_ui"
     DATASET_DIM_MISMATCH = "dataset_dim_mismatch"
+    CV_CACHE = "cv_cache"
+    CV_LAST_AT = "cv_last_at"

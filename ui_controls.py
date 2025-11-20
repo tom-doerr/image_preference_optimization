@@ -40,11 +40,34 @@ def build_pair_controls(st, expanded: bool = False):
     ctx = expander("Pair controls", expanded=expanded) if callable(expander) else None
     if ctx is not None:
         ctx.__enter__()
-    alpha = sld("Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.05, help="Step along d1 (∥ w; utility-gradient direction).")
-    beta = sld("Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.05, help="Step along d2 (orthogonal to d1).")
-    trust_r = sld("Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1)
-    lr_mu_ui = sld("Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01)
-    gamma_orth = sld("Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.05)
+    # Brief, plain explanation to make sliders self-explanatory
+    try:
+        st.sidebar.write(
+            "Proposes the next A/B around the prompt: Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1); "
+            "Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration."
+        )
+    except Exception:
+        pass
+    alpha = sld(
+        "Alpha (ridge d1)", min_value=0.0, max_value=3.0, value=0.5, step=0.05,
+        help="Scale step along d1 (∥ w; value-gradient)."
+    )
+    beta = sld(
+        "Beta (ridge d2)", min_value=0.0, max_value=3.0, value=0.5, step=0.05,
+        help="Scale step along d2 (⟂ d1; orthogonal explore)."
+    )
+    trust_r = sld(
+        "Trust radius (||y||)", min_value=0.0, max_value=5.0, value=2.5, step=0.1,
+        help="Clamp proposal offset norm ‖y‖ ≤ r around anchor."
+    )
+    lr_mu_ui = sld(
+        "Step size (lr_μ)", min_value=0.0, max_value=1.0, value=0.3, step=0.01,
+        help="How far μ moves toward the winner per click."
+    )
+    gamma_orth = sld(
+        "Orth explore (γ)", min_value=0.0, max_value=1.0, value=0.2, step=0.05,
+        help="Add small orthogonal component (⊥ d1) to avoid stagnation."
+    )
     # Optimization steps (latent) are now driven by a numeric input in app.py;
     # here we simply read the shared session_state value and pass it through.
     try:
