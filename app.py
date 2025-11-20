@@ -495,12 +495,8 @@ try:
     except Exception:
         pass
     sidebar_metric_rows([( "Value model", _vm_type), ("Settings", _vm_settings)], per_row=2)
-    # Ensure visibility in simple stubs that only capture writes
+    # Keep dim-mismatch notice even when metrics above are shown
     try:
-        st.sidebar.write(f"Dataset rows: {_rows_cnt}")
-        st.sidebar.write(f"Train score: {_train_score}")
-        st.sidebar.write(f"Value model: {_vm_type}")
-        st.sidebar.write(f"Settings: {_vm_settings}")
         mm = st.session_state.get("dataset_dim_mismatch")
         if mm:
             st.sidebar.write(
