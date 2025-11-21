@@ -120,3 +120,19 @@ Nov 21, 2025 — Current request wrap‑up
 Questions for you
 - Do you want me to remove the sidebar “Debug (saves)” helper now that Good/Bad works, or keep it hidden behind a small toggle?
 - Confirm default size 384×384 is desired going forward; I updated the default‑size test accordingly.
+
+Verification — real image generation (GPU)
+- One‑off decode (fast):
+  - Ensure CUDA box with drivers and internet (to pull weights on first run).
+  - Install deps (Pascal/1080 Ti):
+    - cu118: `pip install --index-url https://download.pytorch.org/whl/cu118 torch torchvision torchaudio`
+    - then: `pip install diffusers transformers accelerate pillow numpy`
+  - Run (sd‑turbo, fragments off/on doesn’t matter here):
+    - `PYTHONPATH=. GEN_MODEL=stabilityai/sd-turbo GEN_W=384 GEN_H=384 GEN_STEPS=6 GEN_GUIDE=0.0 python scripts/generate_and_inspect.py`
+  - Expect: two PNGs under `generated/`, printed stats with non‑zero std/mean and a reasonable MAD(A,B) > 0.
+  - If imports fail (torchvision operator), reinstall matching Torch/TorchVision wheels for your CUDA, or re‑run the setup script under `scripts/setup_venv.sh`.
+
+In‑app checks
+- Sidebar: leave “Use image server” OFF; optionally turn “Use fragments” ON — images render in fragments, buttons outside.
+- Batch: should show 4 tiles with Good/Bad buttons; clicking saves a row and increments counters immediately; toast should appear.
+- Debug log: tail `ipo.debug.log` to see `[pipe] call`, `init_sigma`, and per‑tile decode timings.

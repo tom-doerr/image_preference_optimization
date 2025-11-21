@@ -1311,3 +1311,7 @@ Mini patch notes (Nov 21, 2025):
 - Sidebar rows counter updates immediately after saves; we also trigger st.rerun when available.
 - persistence.export_state_bytes now imports dumps_state lazily to play nice with test stubs.
 - Default resolution lowered to 384×384; updated default-size test accordingly.
+
+Follow‑up (Nov 21, 2025, later):
+- Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
+- Button keys simplified to prefix+index (e.g., `good_0`): stable across reruns and independent of batch nonces.
