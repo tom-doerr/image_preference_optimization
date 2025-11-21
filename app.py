@@ -43,28 +43,16 @@ st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
 K = Keys
 
-# Emit minimal sidebar lines early so string-capture tests are stable
-def _emit_minimal_sidebar_lines() -> None:
-    try:
-        vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
-        if not st.session_state.get(Keys.VM_CHOICE):
-            try:
-                safe_set(st.session_state, Keys.VM_CHOICE, vm)
-            except Exception:
-                pass
-        st.sidebar.write(f"Value model: {vm}")
-        st.sidebar.write("Train score: n/a")
-        st.sidebar.write("Step scores: n/a")
-        st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
-        try:
-            ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0))
-            st.sidebar.write(f"Latent dim: {ld}")
-        except Exception:
-            st.sidebar.write("Latent dim: 0")
-    except Exception:
-        pass
-
-_emit_minimal_sidebar_lines()
+# Emit minimal sidebar lines early so string-capture tests are stable (199h inline)
+vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
+if not st.session_state.get(Keys.VM_CHOICE):
+    st.session_state[Keys.VM_CHOICE] = vm
+st.sidebar.write(f"Value model: {vm}")
+st.sidebar.write("Train score: n/a")
+st.sidebar.write("Step scores: n/a")
+st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0)) if hasattr(st, 'session_state') else 0
+st.sidebar.write(f"Latent dim: {ld}")
 try:
     from constants import DEFAULT_MODEL as _DEF_MODEL
     set_model(_DEF_MODEL)
@@ -187,15 +175,11 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
         render_rows_and_last_action,
         render_model_decode_settings,
     )
-    # local numeric helper to avoid tests.helpers shadowing
-    def safe_sidebar_num(_st, label, *, value, step=None, format=None):
-        num = getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None))
-        if callable(num):
-            try:
-                return num(label, value=value, step=step, format=format)
-            except Exception:
-                return value
-        return value
+    # local numeric helper to avoid tests.helpers shadowing (one-liner)
+    safe_sidebar_num = lambda _st, label, *, value, step=None, format=None: (
+        (getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None)))(label, value=value, step=step, format=format)
+        if callable(getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None))) else value
+    )
     # Mode/value + data strip
     vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
     render_rows_and_last_action(st, base_prompt, lstate)
