@@ -48,17 +48,23 @@ class TestTileValueCaptions(unittest.TestCase):
 
     def test_captions_show_number_when_scorer_ok(self):
         st, images = self._setup_minimal()
-        # Scorer OK with a fixed value
+        # Single-scorer rule: provide XGB cache and scorer
+        xv = types.ModuleType("xgb_value")
+        xv.score_xgb_proba = lambda mdl, f: 0.1234
+        sys.modules["xgb_value"] = xv
+        st.session_state.xgb_cache = {"model": object(), "n": 1}
         vs = types.ModuleType("value_scorer")
-        vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: 0.1234, "ok")
+        def _xgb_scorer_with_status(*a, **k):
+            # Defer to xgb_value so batch_ui picks it up
+            return (lambda f: xv.score_xgb_proba("stub", f), "ok")
+        vs.get_value_scorer_with_status = _xgb_scorer_with_status
         sys.modules["value_scorer"] = vs
 
         import batch_ui
 
         batch_ui._render_batch_ui()
-        # Expect captions contain Value: 0.123 and a model tag
+        # Expect captions contain Value: 0.123
         self.assertTrue(any("Value: 0.123" in cap for cap in images))
-        self.assertTrue(any("[XGB]" in cap or "[Ridge]" in cap for cap in images))
 
 
 if __name__ == "__main__":

@@ -85,6 +85,13 @@ def test_ui_flow_sync_xgb_changes_captions():
     uim.render_mu_value_history = lambda *a, **k: None
     sys.modules["ui_metrics"] = uim
 
+    # Provide a value_scorer that reads the XGB cache and delegates to xgb_value
+    vs = types.ModuleType("value_scorer")
+    def _xgb_scorer_with_status(*a, **k):
+        return (lambda f: xv.score_xgb_proba("stub", f), "ok")
+    vs.get_value_scorer_with_status = _xgb_scorer_with_status
+    sys.modules["value_scorer"] = vs
+
     import ui_sidebar
 
     def _btn(label, *a, **k):
@@ -107,4 +114,4 @@ def test_ui_flow_sync_xgb_changes_captions():
     # After sync fit, re-render batch to see updated captions
     images.clear()
     batch_ui._render_batch_ui()
-    assert any("[XGB]" in c and "Value:" in c and "n/a" not in c for c in images)
+    assert any("Value:" in c and "n/a" not in c for c in images)

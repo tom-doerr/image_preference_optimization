@@ -31,9 +31,13 @@ class BatchValueCaptionTest(unittest.TestCase):
         fl.generate_flux_image_latents = lambda *a, **k: "img"
         sys.modules["flux_local"] = fl
 
+        # Provide XGB cache + scorer path
+        xv = types.ModuleType("xgb_value")
+        xv.score_xgb_proba = lambda mdl, f: 0.5
+        sys.modules["xgb_value"] = xv
+        st.session_state.xgb_cache = {"model": object(), "n": 1}
         vs = types.ModuleType("value_scorer")
-        vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: 0.5, "ok")
-        vs.get_value_scorer = lambda *a, **k: (lambda f: 0.5)
+        vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: xv.score_xgb_proba("stub", f), "ok")
         sys.modules["value_scorer"] = vs
 
         p = types.ModuleType("persistence")
