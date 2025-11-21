@@ -168,6 +168,10 @@ To recover your prior data
 
 Questions for you
 - Which prompt and width/height should be considered your “main” setup? I can pin these in a tiny config so the app reuses them on import.
+
+Nov 21, 2025 — Diffusion steps vs. optimization steps
+- Diffusion steps (pipeline num_inference_steps): default is 6 (sd‑turbo works best fast at 6–8 with CFG≈0). Controlled by the sidebar “Steps”.
+- Optimization steps (latent proposer): default is 100 (sidebar “Optimization steps (latent)”). This is separate and governs how we explore latents, not how many denoising steps the model runs.
 - Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
 
 Open questions

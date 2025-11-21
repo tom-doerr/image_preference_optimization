@@ -122,8 +122,16 @@ def get_dataset_for_prompt_or_session(
     root = data_root_for_prompt(prompt)
     try:
         if os.path.isdir(root):
-            xs = []
-            ys = []
+            xs: list[np.ndarray] = []
+            ys: list[np.ndarray] = []
+            # Determine target latent dim if available; else accept all rows
+            target_d = None
+            try:
+                lstate = getattr(session_state, "lstate", None)
+                if lstate is not None:
+                    target_d = int(getattr(lstate, "d", 0) or 0) or None
+            except Exception:
+                target_d = None
             for name in sorted(os.listdir(root)):
                 sample_path = os.path.join(root, name, "sample.npz")
                 if not os.path.exists(sample_path):
@@ -133,27 +141,26 @@ def get_dataset_for_prompt_or_session(
                     yi = d["y"] if "y" in d.files else None
                 if Xi is None or yi is None:
                     continue
+                # If a target latent dimension is known, skip rows that don't match
+                if target_d is not None:
+                    try:
+                        d_x = int(getattr(Xi, "shape", (0, 0))[1])
+                    except Exception:
+                        d_x = None  # type: ignore
+                    if d_x != target_d:
+                        # Record a mismatch notice in session_state for the sidebar
+                        try:
+                            from constants import Keys as _K
+
+                            session_state[_K.DATASET_DIM_MISMATCH] = (d_x, target_d)
+                        except Exception:
+                            session_state["dataset_dim_mismatch"] = (d_x, target_d)
+                        continue
                 xs.append(Xi)
                 ys.append(yi)
             if xs:
                 X = np.vstack(xs)
                 y = np.concatenate(ys)
-                # Dim guard: ignore datasets that don't match current latent dim
-                try:
-                    lstate = getattr(session_state, "lstate", None)
-                    if lstate is not None and getattr(X, "ndim", 2) == 2:
-                        d_x = int(X.shape[1])
-                        d_lat = int(getattr(lstate, "d", d_x))
-                        if d_x != d_lat:
-                            try:
-                                from constants import Keys as _K
-
-                                session_state[_K.DATASET_DIM_MISMATCH] = (d_x, d_lat)
-                            except Exception:
-                                session_state["dataset_dim_mismatch"] = (d_x, d_lat)
-                            return None, None
-                except Exception:
-                    pass
                 try:
                     print(
                         f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}"
