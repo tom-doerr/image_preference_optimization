@@ -694,7 +694,8 @@ def render_sidebar_tail(
         except Exception:
             last_cv = "n/a"
         # Compose canonical order once
-        active = "yes" if vm_choice == "XGBoost" else "no"
+        # Active only when XGB is selected and scorer status is ok
+        active = "yes" if (vm_choice == "XGBoost" and str(vs_status) == "ok") else "no"
         lines = [
             f"Train score: {tscore}",
             f"CV score: {cv_line}",

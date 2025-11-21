@@ -1553,3 +1553,13 @@ Next options (231):
 - 231a. Remove the legacy scorer shim (`get_value_scorer_with_status`) after updating tests to the unified API.
 - 231b. Prune stale async/background mentions in older AGENTS/HUMANS sections.
 - 231c. Consider collapsing small CV helper `_cached_cv_lines` into `_emit_train_results` to keep all strings in one place (requires minor test tweaks).
+
+Next options (235) — simplify further
+- 235a. Remove legacy scorer shim `get_value_scorer_with_status` (UI already uses `get_value_scorer`). Update tests that import the shim to the unified API. LOC: −30–60. Clear API surface.
+- 235b. Centralize CV strings: fold `_cached_cv_lines` into the Train‑results emitter so all sidebar strings originate from one helper. Adjust 1–2 tests that read CV from the VM expander. LOC: −10–20; fewer writers.
+- 235c. Docs scrub: remove remaining async/background references from older AGENTS/HUMANS sections to avoid confusion (no behavior change). LOC: −50–120.
+- 235d. Tighten logging: gate remaining informational `[xgb] skipped:` lines behind LOG_VERBOSITY=1 to keep CI quiet by default (errors still print). LOC: −/+. Small clarity win.
+
+Recommendation: 235a → 235b (highest payoff with minimal risk), then 235c.
+New learnings (Nov 21, 2025 – XGB clarity)
+- The sidebar line “XGBoost active: yes/no” was derived from the VM choice, which confused users when no model was cached. We now set it to “yes” only when the XGB scorer status is ok. This keeps the UI honest: look at “Value scorer status:” for the real state.

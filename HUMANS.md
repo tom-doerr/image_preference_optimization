@@ -355,6 +355,8 @@ Questions for you:
 1) Are you ok if we fully remove all async remnants (constants + code + docs) now? If yes, we’ll also update tests that still set `Keys.XGB_TRAIN_ASYNC`.
 2) Do you want to keep the “Train results” expander at all, or show the same lines only once in the sidebar main block?
 3) Confirm sd‑turbo as hardcoded model everywhere (no image server, no selector), so we can delete those branches and tests.
+4) Can we remove the legacy scorer shim `get_value_scorer_with_status` and update tests to use `get_value_scorer` only? Cleaner API, less duplication.
+5) Is it OK to centralize CV strings into the Train‑results emitter (move them out of the VM expander) for one source of truth?
 
 Notes:
 - Pushing to origin likely requires credentials in this environment. If you want me to push, please provide access (SSH key/https token) or run `git push` locally; I’ll prep the commits.
@@ -364,3 +366,4 @@ Notes:
 - app.py now uses the single sidebar emitter to print initial Train/CV/Status lines; removes string duplication and keeps ordering stable.
 - Simplified VM header helper: we no longer compute/print scorer status there; the status line appears only in the Train results block to avoid duplicates.
  - Removed unused value_model helpers `_maybe_fit_xgb/_maybe_fit_ridge`; training is centralized in `fit_value_model`.
+- If XGBoost shows “xgb_unavailable”: collect data first (click Good/Bad to save samples); you need at least two classes (+1/−1) and more than one row, then click “Train XGBoost now (sync)”. Also ensure `xgboost` is installed in the venv (`pip install xgboost`). The sidebar now shows “XGBoost active: yes” only when the scorer is ready (status ok).
