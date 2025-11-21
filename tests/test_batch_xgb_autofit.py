@@ -53,15 +53,15 @@ class BatchXGBAutofitTest(unittest.TestCase):
 
         cache = getattr(st.session_state, "xgb_cache", {}) or {}
         self.assertIsNotNone(cache.get("model"))
-        from value_scorer import get_value_scorer_with_status
+        from value_scorer import get_value_scorer
 
-        scorer, status = get_value_scorer_with_status(
+        scorer, status = get_value_scorer(
             "XGBoost",
             st.session_state.lstate,
             st.session_state.prompt,
             st.session_state,
         )
-        self.assertEqual(status, "ok")
+        self.assertEqual(status, "XGB")
         # scorer should be callable and produce a non-zero score on the dataset.
         self.assertGreater(float(scorer(X[0])), 0.0)
 

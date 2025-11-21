@@ -3,7 +3,7 @@ import types
 import unittest
 import numpy as np
 
-from value_scorer import get_value_scorer_with_status
+from value_scorer import get_value_scorer
 
 
 class TestValueScorerRidgeStatus(unittest.TestCase):
@@ -14,17 +14,16 @@ class TestValueScorerRidgeStatus(unittest.TestCase):
                 self.w = np.zeros(d, dtype=float)
 
         l0 = LState(4)
-        sc0, st0 = get_value_scorer_with_status("Ridge", l0, "p", {})
+        sc0, st0 = get_value_scorer("Ridge", l0, "p", {})
         self.assertEqual(st0, "ridge_untrained")
-        self.assertEqual(sc0(np.ones(4)), 0.0)
+        self.assertIsNone(sc0)
 
         l1 = LState(4)
         l1.w[:] = 1.0
-        sc1, st1 = get_value_scorer_with_status("Ridge", l1, "p", {})
-        self.assertEqual(st1, "ok")
+        sc1, st1 = get_value_scorer("Ridge", l1, "p", {})
+        self.assertEqual(st1, "Ridge")
         self.assertAlmostEqual(sc1(np.array([1.0, 0.0, 0.0, 0.0])), 1.0, places=6)
 
 
 if __name__ == "__main__":
     unittest.main()
-

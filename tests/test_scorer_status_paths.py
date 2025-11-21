@@ -14,18 +14,17 @@ def test_xgb_training_status_returns_zero_scorer():
     ss["xgb_fit_future"] = F()
 
     lstate = types.SimpleNamespace(d=4, w=np.zeros(4))
-    from value_scorer import get_value_scorer_with_status
+from value_scorer import get_value_scorer
 
-    scorer, status = get_value_scorer_with_status("XGBoost", lstate, "p", ss)
+    scorer, status = get_value_scorer("XGBoost", lstate, "p", ss)
     assert status in ("xgb_training", "xgb_unavailable")
-    assert float(scorer(np.zeros(4))) == 0.0
+    assert scorer is None
 
 
 def test_ridge_status_ok_when_w_nonzero():
-    from value_scorer import get_value_scorer_with_status
+from value_scorer import get_value_scorer
 
     lstate = types.SimpleNamespace(d=4, w=np.ones(4))
-    scorer, status = get_value_scorer_with_status("Ridge", lstate, "p", {})
-    assert status == "ok"
+    scorer, status = get_value_scorer("Ridge", lstate, "p", {})
+    assert status == "Ridge"
     assert isinstance(float(scorer(np.ones(4))), float)
-

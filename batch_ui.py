@@ -123,12 +123,14 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
 
 
 def _prepare_xgb_scorer(lstate: Any, prompt: str):
-    """Return (scorer, status) for XGB based on existing cache; no auto-fit (199c)."""
+    """Return (scorer, status) for XGB from cache (no auto-fit)."""
     try:
-        from value_scorer import get_value_scorer_with_status
-        return get_value_scorer_with_status(
+        from value_scorer import get_value_scorer
+
+        scorer, tag_or_status = get_value_scorer(
             "XGBoost", lstate, prompt, __import__("streamlit").session_state
         )
+        return (scorer, "ok") if scorer is not None else (None, str(tag_or_status))
     except Exception:
         return None, "xgb_unavailable"
 

@@ -19,8 +19,8 @@ class XGBScorerModelCacheTest(unittest.TestCase):
 
         ss = types.SimpleNamespace(xgb_cache={"model": types.SimpleNamespace(bias=1.0)}, xgb_fit_future=None)
         lstate = types.SimpleNamespace(d=3, w=np.zeros(3))
-        scorer, status = value_scorer.get_value_scorer_with_status("XGBoost", lstate, "p", ss)
-        self.assertEqual(status, "ok")
+        scorer, status = value_scorer.get_value_scorer("XGBoost", lstate, "p", ss)
+        self.assertEqual(status, "XGB")
         self.assertAlmostEqual(scorer(np.array([1.0, 2.0, 3.0])), 7.0)
 
 

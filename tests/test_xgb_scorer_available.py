@@ -25,15 +25,15 @@ class XGBScorerAvailableTest(unittest.TestCase):
         import importlib
         sys.modules["value_scorer"] = importlib.import_module("value_scorer")
 
-        from value_scorer import get_value_scorer_with_status
+        from value_scorer import get_value_scorer
 
-        scorer, status = get_value_scorer_with_status(
+        scorer, status = get_value_scorer(
             "XGBoost",
             types.SimpleNamespace(d=4, w=np.zeros(4)),
             "p",
             ss,
         )
-        self.assertEqual(status, "ok")
+        self.assertEqual(status, "XGB")
         self.assertAlmostEqual(scorer(np.ones(4)), 4.0)
 
 

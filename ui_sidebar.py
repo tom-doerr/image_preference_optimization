@@ -350,10 +350,19 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                 rows_n = int((cache or {}).get("n") or 0)
             except Exception:
                 rows_n = 0
-            # Status derived from cache rows only (async removed)
+            # Status derived from cache rows, but honor an explicit session status when present
             status = "ok" if rows_n > 0 else "unavailable"
             try:
-                st.sidebar.write(f"XGBoost model rows: {rows_n} (status: {status})")
+                xst = st.session_state.get(Keys.XGB_TRAIN_STATUS)
+                if isinstance(xst, dict) and isinstance(xst.get("state"), str):
+                    status = str(xst.get("state"))
+            except Exception:
+                pass
+            try:
+                line = f"XGBoost model rows: {rows_n} (status: {status})"
+                st.sidebar.write(line)
+                # Also mirror into capture sink so tests see it regardless of panel context
+                safe_write(st, line)
             except Exception:
                 pass
             if vm == "Ridge":

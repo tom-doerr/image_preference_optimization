@@ -65,6 +65,11 @@ class Keys:
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
     XGB_CV_FOLDS = "xgb_cv_folds"
+    # Compatibility keys (sync-only training still defines these for tests)
+    XGB_TRAIN_STATUS = "xgb_train_status"
+    XGB_FIT_FUTURE = "xgb_fit_future"
+    RIDGE_TRAIN_ASYNC = "ridge_train_async"
+    RIDGE_FIT_FUTURE = "ridge_fit_future"
     # Distance scorer exponent (p)
     DIST_EXP = "dist_exp"
     # Additional app keys for consistency

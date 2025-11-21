@@ -198,6 +198,13 @@ Nov 21, 2025 — Diffusion steps vs. optimization steps
 - Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
 
 Open questions
+
+Nov 21, 2025 — Pending confirmations for next simplification
+- OK to remove the legacy `value_scorer.get_value_scorer_with_status` shim and update tests to the single `get_value_scorer` API? This reduces indirection and LOC.
+- Confirm we keep XGBoost fits sync-only and triggered explicitly by a sidebar button (“Train XGBoost now (sync)”), with no auto-fit on reruns/imports.
+- Approve keeping the model hardcoded to `stabilityai/sd-turbo` everywhere (no selector, no image server). CFG remains effectively 0.0 for Turbo.
+- Approve deleting fragment-only codepaths and any remaining `pages/` artifacts; batch-only UI remains.
+- Sidebar lines will remain minimal and canonical (Value model, Train score, Step scores, XGBoost active, Latent dim, paths). No duplicate status lines.
 Nov 21, 2025 — Follow‑up simplification proposal
 - 217a. Finish one‑scorer API: move remaining callers to `value_scorer.get_value_scorer(...)`, then remove the shim `get_value_scorer_with_status`. I will adjust tests that import the shim.
 - 217b. Sidebar: compute Train score only on demand and show a single status derived from cache/‖w‖; remove legacy async “running/ok” lines.
@@ -266,6 +273,24 @@ What I changed
 - 199e: Purged legacy aggregated dataset_*.npz files and the backups/ tree. The app and tests are folder-only now
   (data/<hash>/<row>/sample.npz + optional image.png). Added .gitignore entries.
 - Ridge λ default set to 1e+300 (Nov 21, 2025): UI number input and all fallback paths now default to λ=1e+300. This keeps training inert until a user explicitly chooses a smaller λ. Tests that set λ explicitly are unaffected.
+
+Additional refactors (latest)
+- batch_ui: `_prepare_xgb_scorer` now uses the unified `value_scorer.get_value_scorer` and normalizes to `(scorer,'ok'|status)`. No shim calls in hot path.
+- ui_sidebar: removed a duplicated `safe_write` function; it imports `helpers.safe_write` instead.
+- flux_local: switched to shared `helpers.get_log_verbosity` for log gating to avoid local env parsing.
+- ui.py: sidebar helpers now delegate to `ui_sidebar` so we have a single implementation for metrics/panels.
+
+Notes
+- Some tests still reference async status keys. We kept Keys.XGB_TRAIN_STATUS/XGB_FIT_FUTURE/RIDGE_TRAIN_ASYNC defined for compatibility, but the code paths are sync-only. If you want, we can update those tests to the explicit sync contract and remove the keys in a follow-up.
+
+Proposed next refactors (226)
+- 226a. Remove the scorer status shim: delete `get_value_scorer_with_status` and switch remaining tests to `get_value_scorer`. I’ll add two micro‑tests to pin Ridge (w=0) and XGB (cache) statuses.
+- 226b. Simplify `value_model` to sync‑only training: remove the async/future branches and `XGB_TRAIN_STATUS` writes; keep `xgb_cache` and timestamps. During transition we can continue rendering a status line derived from cache (ok/unavailable).
+- 226c. Thin `ui.py` further (or retire) once tests stop importing it.
+
+Questions
+- Are you OK with removing `get_value_scorer_with_status` now and updating tests accordingly?
+- For `value_model`, do you want to keep a minimal `XGB_TRAIN_STATUS` mirror for a short period (tests), or drop all status writes immediately?
 
 Observations
 - A number of tests still assert the async UI and future-based behavior. After this change they fail. Choosing a direction will

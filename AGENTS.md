@@ -158,6 +158,20 @@ GPU E2E (Nov 18, 2025, 128a):
 - Added an opt‑in GPU e2e content test that decodes a real sd‑turbo A/B pair and asserts non‑trivial variance to prevent regressions into black frames.
 - Run on a CUDA box with weights available:
   - `export E2E_GPU=1; export FLUX_LOCAL_MODEL=stabilityai/sd-turbo`
+
+New learnings (Nov 21, 2025, late)
+- One scorer API: prefer `value_scorer.get_value_scorer(vm, lstate, prompt, ss)` and phase out the legacy shim. Tags: "Ridge"/"XGB" when usable; otherwise statuses like `ridge_untrained`/`xgb_unavailable`.
+- XGBoost is sync-only: train via an explicit "Train XGBoost now (sync)" action. No auto-fit on reruns/imports, no futures.
+- Model is hardcoded to sd‑turbo; image server/selector removed. CFG kept at 0.0 for Turbo.
+- Logs gated by `LOG_VERBOSITY` (0/1/2) to keep CI quiet.
+
+Next options (227)
+- 227a. Remove the shim (`get_value_scorer_with_status`) and update tests to use the unified API. Add two micro‑tests: Ridge with `w=0` returns `(None,'ridge_untrained')`; XGB with cache returns `(callable,'XGB')`. Recommended.
+- 227b. Simplify `value_model` to sync-only; delete async branches/keys. Keep only `xgb_cache` + `LAST_TRAIN_AT/MS`. Small, safe.
+- 227c. Delete fragment/page remnants and dead async docs/tests. Shrinks surface area.
+- 227d. Canonicalize sidebar train block (single 6–8 lines, fixed order) and drop duplicate lines. Low risk, improves test stability.
+
+My take: 227a → 227b first for the biggest clarity win with minimal code churn.
   - `pytest -q tests/e2e/test_e2e_pair_content_gpu.py`
 
 Scheduler race fix (Nov 13, 2025):
@@ -1465,7 +1479,11 @@ Today (Nov 21, 2025)
  - 216e: Collapsed UI helpers into `ui_sidebar`:
    - Moved `sidebar_metric`, `sidebar_metric_rows`, `status_panel`, `render_iter_step_scores`, `render_mu_value_history`, and batch/pair control builders into `ui_sidebar.py`.
  - `ui_controls.py` now provides thin wrappers delegating to `ui_sidebar` (keeps existing tests stable while reducing duplication).
-  - `ui_sidebar` no longer imports from `ui`/`ui_controls` for these helpers.
+ - `ui_sidebar` no longer imports from `ui`/`ui_controls` for these helpers.
+- Batch scorer prep now uses the unified API: `batch_ui._prepare_xgb_scorer` calls `value_scorer.get_value_scorer` and normalizes to `(scorer, 'ok'|status)`. This removes the legacy status shim in the hot path.
+- ui_sidebar uses the shared `helpers.safe_write`; removed a duplicated local variant.
+- flux_local’s log gating uses the shared `helpers.get_log_verbosity` to keep behavior consistent with the rest of the app.
+ - Refactor (225): kept sidebar Train-results rendering DRY via `_emit_train_results(st, lines)`; robust defaults ensure the canonical 8 lines always render even with empty data. `ui.py` sidebar helpers now delegate to `ui_sidebar` to avoid duplication.
 - 216g: Train results cleanup — removed extra status lines (e.g., “XGBoost training: …”, “Ridge training: …”). We now emit only the canonical block: Train score, CV score, Last CV, Last train, Value scorer status, Value scorer, XGBoost active, Optimization. Reduces sidebar noise and mixed signals.
  - Small refactor: centralized Train results emission via `_emit_train_results` in `ui_sidebar.py` to avoid duplicate string writes and keep ordering consistent.
 
@@ -1486,3 +1504,9 @@ Next Simplifications (Nov 21, 2025, 217)
 - 217e. Gate noncritical logs behind `LOG_VERBOSITY` (default 0) in batch/flux; keep errors and essential timings.
 
 Rationale: these are surgical, low‑risk deletions that reduce indirection and state permutations without changing the user‑visible flow.
+
+Next Simplifications (Nov 21, 2025, 226)
+- 226a. Remove the scorer status shim entirely: delete `get_value_scorer_with_status` and update remaining tests to `get_value_scorer`. Add two tiny unit tests for Ridge zero‑w and XGB cached‑model. Small, clear API.
+- 226b. Simplify `value_model` XGB/Ridge paths to sync‑only: remove dead async branches and future/status writes; keep `xgb_cache` and `LAST_TRAIN_{AT,MS}` only. Optional: retain `Keys.XGB_TRAIN_STATUS` as a dumb mirror for a transition period.
+- 226c. Finish thinning `ui.py`: keep it as a facade that re‑exports `ui_sidebar` helpers; once tests stop importing it, retire the file.
+- 226d. Prune any tests that assume async behavior (futures/status transitions) after 226b lands; replace with explicit click‑to‑fit tests.
