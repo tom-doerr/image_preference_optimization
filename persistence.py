@@ -270,6 +270,21 @@ def save_sample_image(prompt: str, row_idx: int, img: Any) -> None:
         pass
 
 
+def append_sample(prompt: str, feat: np.ndarray, label: float, img: Any | None = None) -> int:
+    """Append a labeled sample and optionally save its image.
+
+    Minimal wrapper around append_dataset_row + save_sample_image to reduce
+    call-site duplication. Returns the 1-based row index.
+    """
+    row_idx = append_dataset_row(prompt, feat, float(label))
+    if img is not None:
+        try:
+            save_sample_image(prompt, row_idx, img)
+        except Exception:
+            pass
+    return row_idx
+
+
 def _write_backups(path: str) -> None:
     """Write simple time-bucketed backups for the dataset file.
 

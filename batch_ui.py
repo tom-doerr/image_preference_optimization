@@ -323,9 +323,7 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     except Exception:
         pass
     try:
-        row_idx = p.append_dataset_row(prompt, feat, float(label))
-        if img is not None:
-            p.save_sample_image(prompt, row_idx, img)
+        row_idx = p.append_sample(prompt, feat, float(label), img)
         try:
             save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
         except Exception:
@@ -523,17 +521,6 @@ def _render_batch_tile_body(
             st.session_state.cur_labels[i] = 1
             _refit_from_dataset_keep_batch()
             _curation_replace_at(i)
-            try:
-                getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
-            except Exception:
-                pass
-            try:
-                if hasattr(st.sidebar, "success"):
-                    st.sidebar.success("Labeled Good (+1)")
-                else:
-                    st.sidebar.write("Labeled Good (+1)")
-            except Exception:
-                pass
             _log(
                 f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
             )
@@ -550,17 +537,6 @@ def _render_batch_tile_body(
             st.session_state.cur_labels[i] = -1
             _refit_from_dataset_keep_batch()
             _curation_replace_at(i)
-            try:
-                getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
-            except Exception:
-                pass
-            try:
-                if hasattr(st.sidebar, "success"):
-                    st.sidebar.success("Labeled Bad (-1)")
-                else:
-                    st.sidebar.write("Labeled Bad (-1)")
-            except Exception:
-                pass
             _log(
                 f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
             )
