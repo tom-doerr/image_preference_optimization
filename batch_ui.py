@@ -649,27 +649,31 @@ def _render_batch_ui() -> None:
     scorer_status = None
     fut_running = False
     z_p = None
+    scorer_tag = None
     try:
         from value_scorer import get_value_scorer_with_status
-        # Single-scorer rule:
-        # - If XGB cache exists → use XGB scorer
-        # - Else if Use Ridge captions → use Ridge scorer
-        # - Else → no scorer (n/a)
         cache = st.session_state.get("xgb_cache") or {}
-        use_ridge_caps = bool(st.session_state.get("use_ridge_captions", False))
         scorer = None
         scorer_status = "n/a"
-        vm_choice = None
         if cache.get("model") is not None:
-            vm_choice = "XGBoost"
             scorer, scorer_status = get_value_scorer_with_status(
                 "XGBoost", lstate, prompt, st.session_state
             )
-        elif use_ridge_caps:
-            vm_choice = "Ridge"
-            scorer, scorer_status = get_value_scorer_with_status(
-                "Ridge", lstate, prompt, st.session_state
-            )
+            if scorer_status == "ok":
+                scorer_tag = "XGB"
+        if scorer is None or scorer_status != "ok":
+            # Fallback to Ridge only when ||w||>0
+            try:
+                import numpy as _np
+                w = getattr(lstate, "w", None)
+                w_norm = float(_np.linalg.norm(w)) if w is not None else 0.0
+            except Exception:
+                w_norm = 0.0
+            if w_norm > 0.0:
+                s2, st2 = get_value_scorer_with_status("Ridge", lstate, prompt, st.session_state)
+                if st2 == "ok":
+                    scorer, scorer_status = s2, st2
+                    scorer_tag = "Ridge"
         # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
         try:
             _val = getattr(st.session_state, "log_verbosity", None)
@@ -728,16 +732,12 @@ def _render_batch_ui() -> None:
                 )
                 # Predicted value using current value model scorer
                 v_text = "Value: n/a"
-                if scorer is not None and z_p is not None:
+                if scorer is not None and z_p is not None and scorer_tag is not None:
                     try:
                         fvec = z_i - z_p
                         v = float(scorer(fvec))
                         v_text = f"Value: {v:.3f}"
-                        try:
-                            tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
-                            v_text = f"{v_text} [{tag}]"
-                        except Exception:
-                            pass
+                        v_text = f"{v_text} [{scorer_tag}]"
                     except Exception:
                         v_text = "Value: n/a"
                 cap_txt = f"Item {i} • {v_text}"

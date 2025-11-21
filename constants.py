@@ -90,8 +90,7 @@ class Keys:
     TRAIN_ON_NEW_DATA = "train_on_new_data"
     IMAGES = "images"
     GAMMA_ORTH = "gamma_orth"
-    # Captions toggle: prefer Ridge captions when XGB cache is absent
-    USE_RIDGE_CAPTIONS = "use_ridge_captions"
+    # 199f: removed Ridge captions toggle
     # Latent anchor/images keys
     USE_RANDOM_ANCHOR = "use_random_anchor"
     MU_IMAGE = "mu_image"

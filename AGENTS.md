@@ -1417,9 +1417,9 @@ Next Simplifications (Nov 21, 2025, 199)
 - 199d. Remove fragment‑specific helpers and tests — DONE.
   - Effect: single rendering path; smaller suite; fewer key paths.
   - LOC win (tests+code): ~150–220.
-- 199e. Purge legacy aggregated `dataset_*.npz` paths; folder‑only dataset.
-  - Effect: consistent persistence; simpler loaders; add `.gitignore` rule.
-  - LOC win: ~150–250. Tests: migrate to folder‑only.
+- 199e. Purge legacy aggregated `dataset_*.npz` paths — DONE.
+  - Effect: folder‑only persistence; simpler loaders. Added `.gitignore` rules for `dataset_*.npz` and `backups/`.
+  - Tests already target folder dataset; added a guard test to keep backups count unchanged.
 - 199f. Drop “Use Ridge captions” toggle; captions show:
   - `[XGB]` when XGB cache exists; `[Ridge]` when ‖w‖>0; otherwise `n/a`.
   - LOC win: ~30–50. Tests: update caption assertions.

@@ -217,8 +217,10 @@ What I changed
   via the explicit "Train XGBoost now (sync)" button.
 - Removed the "Use fragments" sidebar option (195g). Batch tiles always render without fragments now to keep one stable path
   and avoid rare click issues seen with fragments in this Streamlit build.
- - 199d: Removed fragment-specific helpers and tests. Rows heartbeat no longer uses fragments; captions/buttons render in a
+- 199d: Removed fragment-specific helpers and tests. Rows heartbeat no longer uses fragments; captions/buttons render in a
    single pass. This simplifies event handling and key generation.
+- 199e: Purged legacy aggregated dataset_*.npz files and the backups/ tree. The app and tests are folder-only now
+  (data/<hash>/<row>/sample.npz + optional image.png). Added .gitignore entries.
 
 Observations
 - A number of tests still assert the async UI and future-based behavior. After this change they fail. Choosing a direction will
@@ -236,4 +238,4 @@ Questions for you
 Pointers
 - Scores under tiles appear once a scorer is ready:
   - XGBoost: after clicking "Train XGBoost now (sync)" and the cache is set → captions show "[XGB] value".
-  - Ridge: toggle "Use Ridge captions" for deterministic linear values; when w=0 this shows 0.000 by design.
+ - 199f: Removed the "Use Ridge captions" toggle. Captions rule is now: [XGB] when an XGBoost cache exists; else [Ridge] when ‖w‖>0; otherwise n/a.

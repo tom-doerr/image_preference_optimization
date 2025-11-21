@@ -16,7 +16,6 @@ def test_captions_ridge_zero_w_explicit_zero():
     st.session_state.cur_batch = [np.zeros(4), np.ones(4)]
     st.session_state.cur_labels = [None, None]
     st.session_state.vm_choice = "Ridge"
-    st.session_state.use_ridge_captions = True
     sys.modules["streamlit"] = st
 
     ll = types.ModuleType("latent_logic")
@@ -37,4 +36,5 @@ def test_captions_ridge_zero_w_explicit_zero():
     import batch_ui
 
     batch_ui._render_batch_ui()
-    assert any("Value: 0.000" in c for c in images)
+    # With ||w|| == 0, captions should be n/a under 199f
+    assert any("Value: n/a" in c for c in images)
