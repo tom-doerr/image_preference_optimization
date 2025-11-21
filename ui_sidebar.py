@@ -668,6 +668,17 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
             pass
     except Exception:
         pass
+    # XGBoost async training toggle
+    try:
+        xgb_async = bool(
+            getattr(st.sidebar, "checkbox", lambda *a, **k: True)(
+                "Train XGBoost asynchronously",
+                value=bool(st.session_state.get(Keys.XGB_TRAIN_ASYNC, True)),
+            )
+        )
+        st.session_state[Keys.XGB_TRAIN_ASYNC] = xgb_async
+    except Exception:
+        pass
     try:
         st.session_state[Keys.BATCH_SIZE] = int(batch_size)
     except Exception:
