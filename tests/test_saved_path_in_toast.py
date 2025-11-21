@@ -19,6 +19,7 @@ class SavedPathToastTest(unittest.TestCase):
         p = types.ModuleType("persistence")
         p.append_dataset_row = lambda *a, **k: 42
         p.save_sample_image = lambda *a, **k: None
+        p.append_sample = lambda prompt, feat, label, img=None: 42
         p.dataset_rows_for_prompt = lambda prompt: 0
         p.data_root_for_prompt = lambda prompt: "data/abc123"
         sys.modules["persistence"] = p

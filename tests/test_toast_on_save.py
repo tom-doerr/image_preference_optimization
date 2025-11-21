@@ -10,6 +10,7 @@ class TestToastOnSave(unittest.TestCase):
     def test_toast_fires_on_sample_save(self):
         st = stub_basic()
         toasts = []
+        # Saving path is boring now (no toast); keep hook defined but we won't rely on it
         st.toast = lambda msg, **k: toasts.append(msg)
         st.session_state.prompt = "toast-sample-prompt"
 
@@ -36,7 +37,9 @@ class TestToastOnSave(unittest.TestCase):
         z = st.session_state.lstate.mu.copy()
         batch_ui._curation_add(1, z, img=None)
 
-        self.assertTrue(any("Saved sample #1" in t for t in toasts))
+        # No toast required; assert sample was persisted
+        from persistence import dataset_rows_for_prompt
+        self.assertGreaterEqual(dataset_rows_for_prompt(st.session_state.prompt), 1)
 
         # Cleanup created files
         if os.path.isdir(data_dir):

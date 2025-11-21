@@ -341,16 +341,9 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
             _log(f"[data] saved row={row_idx} path={save_dir}/{row_idx:06d}")
         except Exception:
             pass
-        # Toast when available; also show a persistent sidebar success line
+        # Single line notice only (no toasts): keep it boring and explicit
         try:
-            getattr(st, "toast", lambda *a, **k: None)(msg)
-        except Exception:
-            pass
-        try:
-            if hasattr(st.sidebar, "success"):
-                st.sidebar.success(msg)
-            else:
-                st.sidebar.write(msg)
+            st.sidebar.write(msg)
         except Exception:
             pass
         # Record last action for the sidebar panel
@@ -365,24 +358,18 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
             setattr(lstate, "step", int(getattr(lstate, "step", 0)) + 1)
         except Exception:
             pass
-        # Bump the live rows display immediately so the top metric updates even
-        # before the fragment tick.
+        # Bump the live rows display immediately (memory-only)
         try:
             _yl = st.session_state.get(Keys.DATASET_Y, None)
             rows_live = int(len(_yl)) if _yl is not None else 0
         except Exception:
             rows_live = 0
         try:
-            rows_disk = int(getattr(p, "dataset_rows_for_prompt")(prompt))
-        except Exception:
-            rows_disk = 0
-        try:
-            st.session_state[Keys.ROWS_DISPLAY] = str(max(rows_live, rows_disk))
+            st.session_state[Keys.ROWS_DISPLAY] = str(rows_live)
         except Exception:
             pass
         try:
-            line = f"[rows] live={rows_live} disk={rows_disk}"
-            print(line)
+            print(f"[rows] live={rows_live} disp={rows_live}")
         except Exception:
             pass
     except Exception:
