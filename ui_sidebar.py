@@ -239,7 +239,7 @@ def render_sidebar_tail(
         else:
             Xd, yd = _get_ds(prompt, st.session_state)
         if _ensure is not None and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-            lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
+            lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e5))
             _ensure(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
         # Inline train results panel (merged from ui_sidebar_train)
         def _compute_train_results_summary(st, lstate, base_prompt: str, vm_choice: str):
@@ -375,9 +375,9 @@ def render_sidebar_tail(
     except Exception:
         pass
     try:
-        reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
+        reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA, 1e5))
     except Exception:
-        reg_lambda = 1e-3
+        reg_lambda = 1e5
     _sidebar_value_model_block(st, lstate, prompt, vm_choice, reg_lambda)
     # Step size readouts for current pair (A/B); always emit lines for tests
     try:
