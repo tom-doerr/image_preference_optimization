@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 import numpy as np
-from constants import Keys
+from constants import Keys, DEFAULT_ITER_STEPS
 import logging as _logging
 
 LOGGER = _logging.getLogger("ipo")
@@ -404,7 +404,7 @@ def _render_batch_tile_body(
         try:
             from latent_logic import sample_z_xgb_hill
 
-            steps_local = int(st.session_state.get("iter_steps", 10))
+            steps_local = int(st.session_state.get("iter_steps", DEFAULT_ITER_STEPS))
             lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
             trust_val = st.session_state.get("trust_r", None)
             trust_r_local = (
@@ -737,7 +737,7 @@ def _render_batch_ui() -> None:
                     try:
                         from latent_logic import sample_z_xgb_hill  # local import
 
-                        steps_local = int(st.session_state.get("iter_steps", 10))
+                        steps_local = int(st.session_state.get("iter_steps", DEFAULT_ITER_STEPS))
                         lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
                         trust_val = st.session_state.get("trust_r", None)
                         trust_r_local = (
@@ -953,7 +953,7 @@ def _render_batch_ui() -> None:
                     try:
                         from latent_logic import sample_z_xgb_hill  # local import
 
-                        steps_local = int(st.session_state.get("iter_steps", 10))
+                        steps_local = int(st.session_state.get("iter_steps", DEFAULT_ITER_STEPS))
                         lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
                         trust_val = st.session_state.get("trust_r", None)
                         trust_r_local = (

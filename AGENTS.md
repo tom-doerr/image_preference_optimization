@@ -93,7 +93,7 @@ Legacy non‑ridge controls (removed):
   - Historical; non‑ridge modes have been pruned from the UI/backend.
 
 Performance + UX (Nov 18, 2025, late):
-- Optimization steps (latent): default set to 10; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) defaults to 0.1 instead of 0.0 so the iterative proposer is active by default.
+- Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) defaults to 0.1 instead of 0.0 so the iterative proposer is active by default.
 - Added lightweight performance telemetry:
   - flux_local._run_pipe prints "[perf] PIPE call took X.XXX s …" and records `dur_s` in `get_last_call()`.
   - Batch labeling logs per-click durations (good/bad) in the Streamlit CLI.
@@ -1320,7 +1320,7 @@ Follow‑up (Nov 21, 2025, later):
 New learnings (Nov 21, 2025 — batch-only polish)
 - Fragments: images render inside fragments; buttons render outside to avoid swallowed clicks. Page reruns are expected on button clicks; fragments minimize re-decode.
 - Value captions: each tile shows `Item i • Value: …`. Captions are `Value: n/a` until the active scorer status is `ok`. No silent Ridge fallback when XGB is unavailable/training.
-- XGB-guided sampling: batch uses a tiny hill-climb (`sample_z_xgb_hill`) with `iter_steps` (default 10). Ridge line-search uses three magnitudes `[0.25, 0.5, 1.0] × S`.
+- XGB-guided sampling: batch uses a tiny hill-climb (`sample_z_xgb_hill`) with `iter_steps` (default 100). Ridge line-search uses three magnitudes `[0.25, 0.5, 1.0] × S`.
 - Random μ init: when μ is all zeros on load/apply, initialize around the prompt anchor: `μ ← z_prompt + σ·r`.
 - Safety checker: disabled in `flux_local` (`safety_checker=None`; set `requires_safety_checker=False`).
 - Persistence: dataset counters come from per-sample folders `data/<hash>/<row>/sample.npz` only; rows update immediately after Good/Bad via `st.rerun()`.
