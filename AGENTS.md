@@ -1546,3 +1546,9 @@ Recommendation: 223b first, then 223c.
 Done (Nov 21, 2025, later):
 - Unified UI scorer usage: `ui.py` now uses `value_scorer.get_value_scorer` (no legacy shim branching).
 - Single‑emitter sidebar: app.py routes early sidebar lines through `ui_sidebar._emit_train_results`; removed duplicate direct writes.
+- Trimmed sidebar helper: `_vm_header_and_status()` now returns only the VM label and cache (status is emitted solely in Train results).
+
+Next options (231):
+- 231a. Remove the legacy scorer shim (`get_value_scorer_with_status`) after updating tests to the unified API.
+- 231b. Prune stale async/background mentions in older AGENTS/HUMANS sections.
+- 231c. Consider collapsing small CV helper `_cached_cv_lines` into `_emit_train_results` to keep all strings in one place (requires minor test tweaks).

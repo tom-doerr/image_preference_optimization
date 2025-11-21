@@ -361,4 +361,5 @@ Notes:
 - We removed the temporary async flag flip in the “Train XGBoost now (sync)” sidebar button; training is fully synchronous in value_model, so this is cleaner and avoids confusing states.
 - ensure_fitted was simplified: removed unreachable timing/future cleanup. It now just guards and calls the sync trainer.
 - UI step-scores moved to the unified `get_value_scorer` API; fewer imports and less branching.
- - app.py now uses the single sidebar emitter to print initial Train/CV/Status lines; removes string duplication and keeps ordering stable.
+- app.py now uses the single sidebar emitter to print initial Train/CV/Status lines; removes string duplication and keeps ordering stable.
+ - Simplified VM header helper: we no longer compute/print scorer status there; the status line appears only in the Train results block to avoid duplicates.

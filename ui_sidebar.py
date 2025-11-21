@@ -326,20 +326,14 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
     def _sb_w(line: str) -> None:
         safe_write(st, line)
 
-    def _vm_header_and_status() -> tuple[str, str, dict]:
+    def _vm_header_and_status() -> tuple[str, dict]:
         # Display the selected value model, not availability of a cached model
         vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge", "Distance") else vm_choice
         cache = st.session_state.get("xgb_cache") or {}
-        try:
-            from value_scorer import get_value_scorer
-            _sc, tag_or_status = get_value_scorer(vm_choice, lstate, prompt, st.session_state)
-            scorer_status = "ok" if _sc is not None else str(tag_or_status)
-        except Exception:
-            scorer_status = "unknown"
         # Emit only the Value model line here; the canonical Train results block
         # below renders the status lines to avoid duplicates/order drift.
         safe_write(st, f"Value model: {vm}")
-        return vm, scorer_status, cache
+        return vm, cache
 
     def _vm_details(vm: str, cache: dict) -> None:
         subexp = getattr(st.sidebar, "expander", None)
@@ -450,7 +444,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
         return
 
     with exp("Value model", expanded=False):
-        vm, _sc_status, cache = _vm_header_and_status()
+        vm, cache = _vm_header_and_status()
         xgb_line, ridge_line = _cached_cv_lines(st)
         _sb_w(xgb_line)
         _sb_w(ridge_line)
