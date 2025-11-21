@@ -1521,3 +1521,11 @@ Next Simplifications (Nov 21, 2025, 226)
 - 226b. Simplify `value_model` XGB/Ridge paths to sync‑only: remove dead async branches and future/status writes; keep `xgb_cache` and `LAST_TRAIN_{AT,MS}` only. Optional: retain `Keys.XGB_TRAIN_STATUS` as a dumb mirror for a transition period.
 - 226c. Finish thinning `ui.py`: keep it as a facade that re‑exports `ui_sidebar` helpers; once tests stop importing it, retire the file.
 - 226d. Prune any tests that assume async behavior (futures/status transitions) after 226b lands; replace with explicit click‑to‑fit tests.
+Simplify wave (Nov 21, 2025, 218)
+- 218a. Remove dead async stubs left inside value_model (delete the do_async_xgb branch entirely). Pure sync code.
+- 218b. Prune unused Keys in constants: drop RIDGE_TRAIN_ASYNC/RIDGE_FIT_FUTURE; keep XGB_TRAIN_ASYNC only for tests still touching it.
+- 218c. Sidebar single-source: render VM/status/Train results from one helper in ui_sidebar; delete duplicate emitters.
+- 218d. Folder-only dataset: confirm no code path rescans the disk on rerun; rely on in-memory counters and a single loader on prompt switch.
+- 218e. One scorer API only: remove get_value_scorer_with_status; use get_value_scorer everywhere and surface tag/status in captions.
+
+My recommendation: 218a → 218b → 218c first (small, safe LOC wins); then 218e.

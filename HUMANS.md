@@ -342,3 +342,19 @@ Questions for you
 1) OK to drop async keys entirely now (tests adjusted)?
 2) Is Playwright used in your CI? If not, I will remove its stubs/scripts.
 3) Any specific logs you want to keep visible at LOG_VERBOSITY=0?
+Nov 21, 2025 — Simplify focus and questions
+- We’re targeting a simpler, batch‑only, sync‑only app (Ridge/XGB only, sd‑turbo only).
+- Proposed next small steps (pick one):
+  - 218a: delete dead async branch in `value_model.py` (the `do_async_xgb` path).
+  - 218b: prune unused async Keys from `constants.Keys` (keep `XGB_TRAIN_ASYNC` only if tests still flip it).
+  - 218c: consolidate sidebar writers into `ui_sidebar` to avoid duplicate strings.
+  - 218d: confirm folder‑only dataset (no disk re‑scan each rerun) and keep in‑memory counters authoritative.
+  - 218e: remove `get_value_scorer_with_status`; use a single scorer API everywhere.
+
+Questions for you:
+1) Are you ok if we fully remove all async remnants (constants + code + docs) now? If yes, we’ll also update tests that still set `Keys.XGB_TRAIN_ASYNC`.
+2) Do you want to keep the “Train results” expander at all, or show the same lines only once in the sidebar main block?
+3) Confirm sd‑turbo as hardcoded model everywhere (no image server, no selector), so we can delete those branches and tests.
+
+Notes:
+- Pushing to origin likely requires credentials in this environment. If you want me to push, please provide access (SSH key/https token) or run `git push` locally; I’ll prep the commits.

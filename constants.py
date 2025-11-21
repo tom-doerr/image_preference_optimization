@@ -68,9 +68,7 @@ class Keys:
     # Compatibility keys (sync-only training still defines these for tests)
     XGB_TRAIN_STATUS = "xgb_train_status"
     XGB_TRAIN_ASYNC = "xgb_train_async"  # compat: tests may set this flag
-    XGB_FIT_FUTURE = "xgb_fit_future"
-    RIDGE_TRAIN_ASYNC = "ridge_train_async"
-    RIDGE_FIT_FUTURE = "ridge_fit_future"
+    XGB_FIT_FUTURE = "xgb_fit_future"  # compat only; no real futures used
     # Distance scorer exponent (p)
     DIST_EXP = "dist_exp"
     # Additional app keys for consistency

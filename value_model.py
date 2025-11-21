@@ -254,137 +254,28 @@ def fit_value_model(
                 except Exception:
                     max_depth = 3
                 if cache.get("model") is None or last_n != n:
-                    # Honor async toggle; when the session_state lacks an explicit
-                    # flag (common in unit tests that pass a plain dict), default to
-                    # synchronous so logs ("[xgb] train start") are captured.
-                    # 195a: force sync path regardless of any async toggle
-                    do_async_xgb = False
-                    if do_async_xgb:
-                        try:
-                            from background import get_executor  # lazy import
-
-                            def _fit_xgb_bg():
-                                try:
-                                    import time as __t
-                                    __t.sleep(0.01)
-                                except Exception:
-                                    pass
-                                _log(
-                                    f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
-                                )
-                                t_x = _time.perf_counter()
-                                mdl = fit_xgb_classifier(
-                                    X, y, n_estimators=n_estim, max_depth=max_depth
-                                )
-                                session_state.xgb_cache = {"model": mdl, "n": n}
-                                try:
-                                    session_state["xgb_toast_ready"] = True
-                                except Exception:
-                                    pass
-                                dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                                _log(
-                                    f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
-                                )
-                                try:
-                                    session_state[Keys.XGB_TRAIN_STATUS] = {
-                                        "state": "ok",
-                                        "rows": int(n),
-                                        "lam": float(lam),
-                                    }
-                                    session_state["xgb_last_updated_rows"] = int(n)
-                                    session_state["xgb_last_updated_lam"] = float(lam)
-                                    session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
-                                except Exception:
-                                    pass
-                                return True
-
-                            try:
-                                from background import get_train_executor as _get_trx
-
-                                fut = _get_trx().submit(_fit_xgb_bg)
-                            except Exception:
-                                from background import get_executor
-                                fut = get_executor().submit(_fit_xgb_bg)
-                            # Mark running immediately
-                            try:
-                                session_state[Keys.XGB_TRAIN_STATUS] = {
-                                    "state": "running",
-                                    "rows": int(n),
-                                    "lam": float(lam),
-                                }
-                            except Exception:
-                                pass
-                            session_state[Keys.XGB_FIT_FUTURE] = fut
-                            # Emit a single-line summary immediately so logging tests see it
-                            try:
-                                print(
-                                    f"[xgb] train done rows={n} d={d} (async submit)"
-                                )
-                            except Exception:
-                                pass
-                            # If the stub executor runs inline, mark status ok immediately
-                            try:
-                                if hasattr(fut, "done") and fut.done():
-                                    session_state[Keys.XGB_TRAIN_STATUS] = {
-                                        "state": "ok",
-                                        "rows": int(n),
-                                        "lam": float(lam),
-                                    }
-                                    session_state["xgb_last_updated_rows"] = int(n)
-                            except Exception:
-                                pass
-                            scheduled_async = True
-                        except Exception:
-                            # Fallback to sync if executor missing
-                            _log(
-                                f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
-                            )
-                            try:
-                                _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-                            except Exception:
-                                pass
-                            t_x = _time.perf_counter()
-                            mdl = fit_xgb_classifier(
-                                X, y, n_estimators=n_estim, max_depth=max_depth
-                            )
-                            session_state.xgb_cache = {"model": mdl, "n": n}
-                            try:
-                                session_state["xgb_toast_ready"] = True
-                            except Exception:
-                                pass
-                            dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                            _log(
-                                f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
-                            )
-                    else:
-                        _log(
-                            f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
-                        )
-                        try:
-                            _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-                        except Exception:
-                            pass
-                        t_x = _time.perf_counter()
-                        mdl = fit_xgb_classifier(
-                            X, y, n_estimators=n_estim, max_depth=max_depth
-                        )
-                        session_state.xgb_cache = {"model": mdl, "n": n}
-                        try:
-                            session_state["xgb_toast_ready"] = True
-                        except Exception:
-                            pass
-                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                        _log(
-                            f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
-                        )
-                        try:
-                            session_state[Keys.XGB_TRAIN_STATUS] = {
-                                "state": "ok",
-                                "rows": int(n),
-                                "lam": float(lam),
-                            }
-                        except Exception:
-                            pass
+                    _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                    try:
+                        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                    except Exception:
+                        pass
+                    t_x = _time.perf_counter()
+                    mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                    session_state.xgb_cache = {"model": mdl, "n": n}
+                    try:
+                        session_state["xgb_toast_ready"] = True
+                    except Exception:
+                        pass
+                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                    try:
+                        session_state[Keys.XGB_TRAIN_STATUS] = {
+                            "state": "ok",
+                            "rows": int(n),
+                            "lam": float(lam),
+                        }
+                    except Exception:
+                        pass
         except Exception:
             pass
 
