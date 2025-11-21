@@ -1377,3 +1377,8 @@ New learnings (Nov 21, 2025 – rows counters simplification):
 - Tests updated: rows tests seed dataset_y when needed and expect "disp"; the spinner regex in one test was relaxed to numeric-only.
 - Avoid helpers shadowing: ui_sidebar/app include tiny local safe_write/safe_set/safe_sidebar_num to avoid tests.helpers collisions.
 - app prefers latent_state imports (init/save/load) over latent_opt to dodge stubs.
+
+Early sidebar baseline (Nov 21, 2025 – 189c):
+- ui_sidebar.render_sidebar_tail now always writes fallback metadata when persistence_ui is absent: prompt_hash, State path, app_version.
+- Latent dim line is emitted unconditionally.
+- Status lines (Value model, XGBoost active, Optimization) remain in the canonical Train results block to preserve ordering tests, but they appear even with no training data.

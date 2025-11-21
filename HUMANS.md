@@ -201,3 +201,6 @@ What to keep in mind next:
 
 
 [189a] Rows-related tests updated to memory-only counters; safe helpers in app/ui_sidebar; latent_state imports; see AGENTS.md. Completed at 2025-11-21T17:41:37+00:00.
+[189c] Sidebar early lines
+- We now always show prompt_hash, State path, app_version, and Latent dim in the sidebar, even before any training.
+- Status lines (Value model, XGBoost active, Optimization) are kept in the Train results block so tests that assert ordering keep passing; they still render without training.
