@@ -5,19 +5,22 @@ from persistence import append_dataset_row
 
 
 class TestDatasetBackups(unittest.TestCase):
-    def test_backups_written_minutely_hourly_daily(self):
+    def test_no_legacy_backups_written(self):
         prompt = "backup_test_prompt"
         feat = np.zeros((1, 8))
-        # Append one row; this writes a folder sample and its backup
-        append_dataset_row(prompt, feat, +1.0)
         root = "."
-        # Check backups folders are non-empty
-        mins = os.listdir(os.path.join(root, "backups", "minutely"))
-        hrs = os.listdir(os.path.join(root, "backups", "hourly"))
-        days = os.listdir(os.path.join(root, "backups", "daily"))
-        self.assertTrue(len(mins) > 0)
-        self.assertTrue(len(hrs) > 0)
-        self.assertTrue(len(days) > 0)
+        # Snapshot existing backup counts (if any), then verify no increase after append
+        before = {}
+        for sub in ("minutely", "hourly", "daily"):
+            path = os.path.join(root, "backups", sub)
+            before[sub] = len(os.listdir(path)) if os.path.isdir(path) else 0
+        # Append one row; this writes a folder sample only (no backups)
+        append_dataset_row(prompt, feat, +1.0)
+        after = {}
+        for sub in ("minutely", "hourly", "daily"):
+            path = os.path.join(root, "backups", sub)
+            after[sub] = len(os.listdir(path)) if os.path.isdir(path) else 0
+        self.assertEqual(before, after)
 
 
 if __name__ == "__main__":

@@ -253,6 +253,56 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
             pass
         _vm_details(vm, cache)
 
+        # 195b: On-demand CV computation (no auto-CV on import/rerun)
+        try:
+            btn = getattr(st.sidebar, "button", None)
+            num = getattr(st.sidebar, "number_input", None)
+            if callable(btn):
+                # K folds (clamp 2–5), default 3
+                k = 3
+                try:
+                    if callable(num):
+                        k = int(num("CV folds", value=3, step=1))
+                        if k < 2:
+                            k = 2
+                        if k > 5:
+                            k = 5
+                except Exception:
+                    k = 3
+                if btn("Compute CV now"):
+                    try:
+                        # Prefer in-memory dataset
+                        Xm = getattr(lstate, 'X', None)
+                        ym = getattr(lstate, 'y', None)
+                        if Xm is not None and ym is not None and getattr(Xm, 'shape', (0,))[0] > 0:
+                            Xd, yd = Xm, ym
+                        else:
+                            from persistence import get_dataset_for_prompt_or_session as _get_ds
+                            Xd, yd = _get_ds(prompt, st.session_state)
+                        acc = None
+                        if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 1:
+                            if vm == "XGBoost":
+                                from metrics import xgb_cv_accuracy as _cv
+                            else:
+                                from metrics import ridge_cv_accuracy as _cv
+                            acc = float(_cv(Xd, yd, k=k))
+                        # Cache lines for display
+                        cache = st.session_state.get(Keys.CV_CACHE) or {}
+                        if not isinstance(cache, dict):
+                            cache = {}
+                        if acc is not None:
+                            cache[vm] = {"acc": acc, "k": k}
+                        st.session_state[Keys.CV_CACHE] = cache
+                        try:
+                            import datetime as _dt
+                            st.session_state[Keys.CV_LAST_AT] = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec='seconds')
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
 
 def render_sidebar_tail(
     st: Any,
@@ -312,6 +362,14 @@ def render_sidebar_tail(
         info = state_summary(lstate)
         from ui import sidebar_metric_rows
         sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
+    except Exception:
+        pass
+    # Ensure the Train results expander label is emitted even if panel logic fails
+    try:
+        exp_tr = getattr(st.sidebar, "expander", None)
+        if callable(exp_tr):
+            with exp_tr("Train results", expanded=False):
+                pass
     except Exception:
         pass
     # Train results panel (train score, CV, last train, XGB status)

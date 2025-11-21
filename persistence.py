@@ -235,22 +235,6 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
         )
     except Exception:
         pass
-    # Maintain a minimal backup of the sample file (legacy backup test)
-    try:
-        base = f"sample_{os.path.basename(root)}_{ret_idx:06d}.npz"
-        tmp_copy = os.path.join(".", base)
-        # create a copy named deterministically for backup routine
-        import shutil as _sh
-
-        _sh.copy2(sample_path, tmp_copy)
-        _write_backups(tmp_copy)
-        try:
-            os.remove(tmp_copy)
-        except Exception:
-            pass
-    except Exception:
-        pass
-
     # Also save per-sample NPZ under data/<hash>/<row_idx>/sample.npz
     return ret_idx
 
@@ -299,31 +283,7 @@ def append_sample(prompt: str, feat: np.ndarray, label: float, img: Any | None =
     return row_idx
 
 
-def _write_backups(path: str) -> None:
-    """Write simple time-bucketed backups for the dataset file.
-
-    Creates/overwrites three snapshots per call:
-    - backups/minutely/<base>.<YYYYMMDD_HHMM>.npz
-    - backups/hourly/<base>.<YYYYMMDD_HH>.npz
-    - backups/daily/<base>.<YYYYMMDD>.npz
-    Minimal and synchronous by design.
-    """
-    try:
-        now = datetime.now(timezone.utc)
-        base = os.path.basename(path)
-        root = os.path.dirname(path) or "."
-        buckets = {
-            os.path.join(root, "backups", "minutely"): now.strftime("%Y%m%d_%H%M"),
-            os.path.join(root, "backups", "hourly"): now.strftime("%Y%m%d_%H"),
-            os.path.join(root, "backups", "daily"): now.strftime("%Y%m%d"),
-        }
-        for folder, stamp in buckets.items():
-            os.makedirs(folder, exist_ok=True)
-            dst = os.path.join(folder, f"{base}.{stamp}.npz")
-            shutil.copy2(path, dst)
-    except Exception:
-        # Minimal: don't hide errors on save, but backups are best-effort.
-        pass
+# Legacy backup/aggregate NPZs removed (195c): folder-per-sample is the only format.
 
 
 def dataset_stats_for_prompt(prompt: str) -> dict:
