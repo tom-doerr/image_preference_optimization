@@ -72,7 +72,6 @@ class Keys:
     GUIDANCE = "guidance"
     GUIDANCE_EFF = "guidance_eff"
     SIDEBAR_COMPACT = "sidebar_compact"
-    USE_FRAGMENTS = "use_fragments"
     USE_IMAGE_SERVER = "use_image_server"
     IMAGE_SERVER_URL = "image_server_url"
     DEBUG_LOGS = "debug_logs"
