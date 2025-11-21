@@ -96,126 +96,8 @@ def _maybe_fit_xgb(
                     return scheduled
             except Exception:
                 pass
-            do_async = False  # 195a: XGB trains sync-only; no async scheduling
-            if do_async:
-                try:
-                    from background import get_executor
-
-                    def _fit():
-                        _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-                        t_x = _time.perf_counter()
-                        mdl = fit_xgb_classifier(
-                            X, y, n_estimators=n_estim, max_depth=max_depth
-                        )
-                        session_state.xgb_cache = {"model": mdl, "n": n}
-                        try:
-                            session_state["xgb_toast_ready"] = True
-                        except Exception:
-                            pass
-                        # Toast on readiness when Streamlit is available
-                        try:
-                            import streamlit as _st  # type: ignore
-
-                            getattr(_st, "toast", lambda *a, **k: None)(
-                                "XGBoost: model ready"
-                            )
-                            try:
-                                session_state["xgb_toast_ready"] = True
-                            except Exception:
-                                pass
-                        except Exception:
-                            pass
-                        dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                        _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                        try:
-                            session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
-                        except Exception:
-                            pass
-                        try:
-                            print(
-                                f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f} (async)"
-                            )
-                        except Exception:
-                            pass
-                        return True
-
-                    try:
-                        from background import get_train_executor as _get_trx
-
-                        fut = _get_trx().submit(_fit)
-                    except Exception:
-                        from background import get_executor
-                        fut = get_executor().submit(_fit)
-                    # Mark running so status checks reflect in-progress fit
-                    try:
-                        session_state[Keys.XGB_TRAIN_STATUS] = {
-                            "state": "running",
-                            "rows": int(n),
-                            "lam": float(lam),
-                        }
-                    except Exception:
-                        pass
-                    session_state[Keys.XGB_FIT_FUTURE] = fut
-                    # Immediate summary so logging tests see "train done"
-                    try:
-                        print(f"[xgb] train done rows={n} d={d} (async submit)")
-                    except Exception:
-                        pass
-                    scheduled = True
-                except Exception as e:
-                    _log(f"[xgb] unavailable: {type(e).__name__}")
-                    try:
-                        session_state[Keys.XGB_TRAIN_STATUS] = {
-                            "state": "xgb_unavailable",
-                            "rows": int(n),
-                            "lam": float(lam),
-                        }
-                    except Exception:
-                        pass
-                    _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-                    try:
-                        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-                    except Exception:
-                        pass
-                    t_x = _time.perf_counter()
-                    mdl = fit_xgb_classifier(
-                        X, y, n_estimators=n_estim, max_depth=max_depth
-                    )
-                    session_state.xgb_cache = {"model": mdl, "n": n}
-                    try:
-                        session_state["xgb_toast_ready"] = True
-                    except Exception:
-                        pass
-                    try:
-                        import streamlit as _st  # type: ignore
-
-                        getattr(_st, "toast", lambda *a, **k: None)(
-                            "XGBoost: model ready"
-                        )
-                        try:
-                            session_state["xgb_toast_ready"] = True
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
-                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                    try:
-                        session_state[Keys.XGB_TRAIN_STATUS] = {
-                            "state": "ok",
-                            "rows": int(n),
-                            "lam": float(lam),
-                        }
-                        _log(f"[xgb] using cached model rows={n} d={d}")
-                    except Exception:
-                        pass
-                    try:
-                        print(
-                            f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f} (fallback)"
-                        )
-                    except Exception:
-                        pass
-            else:
+            # Sync-only path
+            try:
                 _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
                 try:
                     _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
@@ -232,14 +114,9 @@ def _maybe_fit_xgb(
                     pass
                 try:
                     import streamlit as _st  # type: ignore
-
                     getattr(_st, "toast", lambda *a, **k: None)(
                         "XGBoost: model ready"
                     )
-                    try:
-                        session_state["xgb_toast_ready"] = True
-                    except Exception:
-                        pass
                 except Exception:
                     pass
                 dt_ms = (_time.perf_counter() - t_x) * 1000.0
@@ -250,11 +127,16 @@ def _maybe_fit_xgb(
                         "rows": int(n),
                         "lam": float(lam),
                     }
-                    _log(f"[xgb] using cached model rows={n} d={d}")
                 except Exception:
                     pass
+            except Exception as e:
+                _log(f"[xgb] unavailable: {type(e).__name__}")
                 try:
-                    print(f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f}")
+                    session_state[Keys.XGB_TRAIN_STATUS] = {
+                        "state": "xgb_unavailable",
+                        "rows": int(n),
+                        "lam": float(lam),
+                    }
                 except Exception:
                     pass
     except Exception as e:
