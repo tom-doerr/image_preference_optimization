@@ -148,3 +148,14 @@ In‑app checks
   - ensure_fitted records status + timestamp for XGBoost and Ridge.
   - Safety checker remains disabled in set_model.
   - persistence.append_sample wrapper tested for NPZ+image writes.
+
+Nov 21, 2025 — Quick Q&A (batch/XGB)
+- How many “line‑search” steps over XGB? We don’t do a true line‑search with XGB in batch; we do a tiny hill‑climb via `sample_z_xgb_hill`. The number of steps equals `iter_steps` (sidebar), default 10. The pure ridge line‑search path uses 3 magnitudes by default.
+- Where to see scores? Under each tile caption: `Item i • Value: …`. Captions show `Value: n/a` until the active scorer status becomes `ok` (e.g., once XGBoost finishes training and is cached).
+- What does “scorer not ready” mean? For XGBoost: `xgb_unavailable` = no cached model yet; `xgb_training` = fit in progress; `ok` = ready. We intentionally do not fall back to Ridge for captions to keep behavior explicit.
+- Random μ init: when a state loads with μ=0, we initialize μ to `z_prompt + σ·r` (unit random `r`).
+- Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
+
+Open questions
+- Should Value captions temporarily fall back to Ridge while XGB is training? Current policy is “no fallback”; say if you want that changed.
+- Default resolution is 384×384; if you want to hard‑reset persisted sessions to 384×384 on import, I can add a tiny toggle.

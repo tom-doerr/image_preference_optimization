@@ -1316,3 +1316,11 @@ Follow‑up (Nov 21, 2025, later):
 - Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
 - Button keys simplified to prefix+index (e.g., `good_0`): stable across reruns and independent of batch nonces.
 - Tests added (Nov 21, 2025, later): scheduler prepare under lock; sidebar canonical order check; rows counter increments with fragments ON; button keys stable with fragments; ensure_fitted status+timestamp; safety‑checker disabled; persistence.append_sample wrapper.
+
+New learnings (Nov 21, 2025 — batch-only polish)
+- Fragments: images render inside fragments; buttons render outside to avoid swallowed clicks. Page reruns are expected on button clicks; fragments minimize re-decode.
+- Value captions: each tile shows `Item i • Value: …`. Captions are `Value: n/a` until the active scorer status is `ok`. No silent Ridge fallback when XGB is unavailable/training.
+- XGB-guided sampling: batch uses a tiny hill-climb (`sample_z_xgb_hill`) with `iter_steps` (default 10). Ridge line-search uses three magnitudes `[0.25, 0.5, 1.0] × S`.
+- Random μ init: when μ is all zeros on load/apply, initialize around the prompt anchor: `μ ← z_prompt + σ·r`.
+- Safety checker: disabled in `flux_local` (`safety_checker=None`; set `requires_safety_checker=False`).
+- Persistence: dataset counters come from per-sample folders `data/<hash>/<row>/sample.npz` only; rows update immediately after Good/Bad via `st.rerun()`.

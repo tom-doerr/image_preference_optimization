@@ -146,6 +146,21 @@ def _apply_state(*args) -> None:  # re-exported for tests
         pass
     _init_pair_for_state()
     _reset_derived_state()
+    # Random μ init around the prompt anchor when μ is all zeros.
+    try:
+        import numpy as _np
+        from latent_logic import z_from_prompt as _zfp
+
+        if _np.allclose(new_state.mu, 0.0):
+            pr = st_local.session_state.get(Keys.PROMPT) or st_local.session_state.get("prompt") or DEFAULT_PROMPT
+            z_p = _zfp(new_state, pr)
+            r = new_state.rng.standard_normal(new_state.d).astype(float)
+            nr = float(_np.linalg.norm(r))
+            if nr > 0.0:
+                r = r / nr
+            new_state.mu = z_p + float(new_state.sigma) * r
+    except Exception:
+        pass
 
 # Prompt-aware persistence
 if "prompt" not in st.session_state:
