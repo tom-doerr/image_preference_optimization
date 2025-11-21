@@ -621,13 +621,8 @@ def render_sidebar_tail(
                     ) else (Xd, yd)
                     if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
                         lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-                        # Force a synchronous fit for this action
-                        prev_async = bool(st.session_state.get(Keys.XGB_TRAIN_ASYNC, True))
-                        st.session_state[Keys.XGB_TRAIN_ASYNC] = False
-                        # Clear any stale future handle so guard doesn't skip
-                        st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
+                        # Trigger a synchronous fit (value_model is sync-only now)
                         _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
-                        st.session_state[Keys.XGB_TRAIN_ASYNC] = prev_async
                         try:
                             getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
                         except Exception:

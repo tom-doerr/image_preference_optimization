@@ -345,8 +345,8 @@ Questions for you
 Nov 21, 2025 — Simplify focus and questions
 - We’re targeting a simpler, batch‑only, sync‑only app (Ridge/XGB only, sd‑turbo only).
 - Proposed next small steps (pick one):
-  - 218a: delete dead async branch in `value_model.py` (the `do_async_xgb` path).
-  - 218b: prune unused async Keys from `constants.Keys` (keep `XGB_TRAIN_ASYNC` only if tests still flip it).
+  - 218a: delete dead async branch in `value_model.py` (the `do_async_xgb` path). [Done]
+  - 218b: prune unused async Keys from `constants.Keys` (keep `XGB_TRAIN_ASYNC` only if tests still flip it). [Done]
   - 218c: consolidate sidebar writers into `ui_sidebar` to avoid duplicate strings.
   - 218d: confirm folder‑only dataset (no disk re‑scan each rerun) and keep in‑memory counters authoritative.
   - 218e: remove `get_value_scorer_with_status`; use a single scorer API everywhere.
@@ -358,3 +358,4 @@ Questions for you:
 
 Notes:
 - Pushing to origin likely requires credentials in this environment. If you want me to push, please provide access (SSH key/https token) or run `git push` locally; I’ll prep the commits.
+ - We removed the temporary async flag flip in the “Train XGBoost now (sync)” sidebar button; training is fully synchronous in value_model, so this is cleaner and avoids confusing states.

@@ -1529,3 +1529,8 @@ Simplify wave (Nov 21, 2025, 218)
 - 218e. One scorer API only: remove get_value_scorer_with_status; use get_value_scorer everywhere and surface tag/status in captions.
 
 My recommendation: 218a → 218b → 218c first (small, safe LOC wins); then 218e.
+
+Done (Nov 21, 2025, late):
+- 218a: Deleted value_model async branch.
+- 218b: Pruned RIDGE_* async Keys; left XGB_* compat only.
+- Sidebar “Train XGBoost now (sync)” no longer flips async flags or pops futures; it just calls fit_value_model (sync-only backend).
