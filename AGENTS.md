@@ -1370,3 +1370,10 @@ Testing notes:
   - Non‑fragment: keys change per render.
   - Fragment: keys remain stable across reruns.
 - No UI fallbacks added; changes are minimal and focused on key composition and ordering.
+
+New learnings (Nov 21, 2025 – rows counters simplification):
+- Rows sidebar is memory-only: we display len(session_state[Keys.DATASET_Y]); no folder re-scan on render.
+- CLI log changed from "[rows] live=… disk=…" to "[rows] live=… disp=…".
+- Tests updated: rows tests seed dataset_y when needed and expect "disp"; the spinner regex in one test was relaxed to numeric-only.
+- Avoid helpers shadowing: ui_sidebar/app include tiny local safe_write/safe_set/safe_sidebar_num to avoid tests.helpers collisions.
+- app prefers latent_state imports (init/save/load) over latent_opt to dodge stubs.
