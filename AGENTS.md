@@ -1306,3 +1306,8 @@ Root cause note (Nov 21, 2025):
 155c (Nov 21, 2025): Prune leftovers
 - Simplified `value_model._uses_ridge` to always return True (DH/CH fully pruned).
 - Removed `queue_ui.py` from the Makefile target list.
+Mini patch notes (Nov 21, 2025):
+- Batch Good/Bad keys stabilized (prefix + batch_nonce + index); fragments disabled for tiles to avoid missed clicks.
+- Sidebar rows counter updates immediately after saves; we also trigger st.rerun when available.
+- persistence.export_state_bytes now imports dumps_state lazily to play nice with test stubs.
+- Default resolution lowered to 384×384; updated default-size test accordingly.

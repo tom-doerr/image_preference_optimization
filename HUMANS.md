@@ -109,3 +109,14 @@ Nov 21, 2025 — 157b batch flow (Best‑of removed)
 
 Answer to your question (“what was it?”):
 - Primarily a UI problem: under fragments, button events sometimes didn’t fire; and the counter line didn’t force an immediate refresh. Disabling fragments for batch tiles and calling `st.rerun()` after saves fixed it. The debug button confirmed the write path was fine.
+
+Nov 21, 2025 — Current request wrap‑up
+- Added two focused tests:
+  - tests/test_batch_button_keys_stable.py ensures Good/Bad keys are stable across reruns.
+  - tests/test_good_click_saves_row.py simulates a Good click and asserts a new dataset row exists for the prompt.
+- Persistence import fix: `persistence.export_state_bytes` now imports `dumps_state` lazily to avoid import‑time failures when tests stub `latent_opt` with a minimal surface.
+- XGBoost logging for tests: when no async flag is set, `fit_value_model` trains XGB synchronously in tests so “[xgb] train start/done” logs are visible.
+
+Questions for you
+- Do you want me to remove the sidebar “Debug (saves)” helper now that Good/Bad works, or keep it hidden behind a small toggle?
+- Confirm default size 384×384 is desired going forward; I updated the default‑size test accordingly.
