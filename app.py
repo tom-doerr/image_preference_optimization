@@ -39,14 +39,25 @@ if not st.session_state.get(Keys.VM_CHOICE):
 st.sidebar.write(f"Value model: {vm}")
 st.sidebar.write("Step scores: n/a")
 from ui_sidebar import _emit_train_results as _emit_tr  # minimal import for consistency
+# Derive early status/active using the unified scorer API when possible
+try:
+    from value_scorer import get_value_scorer as _gvs
+    lstate_early = getattr(st.session_state, 'lstate', None) or types.SimpleNamespace(d=0, w=None)  # type: ignore
+    prompt_early = st.session_state.get(Keys.PROMPT) or st.session_state.get('prompt') or DEFAULT_PROMPT
+    scorer, tag_or_status = _gvs(vm, lstate_early, prompt_early, st.session_state)
+    vs_status_early = 'ok' if scorer is not None else str(tag_or_status)
+    active_early = 'yes' if (vm == 'XGBoost' and scorer is not None) else 'no'
+except Exception:
+    vs_status_early = 'xgb_unavailable' if vm == 'XGBoost' else 'ridge_untrained'
+    active_early = 'no' if vm == 'XGBoost' else 'no'
 _emit_tr(st, [
     "Train score: n/a",
     "CV score: n/a",
     "Last CV: n/a",
     "Last train: n/a",
-    f"Value scorer status: {'xgb_unavailable' if vm=='XGBoost' else 'ridge_untrained'}",
+    f"Value scorer status: {vs_status_early}",
     f"Value scorer: {vm} (n/a, rows=0)",
-    f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}",
+    f"XGBoost active: {active_early}",
     "Optimization: Ridge only",
 ])
 ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0)) if hasattr(st, 'session_state') else 0
