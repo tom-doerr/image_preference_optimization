@@ -1403,6 +1403,32 @@ Simplification (Nov 21, 2025):
 - 195g: Removed the "Use fragments" sidebar option. Batch UI now renders via a single, non-fragment path; image tiles and buttons
   are rendered in the same context to avoid the historical click-swallowing issue. Tests that asserted fragment toggling will be
   updated (or replaced with non-fragment assertions) in the next pass.
+
+Next Simplifications (Nov 21, 2025, 199)
+- 199a. Remove Ridge async entirely and delete `background.py`.
+  - Effect: ridge fits always sync; fewer code paths; simpler logs.
+  - LOC win: ~200–250. Tests: update async‑ridge expectations.
+- 199b. Delete `ui_metrics.py` shim and inline calls into `ui.py` (single source).
+  - Effect: fewer indirections/imports; easier stubbing.
+  - LOC win: ~30–60. Tests: update imports where needed.
+- 199c. Retire `ensure_fitted`/`train_and_record`; make UI call `fit_value_model` explicitly only on user actions.
+  - Effect: no auto‑fits on reruns; fewer status states; simpler mental model.
+  - LOC win: ~120–180. Tests: adapt ensure_fitted‑based tests.
+- 199d. Remove fragment‑specific helpers and tests.
+  - Effect: single rendering path; smaller suite.
+  - LOC win (tests+code): ~150–220. Risk: low.
+- 199e. Purge legacy aggregated `dataset_*.npz` paths; folder‑only dataset.
+  - Effect: consistent persistence; simpler loaders; add `.gitignore` rule.
+  - LOC win: ~150–250. Tests: migrate to folder‑only.
+- 199f. Drop “Use Ridge captions” toggle; captions show:
+  - `[XGB]` when XGB cache exists; `[Ridge]` when ‖w‖>0; otherwise `n/a`.
+  - LOC win: ~30–50. Tests: update caption assertions.
+- 199g. Remove `pair_ui.py` and `pages/` (batch‑only UI).
+  - Effect: tighter app; fewer stubs. LOC win: ~250–350. Tests: delete/migrate pair‑UI tests.
+- 199h. Trim `app.py` to <380 lines by deleting obsolete rerun shims and redundant debug prints (keep logs behind `LOG_VERBOSITY`).
+  - LOC win: ~40–60. Tests: none or minimal.
+
+Recommendation: 199f → 199a → 199b → 199h first (low risk, good LOC). Then 199g and 199e once the suite is green.
 - Impact: several tests still assert the presence/behavior of the async UI. Next step is either to (a) reintroduce a no-op
   compatibility toggle, or (b) update those tests to the new sync-only contract (preferred for clarity).
 - Proposed follow-ups (choose):

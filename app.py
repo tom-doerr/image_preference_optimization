@@ -153,10 +153,6 @@ def _apply_state(*args) -> None:  # re-exported for tests
         st.session_state.mu_history = [m.copy() for m in _mh] or [new_state.mu.copy()]
         st.session_state.mu_best_idx = 0; st.session_state.prompt_image = None
         for k in ("next_prefetch", "_bg_exec"): st.session_state.pop(k, None)
-        try:
-            from background import reset_executor; reset_executor()
-        except Exception:
-            pass
 
     st_local.session_state.lstate = new_state
     try:
@@ -189,8 +185,7 @@ if "prompt" not in st.session_state:
 if "xgb_train_async" not in st.session_state:
     safe_set(st.session_state, "xgb_train_async", True)
 # Also default Ridge to async to avoid UI stalls during fits.
-if K.RIDGE_TRAIN_ASYNC not in st.session_state:  # keep minimal logic
-    safe_set(st.session_state, K.RIDGE_TRAIN_ASYNC, True)
+# 199a: Ridge async is removed; no need to set a toggle
 
 _sb_txt = getattr(st.sidebar, "text_input", st.text_input)
 base_prompt = _sb_txt("Prompt", value=st.session_state.prompt)

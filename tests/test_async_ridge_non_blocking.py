@@ -14,7 +14,7 @@ class SS(dict):
 
 
 class TestAsyncRidgeNonBlocking(unittest.TestCase):
-    def test_ridge_fit_returns_immediately_when_async(self):
+    def test_ridge_fit_runs_synchronously_now(self):
         X = np.random.randn(20, 8).astype(np.float32)
         y = np.where(np.random.rand(20) > 0.5, 1, -1).astype(np.float32)
 
@@ -25,7 +25,6 @@ class TestAsyncRidgeNonBlocking(unittest.TestCase):
         lstate = LS()
 
         ss = SS()
-        ss.ridge_train_async = True
 
         # Patch latent_logic.ridge_fit to be slow
         ll = types.ModuleType("latent_logic")
@@ -42,11 +41,12 @@ class TestAsyncRidgeNonBlocking(unittest.TestCase):
         t0 = time.perf_counter()
         vm.fit_value_model("Ridge", lstate, X, y, lam=1e-3, session_state=ss)
         dt = time.perf_counter() - t0
-
-        self.assertLess(dt, 0.15)
-        fut = ss.get("ridge_fit_future")
-        self.assertIsNotNone(fut)
-        fut.result(timeout=2)
+        # Sync path: takes at least the sleep time (~0.2s)
+        self.assertGreaterEqual(dt, 0.19)
+        # No future is created
+        self.assertIsNone(ss.get("ridge_fit_future"))
+        # Weights updated
+        self.assertTrue(np.allclose(lstate.w, np.ones(8)))
 
 
 if __name__ == "__main__":

@@ -266,100 +266,34 @@ def _maybe_fit_xgb(
 def _maybe_fit_ridge(
     vm_choice: str, lstate: Any, X, y, lam: float, session_state: Any
 ) -> bool:
-    scheduled = False
+    """Ridge fits always run synchronously (199a)."""
     if not _uses_ridge(str(vm_choice)):
-        return scheduled
+        return False
     try:
         from latent_logic import ridge_fit
 
-        do_async_ridge = bool(
-            getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False)
-            or str(vm_choice) == "XGBoost"
-        )
-        if do_async_ridge:
-            try:
-                from background import get_executor
-
-                def _fit_bg():
-                    t_r = _time.perf_counter()
-                    w_new = ridge_fit(X, y, float(lam))
-                    # use lstate internal lock if present
-                    lock = getattr(lstate, "w_lock", None)
-                    if lock is not None:
-                        with lock:
-                            lstate.w = w_new
-                    else:
-                        lstate.w = w_new
-                    try:
-                        nrm = float(
-                            np.linalg.norm(
-                                w_new[: getattr(lstate, "d", w_new.shape[0])]
-                            )
-                        )
-                        print(
-                            f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f} (async)"
-                        )
-                    except Exception:
-                        pass
-                    try:
-                        dt_ms = float((_time.perf_counter() - t_r) * 1000.0)
-                        session_state[Keys.LAST_TRAIN_MS] = dt_ms
-                    except Exception:
-                        dt_ms = None
-                    try:
-                        if dt_ms is not None:
-                            print(
-                                f"[train-summary] ridge rows={X.shape[0]} lam={lam} ms={dt_ms:.1f} (async)"
-                            )
-                    except Exception:
-                        pass
-                    return True
-
-                try:
-                    from background import get_train_executor as _get_trx
-
-                    fut = _get_trx().submit(_fit_bg)
-                except Exception:
-                    from background import get_executor
-                    fut = get_executor().submit(_fit_bg)
-                try:
-                    print("[ridge] scheduled async fit")
-                except Exception:
-                    pass
-                session_state[Keys.RIDGE_FIT_FUTURE] = fut
-                scheduled = True
-            except Exception:
-                t_r = _time.perf_counter()
-                lstate.w = ridge_fit(X, y, float(lam))
-                try:
-                    dt_ms = float((_time.perf_counter() - t_r) * 1000.0)
-                    print(
-                        f"[train-summary] ridge rows={X.shape[0]} lam={lam} ms={dt_ms:.1f} (fallback)"
-                    )
-                except Exception:
-                    pass
+        t_r = _time.perf_counter()
+        w_new = ridge_fit(X, y, float(lam))
+        lock = getattr(lstate, "w_lock", None)
+        if lock is not None:
+            with lock:
+                lstate.w = w_new
         else:
-            t_r = _time.perf_counter()
-            lstate.w = ridge_fit(X, y, float(lam))
-            try:
-                nrm = float(
-                    np.linalg.norm(lstate.w[: getattr(lstate, "d", lstate.w.shape[0])])
-                )
-                _log(
-                    f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}"
-                )
-            except Exception:
-                pass
-            try:
-                dt_ms = float((_time.perf_counter() - t_r) * 1000.0)
-                print(
-                    f"[train-summary] ridge rows={X.shape[0]} lam={lam} ms={dt_ms:.1f}"
-                )
-            except Exception:
-                pass
+            lstate.w = w_new
+        try:
+            nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
+            _log(
+                f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}"
+            )
+        except Exception:
+            pass
+        try:
+            session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t_r) * 1000.0)
+        except Exception:
+            pass
     except Exception:
         pass
-    return scheduled
+    return False
 
 
 def _uses_ridge(choice: str) -> bool:
@@ -585,84 +519,21 @@ def fit_value_model(
         try:
             from latent_logic import ridge_fit  # local import keeps import time low
 
-            # Force Ridge async when vm_choice is XGBoost to avoid UI stalls
-            do_async_ridge = bool(
-                getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False)
-                or choice == "XGBoost"
-            )
-            if do_async_ridge:
-                try:
-                    from background import get_executor  # lazy import
-
-                    def _fit_ridge_bg():
-                        t_r = _time.perf_counter()
-                        w_new = ridge_fit(X, y, float(lam))
-                        lock = getattr(lstate, "w_lock", None)
-                        if lock is None:
-                            try:
-                                import threading as _threading  # lazy
-
-                                lock = _threading.Lock()
-                                setattr(lstate, "w_lock", lock)
-                            except Exception:
-                                lock = None
-                        if lock is not None:
-                            with lock:
-                                lstate.w = w_new
-                        else:
-                            lstate.w = w_new
-                        try:
-                            nrm = float(
-                                np.linalg.norm(
-                                    w_new[: getattr(lstate, "d", w_new.shape[0])]
-                                )
-                            )
-                            print(
-                                f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f} (async)"
-                            )
-                        except Exception:
-                            pass
-                        try:
-                            session_state[Keys.LAST_TRAIN_MS] = float(
-                                (_time.perf_counter() - t_r) * 1000.0
-                            )
-                        except Exception:
-                            pass
-                        return True
-
-                    try:
-                        # Prefer the general executor here; it's lighter/faster for tests
-                        from background import get_executor
-
-                        fut = get_executor().submit(_fit_ridge_bg)
-                    except Exception:
-                        from background import get_train_executor as _get_trx  # fallback
-                        fut = _get_trx().submit(_fit_ridge_bg)
-                    session_state[Keys.RIDGE_FIT_FUTURE] = fut
-                    scheduled_async = True
-                except Exception:
-                    # If background executor not available, fall back to sync
-                    w_new = ridge_fit(X, y, float(lam))
-                    lock = getattr(lstate, "w_lock", None)
-                    if lock is not None:
-                        with lock:
-                            lstate.w = w_new
-                    else:
-                        lstate.w = w_new
-            else:
-                w_new = ridge_fit(X, y, float(lam))
-                lock = getattr(lstate, "w_lock", None)
-                if lock is not None:
-                    with lock:
-                        lstate.w = w_new
-                else:
+            # 199a: Ridge fits are synchronous only
+            w_new = ridge_fit(X, y, float(lam))
+            lock = getattr(lstate, "w_lock", None)
+            if lock is not None:
+                with lock:
                     lstate.w = w_new
-                nrm = float(
-                    np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])])
-                )
+            else:
+                lstate.w = w_new
+            try:
+                nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
                 _log(
                     f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}"
                 )
+            except Exception:
+                pass
         except Exception:
             pass
 

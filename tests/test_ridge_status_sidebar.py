@@ -35,7 +35,7 @@ class TestRidgeStatusSidebar(unittest.TestCase):
             get_dataset_for_prompt_or_session=lambda _p, _s: (None, None),
         )
 
-    def test_status_running_and_ok(self):
+    def test_status_ok_without_future(self):
         st, writes = self._stub_streamlit()
         self._install_stubs(st)
         from constants import Keys
@@ -45,24 +45,7 @@ class TestRidgeStatusSidebar(unittest.TestCase):
 
         import ui_sidebar
 
-        # Running
-        st.session_state[Keys.RIDGE_FIT_FUTURE] = _DummyFuture(False)
-        ui_sidebar.render_sidebar_tail(
-            st,
-            L(),
-            "p",
-            "state.npz",
-            "Ridge",
-            3,
-            0.1,
-            "dummy/model",
-            lambda *a, **k: None,
-            lambda *a, **k: None,
-        )
-        self.assertTrue(any("Ridge training: running" in w for w in writes))
-        # OK
-        writes.clear()
-        st.session_state[Keys.RIDGE_FIT_FUTURE] = _DummyFuture(True)
+        # Without a future, sidebar should show ok
         ui_sidebar.render_sidebar_tail(
             st,
             L(),
@@ -80,4 +63,3 @@ class TestRidgeStatusSidebar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

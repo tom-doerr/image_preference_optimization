@@ -14,7 +14,7 @@ class SS(dict):
 
 
 class TestRidgeForcedAsyncInXGB(unittest.TestCase):
-    def test_ridge_runs_async_when_vm_is_xgb_even_if_toggle_false(self):
+    def test_ridge_runs_sync_in_xgb_mode_now(self):
         X = np.random.randn(30, 6).astype(np.float32)
         y = np.where(np.random.rand(30) > 0.5, 1, -1).astype(np.int32)
 
@@ -26,9 +26,6 @@ class TestRidgeForcedAsyncInXGB(unittest.TestCase):
 
         ss = SS()
         ss.xgb_train_async = True
-        ss.ridge_train_async = (
-            False  # explicitly disabled; should be ignored in XGB mode
-        )
 
         # Slow ridge to detect blocking if run synchronously
         # Temporarily patch latent_logic.ridge_fit and restore after test
@@ -58,11 +55,9 @@ class TestRidgeForcedAsyncInXGB(unittest.TestCase):
             else:
                 sys.modules.pop("latent_logic", None)
 
-        # Ridge must be scheduled in background regardless of toggle
-        fut = ss.get("ridge_fit_future")
-        self.assertIsNotNone(fut)
-        self.assertFalse(fut.done())
-        fut.result(timeout=2)
+        # Sync now: no ridge future, weights updated to ones
+        self.assertIsNone(ss.get("ridge_fit_future"))
+        self.assertTrue(np.allclose(lstate.w, np.ones(6)))
 
 
 if __name__ == "__main__":
