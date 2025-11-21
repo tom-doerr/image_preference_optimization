@@ -302,7 +302,6 @@ def _run_pipe(**kwargs):
         except Exception:
             pass
 
-    _prepare_scheduler()
     import time as _time
 
     retries = 0
@@ -346,6 +345,26 @@ def _run_pipe(**kwargs):
             except Exception:
                 pass
             with PIPE_LOCK:
+                # Prepare scheduler under the lock to avoid races with set_model()
+                try:
+                    sched = getattr(PIPE, "scheduler", None)
+                    if sched is not None and hasattr(sched, "set_timesteps"):
+                        try:
+                            sched.set_timesteps(int(steps), device="cuda")
+                        except TypeError:
+                            sched.set_timesteps(int(steps))
+                        if getattr(sched, "_step_index", None) is None:
+                            try:
+                                sched._step_index = 0  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        try:
+                            if getattr(sched, "num_inference_steps", None) is None:
+                                sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 out = PIPE(**kwargs)
             dur_s = _time.perf_counter() - t0
             try:
