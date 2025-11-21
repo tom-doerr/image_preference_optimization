@@ -480,10 +480,16 @@ def _render_batch_tile_body(
             except Exception:
                 pass
             try:
-                vmn = st.session_state.get("vm_choice")
-                _log(f"[scorer] tile={i} vm={vmn} v={v:.3f}")
+                _val = getattr(st.session_state, "log_verbosity", None)
+                _lv = 1 if (_val is None) else int(_val)
             except Exception:
-                pass
+                _lv = 1
+            if _lv > 0:
+                try:
+                    vmn = st.session_state.get("vm_choice")
+                    _log(f"[scorer] tile={i} vm={vmn} v={v:.3f}")
+                except Exception:
+                    pass
         except Exception:
             v_text = "Value: n/a"
     cap_txt = f"Item {i} • {v_text}"
@@ -756,10 +762,17 @@ def _render_batch_ui() -> None:
         scorer, scorer_status = get_value_scorer_with_status(
             vm_choice, lstate, prompt, st.session_state
         )
+        # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
         try:
-            _log(f"[scorer] vm={vm_choice} status={scorer_status}")
+            _val = getattr(st.session_state, "log_verbosity", None)
+            _lv = 1 if (_val is None) else int(_val)
         except Exception:
-            pass
+            _lv = 1
+        if _lv > 0:
+            try:
+                _log(f"[scorer] vm={vm_choice} status={scorer_status}")
+            except Exception:
+                pass
         fut = st.session_state.get("xgb_fit_future")
         fut_running = bool(
             fut is not None and not getattr(fut, "done", lambda: False)()
