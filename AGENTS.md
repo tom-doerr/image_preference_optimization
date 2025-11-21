@@ -1348,3 +1348,13 @@ New learnings (Nov 21, 2025 – keys + sidebar + tests):
 - Sidebar early lines: on import we always emit Value model / Train score / Step scores / XGBoost active and Latent dim so text‑capture tests are stable.
 - Render nonce: a lightweight render_nonce is incremented each _render_batch_ui() render (used only in non‑fragment keys). Cur_batch_nonce is incremented on new batches only.
 - Follow‑ups: finish stabilizing batch_keys_unique (isolated batch_ui) and batch_scores_visible.
+Additional tests (Nov 21, 2025 – coverage):
+- Captions: assert numeric Value with [XGB] when cache is ready; n/a when unavailable; [Ridge] when w≠0.
+- XGB training flow: async toggle respected; fit guard skips when a previous future is running; ImportError → xgb_unavailable once (no resubmits).
+- Sidebar: “Train XGBoost now (sync)” sets cache; “XGBoost available: yes” line renders; rows debug prints show disp.
+- Batch: training toggle off skips training.
+- Debug prints: ridge ensure-fit; ridge-scorer; batch replace_at; data saved row.
+
+Notes for future tests:
+- Add a small assertion for the sidebar “XGBoost model rows: N (status …)” once we expose it.
+- Consider a tiny Playwright check (stubbed backend) to assert captions update from n/a → [XGB] after clicking Train now.
