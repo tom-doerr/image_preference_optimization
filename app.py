@@ -13,15 +13,6 @@ def loads_state(data: bytes):
     from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
-# Minimal local helpers (avoid tests.helpers shadowing)
-def safe_set(ns, key, value):
-    try:
-        ns[key] = value
-    except Exception:
-        try:
-            setattr(ns, key, value)
-        except Exception:
-            pass
 
 # _safe_write removed (199h)
 def _export_state_bytes(state, prompt: str):
@@ -52,8 +43,7 @@ st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
 ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0)) if hasattr(st, 'session_state') else 0
 st.sidebar.write(f"Latent dim: {ld}")
 try:
-    from constants import DEFAULT_MODEL as _DEF_MODEL
-    set_model(_DEF_MODEL)
+    set_model("stabilityai/sd-turbo")
 except Exception:
     pass
 
@@ -127,7 +117,13 @@ def _apply_state(*args) -> None:  # re-exported for tests
 if "prompt" not in st.session_state:
     st.session_state.prompt = DEFAULT_PROMPT
 if "xgb_train_async" not in st.session_state:
-    safe_set(st.session_state, "xgb_train_async", True)
+    try:
+        st.session_state["xgb_train_async"] = True
+    except Exception:
+        try:
+            setattr(st.session_state, "xgb_train_async", True)
+        except Exception:
+            pass
  
 
 _sb_txt = getattr(st.sidebar, "text_input", st.text_input)
@@ -176,18 +172,36 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
     render_rows_and_last_action(st, base_prompt, lstate)
     # Model/decode settings
     selected_model, width, height, steps, guidance, apply_clicked = render_model_decode_settings(st, lstate)
-    safe_set(st.session_state, _K.STEPS, int(steps)); safe_set(st.session_state, _K.GUIDANCE, float(guidance))
+    try:
+        st.session_state[_K.STEPS] = int(steps)
+        st.session_state[_K.GUIDANCE] = float(guidance)
+    except Exception:
+        pass
     # Minimal advanced controls: Ridge λ and iterative params
     reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1e300, step=0.1, format="%.6f") or 1e300
-    safe_set(st.session_state, _K.REG_LAMBDA, float(reg_lambda))
+    try:
+        st.session_state[_K.REG_LAMBDA] = float(reg_lambda)
+    except Exception:
+        pass
     eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.01); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.001, format="%.3f") or eta_default
-    safe_set(st.session_state, _K.ITER_ETA, float(iter_eta_num)); iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
+    try:
+        st.session_state[_K.ITER_ETA] = float(iter_eta_num)
+    except Exception:
+        pass
+    iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
     from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
     steps_default = int(st.session_state.get(_K.ITER_STEPS) or _DEF_STEPS); iter_steps_num = safe_sidebar_num(st, "Optimization steps (latent)", value=steps_default, step=1) or steps_default
-    safe_set(st.session_state, _K.ITER_STEPS, int(iter_steps_num)); iter_steps = int(st.session_state.get(_K.ITER_STEPS) or steps_default)
+    try:
+        st.session_state[_K.ITER_STEPS] = int(iter_steps_num)
+    except Exception:
+        pass
+    iter_steps = int(st.session_state.get(_K.ITER_STEPS) or steps_default)
     # Best-of removed: no toggle, regular Good/Bad only
     # Effective guidance for decode (Turbo forces 0.0 upstream)
-    safe_set(st.session_state, _K.GUIDANCE_EFF, 0.0)
+    try:
+        st.session_state[_K.GUIDANCE_EFF] = 0.0
+    except Exception:
+        pass
     return (
         vm_choice,
         selected_gen_mode,

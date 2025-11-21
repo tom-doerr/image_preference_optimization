@@ -10,15 +10,7 @@ CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.RLock()
 LAST_CALL: dict = {}
 PROMPT_CACHE: dict = {}
-USE_IMAGE_SERVER = False
-IMAGE_SERVER_URL = os.getenv("IMAGE_SERVER_URL")
-
-
-def use_image_server(on: bool, url: Optional[str] = None) -> None:
-    global USE_IMAGE_SERVER, IMAGE_SERVER_URL
-    USE_IMAGE_SERVER = bool(on)
-    if url is not None:
-        IMAGE_SERVER_URL = str(url)
+# Image-server support removed for simplicity (local pipeline only)
 
 
 LOGGER = logging.getLogger("ipo")
@@ -41,6 +33,21 @@ try:
 except Exception:
     pass
 
+# Minimal log‑gating helper for this module only (no Streamlit import).
+def _logv() -> int:
+    try:
+        return int(os.getenv("LOG_VERBOSITY", "0"))
+    except Exception:
+        return 0
+
+def _p(msg: str, lvl: int = 1) -> None:
+    # Print only when LOG_VERBOSITY >= lvl (1=info, 2=verbose)
+    if _logv() >= int(lvl):
+        try:
+            print(msg)
+        except Exception:
+            pass
+
 
 def get_last_call() -> dict:
     return dict(LAST_CALL)
@@ -53,17 +60,8 @@ def _get_model_id() -> str:
     """
     mid = os.getenv("FLUX_LOCAL_MODEL")
     if not mid:
-        try:
-            from constants import DEFAULT_MODEL  # local import to avoid cycle
-
-            print(
-                f"[pipe] FLUX_LOCAL_MODEL not set; defaulting to {DEFAULT_MODEL!r}"
-            )
-            return DEFAULT_MODEL
-        except Exception:
-            raise ValueError(
-                "FLUX_LOCAL_MODEL not set (e.g. 'black-forest-labs/FLUX.1-schnell')"
-            )
+        _p("[pipe] FLUX_LOCAL_MODEL not set; defaulting to 'stabilityai/sd-turbo'", 1)
+        return "stabilityai/sd-turbo"
     return mid
 
 
@@ -100,20 +98,14 @@ def _ensure_pipe(model_id: Optional[str] = None):
     # Return cached if suitable
     with PIPE_LOCK:
         if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
-            try:
-                print(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}")
-            except Exception:
-                pass
+            _p(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}", 1)
             return PIPE
 
     # Prefer an explicitly selected/current model id before consulting env
     mid = model_id or CURRENT_MODEL_ID or _get_model_id()
     if PIPE is not None and CURRENT_MODEL_ID != mid:
         _free_pipe()
-    try:
-        print(f"[pipe] loading model id={mid!r}")
-    except Exception:
-        pass
+    _p(f"[pipe] loading model id={mid!r}", 1)
     import time as _time
 
     t0 = _time.perf_counter()
@@ -129,10 +121,7 @@ def _ensure_pipe(model_id: Optional[str] = None):
         ).to("cuda")
     except NotImplementedError:
         # Fallback 1: meta-tensor during .to('cuda') → reload with device_map='cuda'
-        try:
-            print("[pipe] meta-to error; reloading with device_map='cuda'")
-        except Exception:
-            pass
+        _p("[pipe] meta-to error; reloading with device_map='cuda'", 1)
         try:
             PIPE = DiffusionPipeline.from_pretrained(
                 mid,
@@ -145,12 +134,10 @@ def _ensure_pipe(model_id: Optional[str] = None):
             # try a CPU load with low_cpu_mem_usage=True and then move to CUDA.
             if "meta tensor" not in str(e2) and "device_map" not in str(e2):
                 raise
-            try:
-                print(
-                    "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True"
-                )
-            except Exception:
-                pass
+            _p(
+                "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True",
+                1,
+            )
             PIPE = DiffusionPipeline.from_pretrained(
                 mid,
                 torch_dtype=torch.float16,
@@ -158,7 +145,7 @@ def _ensure_pipe(model_id: Optional[str] = None):
             ).to("cuda")
     try:
         dt = _time.perf_counter() - t0
-        print(f"[pipe] loaded model id={mid!r} in {dt:.3f} s")
+        _p(f"[pipe] loaded model id={mid!r} in {dt:.3f} s", 1)
     except Exception:
         pass
     # Disable safety checker/filter components to prevent black frames.
@@ -284,10 +271,7 @@ def _run_pipe(**kwargs):
                 return
             try:
                 sched.set_timesteps(int(steps), device="cuda")
-                try:
-                    print(f"[pipe] set_timesteps steps={int(steps)} device=cuda")
-                except Exception:
-                    pass
+                _p(f"[pipe] set_timesteps steps={int(steps)} device=cuda", 2)
             except TypeError:
                 sched.set_timesteps(int(steps))
             if getattr(sched, "_step_index", None) is None:
@@ -324,7 +308,7 @@ def _run_pipe(**kwargs):
                     init_sig = getattr(sched, "init_noise_sigma", None)
                 except Exception:
                     pass
-                print(
+                _p(
                     "[pipe] call model={mid} event={ev} steps={steps} size={w}x{h} "
                     "guidance={g} latents_std={ls} init_sigma={isig}".format(
                         mid=mid,
@@ -335,16 +319,15 @@ def _run_pipe(**kwargs):
                         g=kwargs.get("guidance_scale"),
                         ls=lat_std,
                         isig=init_sig,
-                    )
+                    ),
+                    1,
                 )
             except Exception:
                 pass
-            try:
-                print(
-                    f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}"
-                )
-            except Exception:
-                pass
+            _p(
+                f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={steps} w={kwargs.get('width')} h={kwargs.get('height')}",
+                2,
+            )
             with PIPE_LOCK:
                 # Prepare scheduler under the lock to avoid races with set_model()
                 try:
@@ -370,8 +353,9 @@ def _run_pipe(**kwargs):
             dur_s = _time.perf_counter() - t0
             try:
                 LAST_CALL["dur_s"] = float(dur_s)
-                print(
-                    f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})"
+                _p(
+                    f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})",
+                    1,
                 )
             except Exception:
                 pass
@@ -436,10 +420,7 @@ def _get_prompt_embeds(prompt: str, guidance: float):
     key = (CURRENT_MODEL_ID, prompt, bool(guidance and guidance > 1e-6))
     try:
         if key in PROMPT_CACHE:
-            try:
-                print("[pipe] prompt embeds cache: hit")
-            except Exception:
-                pass
+            _p("[pipe] prompt embeds cache: hit", 2)
             return PROMPT_CACHE[key]
         enc = getattr(PIPE, "encode_prompt", None)
         if enc is None:
@@ -453,10 +434,7 @@ def _get_prompt_embeds(prompt: str, guidance: float):
             negative_prompt=None,
         )
         PROMPT_CACHE[key] = (prompt_embeds, neg_embeds)
-        try:
-            print("[pipe] prompt embeds cache: miss → stored")
-        except Exception:
-            pass
+        _p("[pipe] prompt embeds cache: miss → stored", 2)
         return PROMPT_CACHE[key]
     except Exception:
         return (None, None)
@@ -474,25 +452,7 @@ def generate_flux_image(
         if isinstance(mid, str) and "turbo" in mid:
             return 0.0
         return g
-    if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
-        import image_server as _srv
-
-        LAST_CALL.update(
-            {
-                "event": "text_call",
-                "width": int(width),
-                "height": int(height),
-                "steps": int(steps),
-                "guidance": float(guidance),
-            }
-        )
-        return _srv.generate_image(
-            prompt,
-            int(width),
-            int(height),
-            int(steps),
-            float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
-        )
+    # Remote image server path removed: always use local pipeline
     """Generate one image with a local FLUX model via Diffusers.
 
     Strict requirements (no fallbacks):
@@ -558,26 +518,7 @@ def generate_flux_image_latents(
         return g
     if steps is None:
         steps = 20
-    if USE_IMAGE_SERVER and IMAGE_SERVER_URL:
-        import image_server as _srv
-
-        LAST_CALL.update(
-            {
-                "event": "latents_call",
-                "width": int(width),
-                "height": int(height),
-                "steps": int(steps),
-                "guidance": float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
-            }
-        )
-        return _srv.generate_image_latents(
-            prompt,
-            latents,
-            int(width),
-            int(height),
-            int(steps),
-            float(_eff_guidance(CURRENT_MODEL_ID or "", guidance)),
-        )
+    # Remote image server path removed: always use local pipeline
     # Ensure pipeline is ready (env model id if not set)
     _ensure_pipe(None)
 

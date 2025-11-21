@@ -1,6 +1,10 @@
 from typing import Tuple, Optional
 from constants import DEFAULT_ITER_STEPS, DEFAULT_BATCH_SIZE
 
+def build_batch_controls(st, expanded: bool = False) -> int:
+    from ui_sidebar import build_batch_controls as _bbc
+    return int(_bbc(st, expanded=expanded))
+
 
 def _sb_num(st):
     return getattr(st.sidebar, "number_input", st.number_input)
@@ -35,87 +39,13 @@ def build_size_controls(st, lstate) -> Tuple[int, int, int, float, bool]:
 
 
 def build_pair_controls(st, expanded: bool = False):
-    sld = _sb_sld(st)
-    expander = getattr(st.sidebar, "expander", None)
-    ctx = expander("Pair controls", expanded=expanded) if callable(expander) else None
-    if ctx is not None:
-        ctx.__enter__()
-    # Brief, plain explanation to make sliders self-explanatory
-    try:
-        st.sidebar.write(
-            "Proposes the next A/B around the prompt: Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1); "
-            "Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration."
-        )
-    except Exception:
-        pass
-    alpha = sld(
-        "Alpha (ridge d1)",
-        value=0.5,
-        step=0.05,
-        help="Scale step along d1 (∥ w; value-gradient).",
-    )
-    beta = sld(
-        "Beta (ridge d2)",
-        value=0.5,
-        step=0.05,
-        help="Scale step along d2 (⟂ d1; orthogonal explore).",
-    )
-    trust_r = sld(
-        "Trust radius (||y||)",
-        value=2.5,
-        step=0.1,
-        help="Clamp proposal offset norm ‖y‖ ≤ r around anchor.",
-    )
-    lr_mu_ui = sld(
-        "Step size (lr_μ)",
-        value=0.3,
-        step=0.01,
-        help="How far μ moves toward the winner per click.",
-    )
-    gamma_orth = sld(
-        "Orth explore (γ)",
-        value=0.2,
-        step=0.05,
-        help="Add small orthogonal component (⊥ d1) to avoid stagnation.",
-    )
-    # Optimization steps (latent) are now driven by a numeric input in app.py;
-    # here we simply read the shared session_state value and pass it through.
-    try:
-        sess = getattr(st, "session_state", None)
-    except Exception:
-        sess = None
-    steps_default = DEFAULT_ITER_STEPS
-    if sess is not None:
-        try:
-            steps_default = int(sess.get("iter_steps", steps_default))
-        except Exception:
-            pass
-    iter_steps = steps_default
-    # eta (Iterative step) is also driven by a numeric input; reuse shared state.
-    eta_default = 0.01
-    if sess is not None:
-        try:
-            eta_default = float(sess.get("iter_eta", eta_default))
-        except Exception:
-            pass
-    iter_eta = eta_default
-    if ctx is not None:
-        ctx.__exit__(None, None, None)
-    return (
-        float(alpha),
-        float(beta),
-        float(trust_r),
-        float(lr_mu_ui),
-        float(gamma_orth),
-        int(iter_steps),
-        float(iter_eta),
-    )
+    from ui_sidebar import build_pair_controls as _bpc
+    return _bpc(st, expanded=expanded)
 
 
-def build_batch_controls(st, expanded: bool = False) -> int:
-    sld = _sb_sld(st)
-    batch_size = sld("Batch size", value=DEFAULT_BATCH_SIZE, step=1)
-    return int(batch_size)
+def build_size_controls(st, lstate) -> Tuple[int, int, int, float, bool]:
+    from ui_sidebar import _build_size_controls as _bsc
+    return _bsc(st, lstate)
 
 
 def build_queue_controls(st, expanded: bool = False) -> int:

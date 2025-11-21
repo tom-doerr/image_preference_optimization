@@ -4,8 +4,8 @@ from typing import Callable, Any, Tuple
 import numpy as np
 
 __all__ = [
-    "get_value_scorer",
-    "get_value_scorer_with_status",
+    "get_value_scorer",  # unified API: returns (scorer|None, tag_or_status)
+    "get_value_scorer_with_status",  # backwards-compat shim
 ]
 
 
@@ -47,28 +47,7 @@ def _build_xgb_scorer(
         return 0.0
 
     try:
-        # If training has been marked as running, report xgb_training early
-        try:
-            from constants import Keys as _K  # local import to avoid cycles
-        except Exception:
-            _K = None  # type: ignore
         cache = getattr(session_state, "xgb_cache", {}) or {}
-        fut = getattr(session_state, "xgb_fit_future", None)
-        try:
-            st_status = (
-                getattr(session_state, _K.XGB_TRAIN_STATUS, None) if _K else None
-            ) or session_state.get(getattr(_K, "XGB_TRAIN_STATUS", "xgb_train_status"))
-            if isinstance(st_status, dict) and st_status.get("state") == "running":
-                if fut is None or not getattr(fut, "done", lambda: False)():
-                    return _zero, "xgb_training"
-        except Exception:
-            pass
-        if (
-            fut is not None
-            and not getattr(fut, "done", lambda: False)()
-            and cache.get("model") is None
-        ):
-            return _zero, "xgb_training"
         mdl = cache.get("model")
         if mdl is None:
             try:
@@ -112,24 +91,24 @@ def _build_xgb_scorer(
 ## Legacy non‑ridge value models were removed.
 
 
-def get_value_scorer_with_status(
+def get_value_scorer(
     vm_choice: str, lstate: Any, prompt: str, session_state: Any
-) -> Tuple[Callable[[np.ndarray], float], str]:
-    """Return a callable f(fvec) -> score and a status string.
+) -> Tuple[Callable[[np.ndarray], float] | None, str]:
+    """Unified scorer API.
 
-    Split into small builders per value model to keep this dispatcher simple.
+    Returns (scorer|None, tag_or_status):
+    - When a scorer is usable, tag is one of: "Ridge" | "XGB" | "Distance".
+    - Otherwise returns (None, status) where status ∈ {"ridge_untrained","xgb_unavailable","xgb_training","xgb_error"}.
     """
     choice = str(vm_choice or "Ridge")
-    if choice == "Ridge":
-        return _build_ridge_scorer(lstate)
-    if choice == "XGBoost":
-        return _build_xgb_scorer(choice, lstate, prompt, session_state)
     if choice == "Distance":
         try:
             from constants import Keys as _K
+
             p = float(getattr(session_state, _K.DIST_EXP, session_state.get(_K.DIST_EXP, 2.0)))
         except Exception:
             p = 2.0
+
         def _dist(fvec: np.ndarray) -> float:
             fv = np.asarray(fvec, dtype=float)
             try:
@@ -140,20 +119,32 @@ def get_value_scorer_with_status(
                 return float(-np.sum(np.abs(fv) ** p))
             except Exception:
                 return float(-np.sum(fv * fv))
+
         try:
             print(f"[dist] exponent p={p}")
         except Exception:
             pass
-        return _dist, "ok"
-    # Fallback to Ridge semantics (DH/CH pruned)
-    return _build_ridge_scorer(lstate)
+        return _dist, "Distance"
+
+    if choice == "XGBoost":
+        s, status = _build_xgb_scorer(choice, lstate, prompt, session_state)
+        return (s if status == "ok" else None), ("XGB" if status == "ok" else status)
+
+    # Ridge (default)
+    s, status = _build_ridge_scorer(lstate)
+    return (s if status == "ok" else None), ("Ridge" if status == "ok" else status)
 
 
-def get_value_scorer(
+def get_value_scorer_with_status(
     vm_choice: str, lstate: Any, prompt: str, session_state: Any
-) -> Callable[[np.ndarray], float]:
-    """Backward-compatible wrapper returning only the scorer."""
-    scorer, _status = get_value_scorer_with_status(
-        vm_choice, lstate, prompt, session_state
-    )
-    return scorer
+) -> Tuple[Callable[[np.ndarray], float], str]:
+    """Backwards-compat shim: maps unified API to (scorer, status)."""
+    scorer, tag_or_status = get_value_scorer(vm_choice, lstate, prompt, session_state)
+    if scorer is None:
+        # When unavailable, return a zero scorer with the status string
+        def _zero(_fvec: np.ndarray) -> float:
+            return 0.0
+
+        return _zero, tag_or_status
+    # tag maps to ok
+    return scorer, "ok"

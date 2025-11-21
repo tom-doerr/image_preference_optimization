@@ -110,9 +110,7 @@ def dataset_rows_for_prompt_dim(prompt: str, d: int) -> int:
     return n
 
 
-def dataset_rows_all_for_prompt(prompt: str) -> int:
-    """Rows across all dims from folders (same as dataset_rows_for_prompt)."""
-    return dataset_rows_for_prompt(prompt)
+# dataset_rows_all_for_prompt removed (203f): use dataset_rows_for_prompt instead.
 
 
 def get_dataset_for_prompt_or_session(

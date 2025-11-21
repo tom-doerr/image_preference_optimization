@@ -536,14 +536,11 @@ New e2e tests (Nov 18, 2025):
 - `tests/e2e/test_e2e_value_model_dropdown.py`: switches the Value model dropdown to XGBoost and asserts the mode flips and the UI reflects it.
 - Stubbed content guard: `tests/test_pair_not_constant_stub.py` maps latents → RGB via a minimal stub pipeline and asserts both A/B are non‑constant and differ.
 
-Playwright e2e (optional, stubbed backend):
-- Start stub app + run UI checks:
-  - `bash scripts/run_playwright.sh`
-  - This starts `streamlit run scripts/app_stubbed.py` on a free port, then runs Python Playwright tests in `tests_playwright/` (`PW_RUN=1`).
-- Direct invocation:
-  - Start: `streamlit run scripts/app_stubbed.py --server.headless true --server.port 8597`
-  - In another shell: `PW_RUN=1 PW_URL=http://localhost:8597 python -m pytest -q tests_playwright`
-- Notes: We use Playwright for Python to avoid Node deps; tests are skipped unless `PW_RUN=1` is set. The stubbed app replaces `flux_local` at import time and renders synthetic images fast.
+Playwright e2e (removed): 203g removed `scripts/app_stubbed.py`, `scripts/run_playwright.sh`, and `tests_playwright/` to trim tooling not used in CI.
+
+Pages/ (Streamlit multi‑page) — removed (215a)
+- Deleted the `pages/` directory; the app is batch‑only in a single page.
+- Any future sub‑pages should live behind a simple condition in the main app to keep structure shallow.
 
 New learnings (Nov 18, 2025):
 - Black A/B frames were rooted in latent scale not matching the active scheduler. We now set timesteps for the requested step count before computing `init_noise_sigma` and normalize latents to that value. This removed the black-frame symptom here.
@@ -1438,14 +1435,54 @@ Recommendation: 199f → 199a → 199b → 199h first (low risk, good LOC). Then
   197c. Finish scorer API consolidation by making all UI sites call `get_value_scorer` (some still import the status wrapper).
 Next Simplifications (Nov 21, 2025, 203)
 - 203a. Remove unused Keys (USE_IMAGE_SERVER, IMAGE_SERVER_URL, XGB_TRAIN_ASYNC/XGB_FIT_FUTURE, RIDGE_*): prune constants and docs.
-- 203b. Delete remaining background references in docs/tests; simplify logging notes to sync-only.
+- 203b. Delete remaining background references in docs/tests; simplify logging notes to sync-only. (Done) — background.py has been removed; any prior mentions are historical.
+- 203c. Collapse size controls (Done) — inlined size controls into `ui_sidebar._build_size_controls`; removed the helper import.
+- 203d. Remove safe_set in app.py (Done) — replaced with direct session_state assignments and kept ui_sidebar’s use of helpers.safe_set unchanged.
+- 203e. Log gating (Done) — introduced a single LOG_VERBOSITY (env or session_state.log_verbosity) and gated batch_ui’s noncritical per‑tile logs behind it (0=quiet, 1=info, 2=verbose). Training logs remain unaffected.
 - 203c. Inline `ui_controls.build_size_controls` or reduce it to a tiny helper in `ui_sidebar` to cut indirection.
 - 203d. Collapse `safe_set` usage in app.py to direct assignments where tests don’t rely on the helper.
 - 203e. Trim debug prints behind a single `LOG_VERBOSITY` env and remove noisy per‑tile logs.
-- 203f. Remove dataset_rows_all_for_prompt alias; keep a single folder‑only counter.
+- 203f. Remove dataset_rows_all_for_prompt alias (Done); keep a single folder‑only counter via `dataset_rows_for_prompt` and dim‑filtered `dataset_rows_for_prompt_dim`.
 - 203g. Delete Playwright stubs and scripts if we confirm they’re unused in CI.
 - 203h. Run full suite; adjust any tests still assuming async/auto‑fit/fragment toggles.
 
 Recommendation: 203a → 203d → 203f first (safe LOC wins), then 203h.
 - Ridge λ default (Nov 21, 2025):
   - Set the default Ridge regularization λ to 1e+300 across UI and training fallbacks. This makes the default effectively “no update” unless the user changes it, matching the minimal/explicit philosophy. Tests that override λ continue to pass.
+Further Simplification Ideas (Nov 21, 2025, 205)
+- 205a. Remove unused Keys and async remnants: XGB_TRAIN_ASYNC, XGB_FIT_FUTURE, RIDGE_*; scrub mentions in docs/tests.
+- 205b. Delete Playwright stubs (scripts/app_stubbed.py, tests_playwright/) if not used in CI; shrink tooling surface.
+- 205c. Replace remaining safe_set usages with direct writes; keep only where tests depend on the helper.
+- 205d. Reduce logging: gate noncritical per‑tile prints behind LOG_VERBOSITY and default to 0; trim [fragpath]/[buttons] lines.
+- 205e. Collapse ui_controls into ui_sidebar to remove one more import hop (size/steps/guidance read in one place).
+- 205f. Prune remaining commented code/doc blocks that refer to removed modes (queue, fragments, pair UI) for clarity.
+
+Today (Nov 21, 2025)
+- Removed image-server branches from `flux_local.py`; local Diffusers is the only path.
+- Batch captions now tag scores for all supported value models: `[XGB]`, `[Ridge]`, and `[Distance]`.
+- Kept async Keys in `constants.Keys` for compatibility but avoided using them in new code paths; plan remains to prune after tests move off them.
+- Log gating (216d): flux_local’s noisy `[pipe]`/`[perf]` prints are now gated by `LOG_VERBOSITY` (0/1/2). Default is 0 (quiet). Enable with `export LOG_VERBOSITY=1` (info) or `=2` (verbose). Behavior unchanged.
+ - 216e: Collapsed UI helpers into `ui_sidebar`:
+   - Moved `sidebar_metric`, `sidebar_metric_rows`, `status_panel`, `render_iter_step_scores`, `render_mu_value_history`, and batch/pair control builders into `ui_sidebar.py`.
+ - `ui_controls.py` now provides thin wrappers delegating to `ui_sidebar` (keeps existing tests stable while reducing duplication).
+  - `ui_sidebar` no longer imports from `ui`/`ui_controls` for these helpers.
+- 216g: Train results cleanup — removed extra status lines (e.g., “XGBoost training: …”, “Ridge training: …”). We now emit only the canonical block: Train score, CV score, Last CV, Last train, Value scorer status, Value scorer, XGBoost active, Optimization. Reduces sidebar noise and mixed signals.
+ - Small refactor: centralized Train results emission via `_emit_train_results` in `ui_sidebar.py` to avoid duplicate string writes and keep ordering consistent.
+
+Next Simplifications (Nov 21, 2025, 213)
+- 213a. Single scorer entrypoint: fold `get_value_scorer_with_status` into `get_value_scorer(vm_choice)` that returns `(callable|None, tag|status)`. Update batch/ui/sidebar to consume one API.
+- 213b. Remove CV auto-lines: keep an on-demand button only; drop cached CV lines on import to simplify strings/order.
+- 213c. Purge async Keys entirely: delete `XGB_TRAIN_ASYNC/XGB_FIT_FUTURE/RIDGE_*` from `constants.py`, strip checks in `value_model` and tests.
+- 213d. Trim logs in `flux_local`: gate `[pipe]`/`[perf]` with `LOG_VERBOSITY` (keep errors). Reduce noisy scheduler prints in tests.
+- 213e. Collapse `ui.py` helper rows into `ui_sidebar` where used; remove unused UI writers (keeps a single sidebar surface).
+- 213f. Hardcode model: drop any residual model lists/defaults; enforce `stabilityai/sd-turbo` only to avoid selector/const churn.
+- 213g. Remove Distance model if not needed: Ridge/XGB only; update 2 tests that assert `[Distance]` captions.
+
+Next Simplifications (Nov 21, 2025, 217)
+- 217a. Finish One‑scorer API everywhere: replace remaining `get_value_scorer_with_status(...)` call‑sites with `get_value_scorer(...)`, then delete the shim. Add 2 tiny tests: (a) returns `(None,"ridge_untrained")` when `‖w‖=0`, (b) XGB scorer returns tag `"XGB"` after a sync fit and captions show `[XGB]`.
+- 217b. Sidebar cleanup: compute Train score only on demand; show a single status line derived from cache/‖w‖ and remove legacy "running/ok" flip‑flops.
+- 217c. Purge async remnants fully (keys/docs/UI strings). Keep only the explicit "Train XGBoost now (sync)" action.
+- 217d. Collapse size controls into `ui_sidebar` (delete the auxiliary helper) so width/height/steps/guidance live in one place.
+- 217e. Gate noncritical logs behind `LOG_VERBOSITY` (default 0) in batch/flux; keep errors and essential timings.
+
+Rationale: these are surgical, low‑risk deletions that reduce indirection and state permutations without changing the user‑visible flow.

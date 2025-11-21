@@ -27,6 +27,20 @@ except Exception:
 
 
 def _log(msg: str, level: str = "info") -> None:
+    # Gate noncritical logs behind LOG_VERBOSITY (0/1/2). Default 0 is quiet.
+    try:
+        from helpers import get_log_verbosity  # local import to avoid cycles
+
+        lv = int(get_log_verbosity(__import__("streamlit")))
+    except Exception:
+        try:
+            import os as _os
+
+            lv = int(_os.getenv("LOG_VERBOSITY", "0"))
+        except Exception:
+            lv = 0
+    if lv <= 0:
+        return
     try:
         print(msg)
     except Exception:
@@ -386,7 +400,10 @@ def _render_batch_tile_body(
             v_text = f"Value: {v:.3f}"
             # Append model tag for clarity
             try:
-                tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
+                vmn = str(getattr(st.session_state, "vm_choice", ""))
+                tag = (
+                    "Distance" if vmn == "Distance" else ("XGB" if vmn == "XGBoost" else "Ridge")
+                )
                 v_text = f"{v_text} [{tag}]"
             except Exception:
                 pass
@@ -507,7 +524,7 @@ def _curation_train_and_next() -> None:
         _curation_new_batch()
         return
     # Clear previous future handle
-    st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
+    # Async keys removed
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
@@ -530,15 +547,11 @@ def _curation_train_and_next() -> None:
                     recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
                 except Exception:
                     recent = False
-            if recent:
-                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(X.shape[0]), "lam": float(lam_now)}
-            else:
-                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                try:
-                    from value_model import fit_value_model as _fit_vm
-                    _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
-                except Exception:
-                    pass
+            try:
+                from value_model import fit_value_model as _fit_vm
+                _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
+            except Exception:
+                pass
         except Exception:
             pass
     _curation_new_batch()
@@ -550,7 +563,7 @@ def _refit_from_dataset_keep_batch() -> None:
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return
-    st.session_state.pop("xgb_fit_future", None)
+    # Async training removed
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
@@ -651,29 +664,31 @@ def _render_batch_ui() -> None:
     z_p = None
     scorer_tag = None
     try:
-        from value_scorer import get_value_scorer_with_status
+        from value_scorer import get_value_scorer
+        vm_choice = str(st.session_state.get(Keys.VM_CHOICE, ""))
         cache = st.session_state.get("xgb_cache") or {}
         scorer = None
         scorer_status = "n/a"
-        if cache.get("model") is not None:
-            scorer, scorer_status = get_value_scorer_with_status(
-                "XGBoost", lstate, prompt, st.session_state
-            )
-            if scorer_status == "ok":
-                scorer_tag = "XGB"
-        if scorer is None or scorer_status != "ok":
-            # Fallback to Ridge only when ||w||>0
-            try:
-                import numpy as _np
-                w = getattr(lstate, "w", None)
-                w_norm = float(_np.linalg.norm(w)) if w is not None else 0.0
-            except Exception:
-                w_norm = 0.0
-            if w_norm > 0.0:
-                s2, st2 = get_value_scorer_with_status("Ridge", lstate, prompt, st.session_state)
-                if st2 == "ok":
-                    scorer, scorer_status = s2, st2
-                    scorer_tag = "Ridge"
+        # Explicit Distance model takes precedence
+        if vm_choice == "Distance":
+            scorer, tag = get_value_scorer("Distance", lstate, prompt, st.session_state)
+            scorer_tag = tag if scorer is not None else None
+        else:
+            if cache.get("model") is not None:
+                scorer, tag = get_value_scorer("XGBoost", lstate, prompt, st.session_state)
+                scorer_tag = tag if scorer is not None else None
+            if scorer is None:
+                # Fallback to Ridge only when ||w||>0
+                try:
+                    import numpy as _np
+                    w = getattr(lstate, "w", None)
+                    w_norm = float(_np.linalg.norm(w)) if w is not None else 0.0
+                except Exception:
+                    w_norm = 0.0
+                if w_norm > 0.0:
+                    s2, tag2 = get_value_scorer("Ridge", lstate, prompt, st.session_state)
+                    if s2 is not None and tag2 == "Ridge":
+                        scorer, scorer_tag = s2, tag2
         # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
         try:
             _val = getattr(st.session_state, "log_verbosity", None)
@@ -685,10 +700,7 @@ def _render_batch_ui() -> None:
                 _log(f"[scorer] vm={vm_choice} status={scorer_status}")
             except Exception:
                 pass
-        fut = st.session_state.get("xgb_fit_future")
-        fut_running = bool(
-            fut is not None and not getattr(fut, "done", lambda: False)()
-        )
+        fut_running = False
         z_p = z_from_prompt(lstate, prompt)
     except Exception:
         scorer = None
@@ -962,7 +974,8 @@ def _render_batch_ui() -> None:
                         v = float(scorer(fvec))
                         v_text = f"Value: {v:.3f}"
                         try:
-                            tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
+                            vmn = str(getattr(st.session_state, "vm_choice", ""))
+                            tag = "Distance" if vmn == "Distance" else ("XGB" if vmn == "XGBoost" else "Ridge")
                             v_text = f"{v_text} [{tag}]"
                         except Exception:
                             pass

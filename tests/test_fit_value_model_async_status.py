@@ -31,16 +31,6 @@ class FitValueModelAsyncStatusTest(unittest.TestCase):
         xv.fit_xgb_classifier = lambda Xd, yd, n_estimators=50, max_depth=3: "mdl"
         sys.modules["xgb_value"] = xv
 
-        # Background executor that runs inline
-        class _Exec:
-            def submit(self, fn):
-                res = fn()
-                return types.SimpleNamespace(done=lambda: True, result=lambda: res)
-
-        bg = types.ModuleType("background")
-        bg.get_executor = lambda: _Exec()
-        sys.modules["background"] = bg
-
         vm = __import__("value_model")
         vm.fit_value_model("XGBoost", lstate, X, y, 0.001, ss)
 

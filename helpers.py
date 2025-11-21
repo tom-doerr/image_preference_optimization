@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+import os
 
 
 def safe_set(ns: Any, key: str, value: Any) -> None:
@@ -55,3 +56,23 @@ def safe_write(st: Any, line: Any) -> None:
             w(str(line))
     except Exception:
         pass
+
+
+def get_log_verbosity(st: Any | None = None) -> int:
+    """Return LOG_VERBOSITY as int (0/1/2).
+
+    Order: session_state.log_verbosity → env LOG_VERBOSITY → 0.
+    """
+    try:
+        if st is not None:
+            v = getattr(getattr(st, "session_state", st), "log_verbosity", None)
+            if v is None:
+                v = getattr(st, "log_verbosity", None)
+            if v is not None:
+                return int(v)
+    except Exception:
+        pass
+    try:
+        return int(os.getenv("LOG_VERBOSITY", "0"))
+    except Exception:
+        return 0

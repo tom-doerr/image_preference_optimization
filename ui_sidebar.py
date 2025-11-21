@@ -6,18 +6,218 @@ import numpy as np
 
 from constants import Keys
 from persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
+
 def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
+    # Minimal inline download control: export current state and offer a download button
     try:
-        from persistence_ui import render_persistence_controls as _rpc
+        import streamlit as st  # use current stub in tests
+        try:
+            from persistence import export_state_bytes  # defer to avoid stub import errors
+
+            data = export_state_bytes(lstate, prompt)
+        except Exception:
+            data = b""
     except Exception:
-        return
+        data = b""
     try:
-        _rpc(lstate, prompt, state_path, apply_state_cb, rerun_cb)
+        st.sidebar.download_button(
+            label="Download state (.npz)",
+            data=data,
+            file_name="latent_state.npz",
+            mime="application/octet-stream",
+        )
     except Exception:
         pass
-from ui import sidebar_metric_rows
-from constants import DEFAULT_MODEL, MODEL_CHOICES
-from ui_controls import build_size_controls, build_batch_controls
+def sidebar_metric(label: str, value) -> None:
+    import streamlit as st
+
+    try:
+        if hasattr(st.sidebar, "metric") and callable(getattr(st.sidebar, "metric", None)):
+            st.sidebar.metric(label, str(value))
+        else:
+            st.sidebar.write(f"{label}: {value}")
+    except Exception:
+        st.sidebar.write(f"{label}: {value}")
+
+
+def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
+    import streamlit as st
+
+    try:
+        for i in range(0, len(pairs), per_row):
+            row = pairs[i : i + per_row]
+            if (
+                hasattr(st.sidebar, "columns")
+                and callable(getattr(st.sidebar, "columns", None))
+                and len(row) > 1
+            ):
+                cols = st.sidebar.columns(len(row))
+                for (label, value), col in zip(row, cols):
+                    with col:
+                        sidebar_metric(label, value)
+            else:
+                for label, value in row:
+                    sidebar_metric(label, value)
+    except Exception:
+        for label, value in pairs:
+            sidebar_metric(label, value)
+
+
+def status_panel(images: tuple, mu_image) -> None:
+    import streamlit as st
+
+    st.sidebar.subheader("Images status")
+    left_ready = "ready" if images and images[0] is not None else "empty"
+    right_ready = "ready" if images and images[1] is not None else "empty"
+    sidebar_metric_rows([("Left", left_ready), ("Right", right_ready)], per_row=2)
+
+
+def build_batch_controls(st, expanded: bool = False) -> int:
+    sld = getattr(st.sidebar, "slider", st.slider)
+    try:
+        from constants import DEFAULT_BATCH_SIZE
+    except Exception:
+        DEFAULT_BATCH_SIZE = 4
+    batch_size = sld("Batch size", value=DEFAULT_BATCH_SIZE, step=1)
+    return int(batch_size)
+
+
+def build_pair_controls(st, expanded: bool = False):
+    sld = getattr(st.sidebar, "slider", st.slider)
+    expander = getattr(st.sidebar, "expander", None)
+    ctx = expander("Pair controls", expanded=expanded) if callable(expander) else None
+    if ctx is not None:
+        ctx.__enter__()
+    try:
+        st.sidebar.write(
+            "Proposes the next A/B around the prompt: Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1); Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration."
+        )
+    except Exception:
+        pass
+    alpha = sld("Alpha (ridge d1)", value=0.5, step=0.05)
+    beta = sld("Beta (ridge d2)", value=0.5, step=0.05)
+    trust_r = sld("Trust radius (||y||)", value=2.5, step=0.1)
+    lr_mu_ui = sld("Step size (lr_μ)", value=0.3, step=0.01)
+    gamma_orth = sld("Orth explore (γ)", value=0.2, step=0.05)
+    # Pull iterative params from session (keeps semantics)
+    sess = getattr(st, "session_state", None)
+    if sess is not None and hasattr(sess, "get"):
+        steps_default = int((sess.get("iter_steps") or 100))
+        eta_default = float((sess.get("iter_eta") or 0.01))
+    else:
+        steps_default = 100
+        eta_default = 0.01
+    if ctx is not None:
+        ctx.__exit__(None, None, None)
+    return (
+        float(alpha),
+        float(beta),
+        float(trust_r),
+        float(lr_mu_ui),
+        float(gamma_orth),
+        int(steps_default),
+        float(eta_default),
+    )
+
+
+# Minimal copies of step‑score helpers so ui_sidebar is self‑contained
+def compute_step_scores(
+    lstate: Any,
+    prompt: str,
+    vm_choice: str,
+    iter_steps: int,
+    iter_eta: float | None,
+    trust_r: float | None,
+    session_state: Any,
+):
+    try:
+        import numpy as _np
+        from latent_logic import z_from_prompt as _zfp
+        from value_scorer import get_value_scorer
+
+        w_raw = getattr(lstate, "w", None)
+        w = (
+            None
+            if w_raw is None
+            else _np.asarray(w_raw[: getattr(lstate, "d", 0)], dtype=float).copy()
+        )
+        n = float(_np.linalg.norm(w)) if w is not None else 0.0
+        scorer, tag = get_value_scorer(vm_choice, lstate, prompt, session_state)
+        if w is None or n == 0.0:
+            return None
+        if vm_choice != "Ridge" and scorer is None:
+            return None
+        d1 = w / n
+        n_steps = max(1, int(iter_steps))
+        if iter_eta is not None and float(iter_eta) > 0.0:
+            step_len = float(iter_eta)
+        elif trust_r and float(trust_r) > 0.0:
+            step_len = float(trust_r) / n_steps
+        else:
+            step_len = float(getattr(lstate, "sigma", 1.0)) / n_steps
+        z_p = _zfp(lstate, prompt)
+        scores: list[float] = []
+        for k in range(1, n_steps + 1):
+            zc = z_p + (k * step_len) * d1
+            try:
+                if scorer is not None:
+                    s = float(scorer(zc - z_p))
+                else:
+                    s = float(_np.dot(w, (zc - z_p)))
+            except Exception:
+                s = float(_np.dot(w, (zc - z_p)))
+            scores.append(s)
+        return scores
+    except Exception:
+        return None
+
+
+def render_iter_step_scores(
+    st: Any,
+    lstate: Any,
+    prompt: str,
+    vm_choice: str,
+    iter_steps: int,
+    iter_eta: float | None,
+    trust_r: float | None,
+) -> None:
+    scores = compute_step_scores(
+        lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state
+    )
+    if scores is None:
+        try:
+            st.sidebar.write("Step scores: n/a")
+            sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
+        except Exception:
+            pass
+        return
+    try:
+        st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
+    except Exception:
+        pass
+    try:
+        pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
+        sidebar_metric_rows(pairs, per_row=2)
+    except Exception:
+        pass
+
+
+def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
+    try:
+        import numpy as _np
+        from latent_opt import z_from_prompt as _zfp
+        mu_hist = getattr(lstate, "mu_hist", None)
+        if mu_hist is None or getattr(mu_hist, "size", 0) == 0:
+            return
+        z_p = _zfp(lstate, prompt).reshape(1, -1)
+        mu_flat = mu_hist.reshape(mu_hist.shape[0], -1)
+        vals = _np.linalg.norm(mu_flat - z_p, axis=1)
+        sb = getattr(st, "sidebar", st)
+        if hasattr(sb, "line_chart"):
+            sb.subheader("Latent distance per step")
+            sb.line_chart(vals.tolist())
+    except Exception:
+        pass
 
 # Local, minimal safe_write to avoid import shadowing by tests.helpers
 def safe_write(st: Any, line: Any) -> None:
@@ -49,11 +249,8 @@ def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice:
         trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
     except Exception:
         trust_val = None
-    # Lazy import to play nice with tests that stub 'ui'
     try:
-        from ui import render_iter_step_scores as _riss, render_mu_value_history as _rmvh
-
-        _riss(
+        render_iter_step_scores(
             st,
             lstate,
             prompt,
@@ -62,7 +259,7 @@ def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice:
             float(iter_eta) if iter_eta is not None else None,
             trust_val,
         )
-        _rmvh(st, lstate, prompt)
+        render_mu_value_history(st, lstate, prompt)
     except Exception:
         pass
 
@@ -137,9 +334,7 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
     except Exception:
         pass
     return xgb_line, ridge_line
-
-
-    def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
+def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
     def _sb_w(line: str) -> None:
         safe_write(st, line)
 
@@ -148,9 +343,9 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
         vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge", "Distance") else vm_choice
         cache = st.session_state.get("xgb_cache") or {}
         try:
-            from value_scorer import get_value_scorer_with_status
-
-            _scorer_vm, scorer_status = get_value_scorer_with_status(vm_choice, lstate, prompt, st.session_state)
+            from value_scorer import get_value_scorer
+            _sc, tag_or_status = get_value_scorer(vm_choice, lstate, prompt, st.session_state)
+            scorer_status = "ok" if _sc is not None else str(tag_or_status)
         except Exception:
             scorer_status = "unknown"
         safe_write(st, f"Value model: {vm}")
@@ -167,11 +362,8 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
                 rows_n = int((cache or {}).get("n") or 0)
             except Exception:
                 rows_n = 0
-            try:
-                st_info = st.session_state.get(Keys.XGB_TRAIN_STATUS) or {}
-                status = str(st_info.get("state") or ("ok" if rows_n > 0 else "unavailable"))
-            except Exception:
-                status = "unavailable"
+            # Status derived from cache rows only (async removed)
+            status = "ok" if rows_n > 0 else "unavailable"
             try:
                 st.sidebar.write(f"XGBoost model rows: {rows_n} (status: {status})")
             except Exception:
@@ -332,7 +524,6 @@ def render_sidebar_tail(
     rerun_cb,
 ) -> None:
     from flux_local import set_model
-    from persistence_ui import render_metadata_panel
 
     try:
         if hasattr(st.sidebar, "download_button"):
@@ -340,19 +531,37 @@ def render_sidebar_tail(
     except Exception:
         pass
     # Metadata (app_version, created_at, prompt_hash)
+    # Inline metadata panel (app_version, created_at, prompt_hash)
     try:
-        render_metadata_panel(state_path, prompt)
+        import os, hashlib
+        from persistence import read_metadata
+        meta = None
+        path = state_path
+        if os.path.exists(path):
+            meta = read_metadata(path)
+        else:
+            h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+            alt = os.path.join("data", h, "latent_state.npz")
+            if os.path.exists(alt):
+                path = alt
+                meta = read_metadata(path)
+        if meta and (meta.get("app_version") or meta.get("created_at")):
+            st.sidebar.subheader("State metadata")
+            pairs = []
+            if meta.get("app_version"):
+                pairs.append(("app_version", f"{meta['app_version']}"))
+            if meta.get("created_at"):
+                pairs.append(("created_at", f"{meta['created_at']}"))
+            ph = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+            pairs.append(("prompt_hash", ph))
+            sidebar_metric_rows(pairs, per_row=2)
+            try:
+                for k, v in pairs:
+                    st.sidebar.write(f"{k}: {v}")
+            except Exception:
+                pass
     except Exception:
-        # Fallback: emit minimal metadata lines when persistence_ui is unavailable
-        try:
-            import hashlib as _hl
-            from constants import APP_VERSION as _APPV
-            ph = _hl.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-            safe_write(st, f"prompt_hash: {ph}")
-            safe_write(st, f"State path: {state_path}")
-            safe_write(st, f"app_version: {_APPV}")
-        except Exception:
-            pass
+        pass
     # Status lines (Value model/XGBoost active/Optimization) are emitted later in the
     # canonical train-results block to preserve expected ordering in tests.
     _render_iter_step_scores_block(st, lstate, prompt, vm_choice, iter_steps, iter_eta)
@@ -375,7 +584,6 @@ def render_sidebar_tail(
     try:
         from latent_opt import state_summary  # type: ignore
         info = state_summary(lstate)
-        from ui import sidebar_metric_rows
         sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
     except Exception:
         pass
@@ -488,7 +696,7 @@ def render_sidebar_tail(
             last_cv = st.session_state.get(K.CV_LAST_AT) or "n/a"
         except Exception:
             last_cv = "n/a"
-        # Compose canonical order once and emit to both main sidebar and expander
+        # Compose canonical order once
         active = "yes" if vm_choice == "XGBoost" else "no"
         lines = [
             f"Train score: {tscore}",
@@ -500,53 +708,24 @@ def render_sidebar_tail(
             f"XGBoost active: {active}",
             "Optimization: Ridge only",
         ]
-        for ln in lines:
-            safe_write(st, ln)
-        # Optional training status lines (kept after the canonical block)
-        try:
-            fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
-            running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
-            safe_write(st, f"Ridge training: {'running' if running else 'ok'}")
-        except Exception:
-            pass
-        try:
-            xst = st.session_state.get(K.XGB_TRAIN_STATUS)
-            if isinstance(xst, dict) and 'state' in xst:
-                safe_write(st, f"XGBoost training: {xst.get('state')}")
-        except Exception:
-            pass
+        _emit_train_results(st, lines)
+        # Extra per-trainer status lines removed (sync-only; avoid noise)
         # Also present a dedicated group expander for tests expecting the label
+        # Also render lines inside an expander for tests that expect that group
         exp_tr = getattr(st.sidebar, "expander", None)
         if callable(exp_tr):
             with exp_tr("Train results", expanded=False):
-                try:
-                    for ln in lines:
-                        st.sidebar.write(ln)
-                    # Optional training statuses after canonical block
-                    try:
-                        xst = st.session_state.get(K.XGB_TRAIN_STATUS)
-                        if isinstance(xst, dict) and 'state' in xst:
-                            st.sidebar.write(f"XGBoost training: {xst.get('state')}")
-                    except Exception:
-                        pass
-                    try:
-                        fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
-                        running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
-                        st.sidebar.write(f"Ridge training: {'running' if running else 'ok'}")
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                _emit_train_results(st, lines, sidebar_only=True)
         # Also emit quick predicted values for current pair when possible
         try:
             pair = getattr(st.session_state, 'lz_pair', None)
             if pair is not None:
                 z_a, z_b = pair
                 from latent_logic import z_from_prompt as _zfp
-                from value_scorer import get_value_scorer_with_status as _gvs
-                scorer, sstatus = _gvs(vm_choice, lstate, prompt, st.session_state)
+                from value_scorer import get_value_scorer as _gvs
+                scorer, tag = _gvs(vm_choice, lstate, prompt, st.session_state)
                 z_p = _zfp(lstate, prompt)
-                if sstatus == 'ok':
+                if callable(scorer):
                     va = float(scorer(z_a - z_p))
                     vb = float(scorer(z_b - z_p))
                     safe_write(st, f"V(left): {va:.3f}")
@@ -555,9 +734,27 @@ def render_sidebar_tail(
             pass
     except Exception:
         pass
+
+
+def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
+    """Write canonical Train results lines to sidebar and (optionally) capture sink.
+
+    When sidebar_only=True, only writes to st.sidebar; else also records via safe_write
+    for test sinks that capture sidebar text.
+    """
+    try:
+        if not sidebar_only:
+            for ln in lines:
+                safe_write(st, ln)
+        for ln in lines:
+            try:
+                st.sidebar.write(ln)
+            except Exception:
+                pass
+    except Exception:
+        pass
     # Images status (ready/empty)
     try:
-        from ui import status_panel
         imgs = getattr(st.session_state, Keys.IMAGES, None)
         mu_img = getattr(st.session_state, Keys.MU_IMAGE, None)
         status_panel(imgs, mu_img)
@@ -688,15 +885,11 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
     # 199d: fragments removed — refresh rows directly
     _rows_refresh_tick()
     try:
-        from ui import sidebar_metric
-
         disp_plain = st.session_state.get(Keys.ROWS_DISPLAY, "0")
         sidebar_metric("Dataset rows", disp_plain)
-        # Keep the label present for tests, but mirror memory count instead of scanning disk
         sidebar_metric("Rows (disk)", int(disp_plain or 0))
         if lstate is not None:
             from latent_opt import state_summary  # type: ignore
-
             info = state_summary(lstate)
             sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
     except Exception:
@@ -730,15 +923,15 @@ def render_model_decode_settings(st: Any, lstate: Any):
     except Exception:
         pass
     try:
-        width, height, steps, guidance, apply_clicked = build_size_controls(st, lstate)
+        width, height, steps, guidance, apply_clicked = _build_size_controls(st, lstate)
     except Exception:
         width = getattr(lstate, "width", 512)
         height = getattr(lstate, "height", 512)
         steps = 6
         guidance = 0.0
         apply_clicked = False
-    # 195e: Hardcode model to sd-turbo; remove selector and image-server UI.
-    selected_model = DEFAULT_MODEL
+    # 215d: Hardcode model to sd-turbo; no selector/choices
+    selected_model = "stabilityai/sd-turbo"
     try:
         from helpers import safe_set
 
@@ -802,3 +995,24 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
     except Exception:
         pass
     return vm_choice, selected_gen_mode, batch_size, None
+def _build_size_controls(st, lstate):
+    num = getattr(st.sidebar, "number_input", st.number_input)
+    sld = getattr(st.sidebar, "slider", st.slider)
+    width = num("Width", step=64, value=getattr(lstate, "width", 512))
+    height = num("Height", step=64, value=getattr(lstate, "height", 512))
+    steps = sld("Steps", value=6)
+    guidance = sld("Guidance", value=3.5, step=0.1)
+    # Keep behavior identical to prior helper
+    width = getattr(lstate, "width", 512) if width is None else width
+    height = getattr(lstate, "height", 512) if height is None else height
+    steps = 6 if steps is None else steps
+    guidance = 3.5 if guidance is None else guidance
+    apply_clicked = False
+    if int(width) != int(getattr(lstate, "width", width)) or int(height) != int(getattr(lstate, "height", height)):
+        apply_clicked = True
+    try:
+        if getattr(st.sidebar, "button", lambda *a, **k: False)("Apply size now"):
+            apply_clicked = True
+    except Exception:
+        pass
+    return int(width), int(height), int(steps), float(guidance), bool(apply_clicked)

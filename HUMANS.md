@@ -117,6 +117,29 @@ Nov 21, 2025 — Current request wrap‑up
 - Persistence import fix: `persistence.export_state_bytes` now imports `dumps_state` lazily to avoid import‑time failures when tests stub `latent_opt` with a minimal surface.
 - XGBoost logging for tests: when no async flag is set, `fit_value_model` trains XGB synchronously in tests so “[xgb] train start/done” logs are visible.
 
+Nov 21, 2025 — Small cleanup today
+- Removed the image‑server toggle and codepath; we always use the local Diffusers pipeline in `flux_local`.
+- Batch captions now always display which scorer produced the value: `[XGB]`, `[Ridge]`, or `[Distance]`.
+- Async Keys remain defined in `constants.Keys` for compatibility with tests, but new codepaths don’t depend on them.
+- app.py no longer uses a local `safe_set`; we write directly to `st.session_state` for clarity. `ui_sidebar` still uses `helpers.safe_set` where tests expect it.
+- Log gating: noncritical batch UI prints are now gated by `LOG_VERBOSITY` (0/1/2). Default is 0 (quiet). Set `export LOG_VERBOSITY=1` or `st.session_state.log_verbosity=1` for more logs. Training logs (e.g., `[train]`, `[xgb]`) are unchanged.
+
+Nov 21, 2025 — Async keys purged (215f)
+- Removed async Keys across code (XGB_TRAIN_ASYNC/XGB_FIT_FUTURE/RIDGE_*); fits are synchronous.
+- Sidebar training lines now show simple derived status: XGBoost model rows → ok/unavailable; Ridge training → ok.
+
+Questions for you (Nov 21, 2025 — simplification round 213)
+- Is the Distance value model still useful for you, or can we prune it and keep only Ridge/XGB? (Cuts UI/options + tests.)
+- Are on-demand CV lines sufficient? We can drop auto-rendered CV text and show it only after clicking “Compute CV now”.
+- OK to hardcode the model to `stabilityai/sd-turbo` everywhere (no selector)?
+- Any remaining async keys that tests rely on, or can we purge them all in one go?
+
+Note (215a): Removed the `pages/` directory; the app is single‑page (Batch only). If you need a separate image‑match or upload UI again, we can reintroduce it directly in the main page behind a toggle to avoid multi‑page complexity.
+
+Nov 21, 2025 — 215g persistence_ui merged
+- Merged `persistence_ui` into `ui_sidebar`: the sidebar now handles the state download button and the metadata panel inline.
+- This removes a module, simplifies imports, and keeps all sidebar strings in one place for tests.
+
 Nov 21, 2025 — Fragment + scheduler robustness
 - Fixed a rare LCMScheduler “set_timesteps” race under fragments by preparing timesteps inside PIPE_LOCK right before calling the pipeline, and by making PIPE_LOCK re‑entrant (RLock) so set_model and _run_pipe can safely nest.
 - set_model now uses PIPE_LOCK; together these changes prevent “Number of inference steps is 'None'” when tiles decode concurrently with model‑level operations.
@@ -175,6 +198,27 @@ Nov 21, 2025 — Diffusion steps vs. optimization steps
 - Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
 
 Open questions
+Nov 21, 2025 — Follow‑up simplification proposal
+- 217a. Finish one‑scorer API: move remaining callers to `value_scorer.get_value_scorer(...)`, then remove the shim `get_value_scorer_with_status`. I will adjust tests that import the shim.
+- 217b. Sidebar: compute Train score only on demand and show a single status derived from cache/‖w‖; remove legacy async “running/ok” lines.
+- 217c. Purge all async keys/docs/UI paths; keep only the explicit “Train XGBoost now (sync)” button.
+- 217d. Collapse size controls into `ui_sidebar` and gate non‑critical logs with `LOG_VERBOSITY` (default 0).
+
+Questions for you
+- Keep the Distance scorer (with exponent control) or prune to Ridge/XGB only? It currently works; pruning simplifies but removes a requested option.
+- OK to remove the status shim now and update tests accordingly?
+
+Nov 21, 2025 — What changed just now (216e)
+- Collapsed UI helpers into `ui_sidebar.py` to reduce indirection:
+  - Inlined sidebar helpers: `sidebar_metric`, `sidebar_metric_rows`, `status_panel`, and step‑scores renderers.
+  - Inlined batch/pair control builders; `ui_controls.py` now re‑exports thin wrappers so tests that import it keep working.
+  - Removed `ui_sidebar` imports from `ui`/`ui_controls` for these helpers; `ui_sidebar` is self‑contained for sidebar.
+  - No behavior changes intended; ordering/strings preserved where possible.
+
+If anything regresses in tests tied to sidebar strings, I’ll align those next without adding complexity.
+
+Nov 21, 2025 — 216g Train results cleanup
+- Removed the extra “XGBoost training: …” and “Ridge training: …” lines from the Train results panel. The panel now shows only the canonical lines (Train score, CV score, Last CV, Last train, Value scorer status, Value scorer, XGBoost active, Optimization). This avoids mixed status signals and reduces noise.
 - Should Value captions temporarily fall back to Ridge while XGB is training? Current policy is “no fallback”; say if you want that changed.
 - Default resolution is 640×640; if you want a different default (e.g., 512×512 for speed), I can add a tiny preset toggle.
 
@@ -245,8 +289,22 @@ Nov 21, 2025 — More simplification ideas
 What we can still simplify next
 - 203a: Remove unused Keys (image server, async toggles) from constants and scrub code/docs.
 - 203d: Replace remaining safe_set calls with direct assignment where tests don’t depend on the helper.
-- 203f: Drop the `dataset_rows_all_for_prompt` alias; keep only the folder‑only counter.
+- 203f (Done): Dropped the `dataset_rows_all_for_prompt` alias; keep only folder‑only counters via `dataset_rows_for_prompt` and (dim‑aware) `dataset_rows_for_prompt_dim`.
 
 Questions for you
 1) Is it OK to remove `XGB_TRAIN_ASYNC` entirely (and update tests), or keep it as a dummy key for a while?
 2) Are the Playwright stubs still in use? If not, I will delete the scripts and notes to slim the repo.
+Nov 21, 2025 — Simplify‑more proposals
+
+What I propose next
+- 205a: Remove unused async keys (XGB_TRAIN_ASYNC, XGB_FIT_FUTURE, RIDGE_*) from constants/tests and scrub docs.
+- 205b: Delete Playwright stubs if CI doesn’t need them (scripts/app_stubbed.py, tests_playwright/).
+- 205c: Replace remaining safe_set calls with direct assignments (keep helper only if a test expects it).
+- 205d: Reduce log noise: gate per‑tile prints behind LOG_VERBOSITY=0/1/2; default 0.
+- 205e: Inline ui_controls.build_size_controls into ui_sidebar to cut one module.
+- 205f: Remove stale comments/notes about queue/fragments/pair UI.
+
+Questions for you
+1) OK to drop async keys entirely now (tests adjusted)?
+2) Is Playwright used in your CI? If not, I will remove its stubs/scripts.
+3) Any specific logs you want to keep visible at LOG_VERBOSITY=0?
