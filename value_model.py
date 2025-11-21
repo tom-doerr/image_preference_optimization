@@ -89,6 +89,14 @@ def _maybe_fit_xgb(
         except Exception:
             max_depth = 3
         if cache.get("model") is None or last_n != n:
+            # Status guard: if previously marked unavailable, don't resubmit repeatedly
+            try:
+                st_prev = getattr(session_state, Keys.XGB_TRAIN_STATUS, None) or session_state.get(Keys.XGB_TRAIN_STATUS)
+                if isinstance(st_prev, dict) and st_prev.get("state") in ("xgb_unavailable", "ok", "running") and cache.get("model") is None and st_prev.get("state") != "ok" and last_n == n:
+                    _log(f"[xgb] skipped: status={st_prev.get('state')} rows={n}")
+                    return scheduled
+            except Exception:
+                pass
             do_async = bool(getattr(session_state, Keys.XGB_TRAIN_ASYNC, True))
             if do_async:
                 try:
@@ -155,7 +163,16 @@ def _maybe_fit_xgb(
                     except Exception:
                         pass
                     scheduled = True
-                except Exception:
+                except Exception as e:
+                    _log(f"[xgb] unavailable: {type(e).__name__}")
+                    try:
+                        session_state[Keys.XGB_TRAIN_STATUS] = {
+                            "state": "xgb_unavailable",
+                            "rows": int(n),
+                            "lam": float(lam),
+                        }
+                    except Exception:
+                        pass
                     _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
                     t_x = _time.perf_counter()
                     mdl = fit_xgb_classifier(
@@ -233,8 +250,16 @@ def _maybe_fit_xgb(
                     print(f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f}")
                 except Exception:
                     pass
-    except Exception:
-        pass
+    except Exception as e:
+        _log(f"[xgb] unavailable: {type(e).__name__}")
+        try:
+            session_state[Keys.XGB_TRAIN_STATUS] = {
+                "state": "xgb_unavailable",
+                "rows": int(getattr(X, 'shape', (0,))[0] or 0),
+                "lam": float(lam),
+            }
+        except Exception:
+            pass
     return scheduled
 
 
@@ -769,8 +794,16 @@ def ensure_fitted(
                     session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 except Exception:
                     pass
-            except Exception:
-                fit_value_model(vm_choice, lstate, X, y, lam, session_state)
+            except Exception as e:
+                _log(f"[xgb] unavailable: {type(e).__name__}")
+                try:
+                    session_state[Keys.XGB_TRAIN_STATUS] = {
+                        "state": "xgb_unavailable",
+                        "rows": rows,
+                        "lam": float(lam),
+                    }
+                except Exception:
+                    pass
         else:
             try:
                 from latent_logic import ridge_fit  # type: ignore
