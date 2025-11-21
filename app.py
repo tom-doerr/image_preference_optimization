@@ -41,7 +41,6 @@ def propose_latent_pair_ridge(*a, **k):
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
-K = Keys
 
 # Emit minimal sidebar lines early so string-capture tests are stable (199h inline)
 vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
@@ -58,7 +57,6 @@ try:
     set_model(_DEF_MODEL)
 except Exception:
     pass
-# modules call st.toast directly where needed
 
 
 ## image_to_z wrapper removed (199h)
