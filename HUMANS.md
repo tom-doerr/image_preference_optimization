@@ -198,3 +198,6 @@ What to keep in mind next:
 - When stubbing fragments, always use `st.fragment = lambda f: (lambda *a, **k: f())` so `callable(fragment)` is True.
 - For non‑fragment tests, keys must include something that changes per render (we use `render_count`). For fragment tests, keys must be stable (prefix+index only).
 
+
+
+[189a] Rows-related tests updated to memory-only counters; safe helpers in app/ui_sidebar; latent_state imports; see AGENTS.md. Completed at 2025-11-21T17:41:37+00:00.
