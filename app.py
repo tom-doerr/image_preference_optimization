@@ -212,7 +212,7 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
     # Minimal advanced controls: Ridge λ and iterative params
     reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1e-3, step=1e-3, format="%.6f") or 1e-3
     safe_set(st.session_state, _K.REG_LAMBDA, float(reg_lambda))
-    eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.1); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.01, format="%.2f") or eta_default
+    eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.01); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.001, format="%.3f") or eta_default
     safe_set(st.session_state, _K.ITER_ETA, float(iter_eta_num)); iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
     from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
     steps_default = int(st.session_state.get(_K.ITER_STEPS) or _DEF_STEPS); iter_steps_num = safe_sidebar_num(st, "Optimization steps (latent)", value=steps_default, step=1) or steps_default

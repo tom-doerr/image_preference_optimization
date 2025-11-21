@@ -93,7 +93,7 @@ Legacy non‑ridge controls (removed):
   - Historical; non‑ridge modes have been pruned from the UI/backend.
 
 Performance + UX (Nov 18, 2025, late):
-- Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) defaults to 0.1 instead of 0.0 so the iterative proposer is active by default.
+- Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:
   - flux_local._run_pipe prints "[perf] PIPE call took X.XXX s …" and records `dur_s` in `get_last_call()`.
   - Batch labeling logs per-click durations (good/bad) in the Streamlit CLI.
@@ -814,7 +814,7 @@ New learnings (Nov 19, 2025, later):
 - Step sizes (lr_μ / eta) are currently user-controlled via sidebar sliders/inputs; there is no built-in randomization. Making step sizes random per update would require an explicit code change (e.g., sampling from a range in the proposer or hill-climb helpers), which we have not added yet to keep behavior deterministic for debugging.
 - Batch images are no longer cached per latent index (`cur_batch_images` was removed). Each rerun decodes all items in the current batch afresh so sidebar changes and latent tweaks immediately show up in the images, at the cost of a bit more decode work.
 - Batch init now drops a stale `cur_batch` if its latent dimension no longer matches the current `LatentState.d` (e.g., after changing Width/Height). This prevents reshape errors in `z_to_latents` when the resolution is changed and ensures new batches use the updated size.
-- Step-size sliders were made finer: `Step size (lr_μ)` now uses step=0.01 (min still 0.0, max 1.0) and the `Iterative step (eta)` slider also uses step=0.01. Numeric inputs for hill-climb already supported 0.01 granularity. Tests (`test_slider_help`, `test_default_steps`, `test_ui_controls_fallbacks`) remain green.
+- Step-size controls refined: `Step size (lr_μ)` step=0.01; `Iterative step (eta)` numeric input uses step=0.001 with default 0.01 for smaller values. Tests (`test_slider_help`, `test_default_steps`, `test_ui_controls_fallbacks`) remain green.
 
 Layout tweak (Nov 19, 2025, later):
 - Batch curation images are now rendered in horizontal rows using `st.columns` (5 items per row by default) instead of a purely vertical list. This keeps large batches (e.g., size 25) more readable while preserving simple code: `_render_batch_ui` still decodes one image per latent and renders `Item i` with the existing Good/Bad/Choose buttons inside each column.

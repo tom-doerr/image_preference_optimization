@@ -92,7 +92,7 @@ def build_pair_controls(st, expanded: bool = False):
             pass
     iter_steps = steps_default
     # eta (Iterative step) is also driven by a numeric input; reuse shared state.
-    eta_default = 0.1
+    eta_default = 0.01
     if sess is not None:
         try:
             eta_default = float(sess.get("iter_eta", eta_default))
