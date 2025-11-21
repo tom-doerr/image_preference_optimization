@@ -274,6 +274,10 @@ def _curation_replace_at(idx: int) -> None:
         if not zs:
             return
         i = int(idx) % len(zs)
+        try:
+            _log(f"[batch] replace_at idx={i} nonce={int(st.session_state.get('cur_batch_nonce', 0))}")
+        except Exception:
+            pass
         # Deterministic resample keyed on (batch_nonce, idx)
         try:
             import numpy as _np
@@ -313,6 +317,10 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     X = getattr(st.session_state, "dataset_X", None)
     y = getattr(st.session_state, "dataset_y", None)
     feat = (z - z_p).reshape(1, -1)
+    try:
+        _log(f"[data] append label={int(label)} ‖feat‖={float(np.linalg.norm(feat)):.3f}")
+    except Exception:
+        pass
     lab = np.array([float(label)])
     st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
     st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
@@ -329,6 +337,10 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
         except Exception:
             save_dir = "data"
         msg = f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
+        try:
+            _log(f"[data] saved row={row_idx} path={save_dir}/{row_idx:06d}")
+        except Exception:
+            pass
         # Toast when available; also show a persistent sidebar success line
         try:
             getattr(st, "toast", lambda *a, **k: None)(msg)
@@ -727,6 +739,10 @@ def _render_batch_ui() -> None:
         scorer, scorer_status = get_value_scorer_with_status(
             vm_choice, lstate, prompt, st.session_state
         )
+        try:
+            _log(f"[scorer] vm={vm_choice} status={scorer_status}")
+        except Exception:
+            pass
         fut = st.session_state.get("xgb_fit_future")
         fut_running = bool(
             fut is not None and not getattr(fut, "done", lambda: False)()

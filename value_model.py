@@ -358,6 +358,7 @@ def fit_value_model(
                     if fut_prev is not None and hasattr(fut_prev, "done"):
                         fut_running = not bool(fut_prev.done())
                     if fut_running:
+                        _log("[xgb] fit skipped: previous fit still running")
                         # Keep status 'running' and skip scheduling a new fit
                         try:
                             session_state[Keys.XGB_TRAIN_STATUS] = {
@@ -680,6 +681,7 @@ def ensure_fitted(
 
                 n_estim = int(getattr(session_state, "xgb_n_estimators", session_state.get("xgb_n_estimators", 50)))
                 max_depth = int(getattr(session_state, "xgb_max_depth", session_state.get("xgb_max_depth", 3)))
+                _log(f"[ensure] xgb sync fit rows={rows} d={d_x} n_estim={n_estim} depth={max_depth}")
                 mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
                 session_state.xgb_cache = {"model": mdl, "n": rows}
                 try:
@@ -696,6 +698,7 @@ def ensure_fitted(
             try:
                 from latent_logic import ridge_fit  # type: ignore
 
+                _log(f"[ensure] ridge sync fit rows={rows} d={d_x} lam={lam}")
                 w_new = ridge_fit(X, y, float(lam))
                 lock = getattr(lstate, "w_lock", None)
                 if lock is not None:

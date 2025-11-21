@@ -576,7 +576,7 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
         # Store a plain integer for stable display; keep autorefresh separate
         st.session_state[Keys.ROWS_DISPLAY] = str(n_rows)
         try:
-            print(f"[rows] live={rows_live} disk={rows_disk} disp={disp}")
+            print(f"[rows] live={rows_live} disk={rows_disk} disp={n_rows}")
         except Exception:
             pass
         try:

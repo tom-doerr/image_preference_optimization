@@ -31,6 +31,10 @@ def _build_ridge_scorer(lstate: Any) -> Tuple[Callable[[np.ndarray], float], str
 
     try:
         nrm = float(np.linalg.norm(w)) if w is not None else 0.0
+        try:
+            print(f"[ridge-scorer] ||w||={nrm:.3f} status={'ok' if nrm>0 else 'ridge_untrained'}")
+        except Exception:
+            pass
         return _ridge, ("ok" if nrm > 0.0 else "ridge_untrained")
     except Exception:
         return _ridge, "ridge_untrained"
