@@ -7,7 +7,7 @@ from typing import Optional
 
 PIPE = None  # lazily initialized Diffusers pipeline
 CURRENT_MODEL_ID = None
-PIPE_LOCK = threading.Lock()
+PIPE_LOCK = threading.RLock()
 LAST_CALL: dict = {}
 PROMPT_CACHE: dict = {}
 USE_IMAGE_SERVER = False
@@ -98,12 +98,13 @@ def _ensure_pipe(model_id: Optional[str] = None):
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
     # Return cached if suitable
-    if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
-        try:
-            print(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}")
-        except Exception:
-            pass
-        return PIPE
+    with PIPE_LOCK:
+        if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
+            try:
+                print(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}")
+            except Exception:
+                pass
+            return PIPE
 
     # Prefer an explicitly selected/current model id before consulting env
     mid = model_id or CURRENT_MODEL_ID or _get_model_id()
@@ -664,8 +665,12 @@ def generate_flux_image_latents(
 
 
 def set_model(model_id: str):
-    """Load or switch the local FLUX/SD/SDXL model. CUDA only; no fallbacks."""
-    pipe = _ensure_pipe(model_id)
+    """Load or switch the local FLUX/SD/SDXL model. CUDA only; no fallbacks.
+
+    Protected by PIPE_LOCK so scheduler swaps don't race with in-flight calls.
+    """
+    with PIPE_LOCK:
+        pipe = _ensure_pipe(model_id)
     # Use Euler A for SD‑Turbo unless already configured; improves stability
     try:
         if isinstance(model_id, str) and (

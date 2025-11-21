@@ -117,6 +117,10 @@ Nov 21, 2025 — Current request wrap‑up
 - Persistence import fix: `persistence.export_state_bytes` now imports `dumps_state` lazily to avoid import‑time failures when tests stub `latent_opt` with a minimal surface.
 - XGBoost logging for tests: when no async flag is set, `fit_value_model` trains XGB synchronously in tests so “[xgb] train start/done” logs are visible.
 
+Nov 21, 2025 — Fragment + scheduler robustness
+- Fixed a rare LCMScheduler “set_timesteps” race under fragments by preparing timesteps inside PIPE_LOCK right before calling the pipeline, and by making PIPE_LOCK re‑entrant (RLock) so set_model and _run_pipe can safely nest.
+- set_model now uses PIPE_LOCK; together these changes prevent “Number of inference steps is 'None'” when tiles decode concurrently with model‑level operations.
+
 Questions for you
 - Do you want me to remove the sidebar “Debug (saves)” helper now that Good/Bad works, or keep it hidden behind a small toggle?
 - Confirm default size 384×384 is desired going forward; I updated the default‑size test accordingly.
