@@ -61,8 +61,9 @@ class TrainAsyncSingleSubmitTest(unittest.TestCase):
         batch_ui._curation_train_and_next()
 
         self.assertEqual(len(fits), 1)
-        self.assertEqual(fits[0][0], "XGBoost")
+        self.assertEqual(fits[0][0], "Ridge")
         self.assertIn("xgb_train_status", st.session_state)
+        # Batch auto-trains Ridge only; the fallback marks XGB status as 'running'
         self.assertEqual(st.session_state["xgb_train_status"].get("state"), "running")
 
 

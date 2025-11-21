@@ -97,7 +97,7 @@ def _maybe_fit_xgb(
                     return scheduled
             except Exception:
                 pass
-            do_async = bool(getattr(session_state, Keys.XGB_TRAIN_ASYNC, True))
+            do_async = False  # 195a: XGB trains sync-only; no async scheduling
             if do_async:
                 try:
                     from background import get_executor
@@ -425,24 +425,10 @@ def fit_value_model(
                 neg = int((yy < 0).sum())
                 cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
                 last_n = int(cache.get("n") or 0)
-                # Guard: if a previous XGB fit is still running, do not resubmit.
+                # 195a: no async future; ignore any stale future handle and fit synchronously
+                # Clear any stale future handle; sync-only now
                 try:
-                    fut_running = False
-                    fut_prev = session_state.get(Keys.XGB_FIT_FUTURE)
-                    if fut_prev is not None and hasattr(fut_prev, "done"):
-                        fut_running = not bool(fut_prev.done())
-                    if fut_running:
-                        _log("[xgb] fit skipped: previous fit still running")
-                        # Keep status 'running' and skip scheduling a new fit
-                        try:
-                            session_state[Keys.XGB_TRAIN_STATUS] = {
-                                "state": "running",
-                                "rows": int(n),
-                                "lam": float(lam),
-                            }
-                        except Exception:
-                            pass
-                        return
+                    session_state.pop(Keys.XGB_FIT_FUTURE, None)
                 except Exception:
                     pass
                 # Read simple hyperparams from session_state; default to 50/3.
@@ -470,15 +456,8 @@ def fit_value_model(
                     # Honor async toggle; when the session_state lacks an explicit
                     # flag (common in unit tests that pass a plain dict), default to
                     # synchronous so logs ("[xgb] train start") are captured.
-                    if isinstance(session_state, dict):
-                        do_async_xgb = bool(session_state.get(Keys.XGB_TRAIN_ASYNC, False))
-                    else:
-                        try:
-                            do_async_xgb = bool(
-                                getattr(session_state, Keys.XGB_TRAIN_ASYNC)
-                            )
-                        except Exception:
-                            do_async_xgb = True
+                    # 195a: force sync path regardless of any async toggle
+                    do_async_xgb = False
                     if do_async_xgb:
                         try:
                             from background import get_executor  # lazy import
@@ -589,6 +568,14 @@ def fit_value_model(
                         _log(
                             f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
                         )
+                        try:
+                            session_state[Keys.XGB_TRAIN_STATUS] = {
+                                "state": "ok",
+                                "rows": int(n),
+                                "lam": float(lam),
+                            }
+                        except Exception:
+                            pass
         except Exception:
             pass
 

@@ -50,12 +50,12 @@ class TestXgbNoResubmitWhenFutureRunning(unittest.TestCase):
 
         vm.fit_value_model("XGBoost", lstate, X, y, 1e-3, ss)
 
-        # Should not call fit while a previous future is running
-        self.assertEqual(called["n"], 0)
+        # Sync-only: fit should run immediately and ignore any stale future
+        self.assertEqual(called["n"], 1)
         self.assertIn(Keys.XGB_TRAIN_STATUS, ss)
-        self.assertEqual(ss[Keys.XGB_TRAIN_STATUS]["state"], "running")
+        self.assertEqual(ss[Keys.XGB_TRAIN_STATUS]["state"], "ok")
+        self.assertIsNone(ss.get(Keys.XGB_FIT_FUTURE))
 
 
 if __name__ == "__main__":
     unittest.main()
-

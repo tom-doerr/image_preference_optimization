@@ -11,7 +11,7 @@ class DummyFuture:
         return bool(self._done)
 
 
-def test_fit_value_model_respects_async_toggle():
+def test_fit_value_model_sync_always():
     from value_model import fit_value_model
     from constants import Keys
 
@@ -30,15 +30,10 @@ def test_fit_value_model_respects_async_toggle():
     X = np.array([[1.0, 0.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 0.0]], dtype=float)
     y = np.array([1, -1], dtype=int)
 
-    # Async ON → future set + status running
-    ss_async = {Keys.XGB_TRAIN_ASYNC: True}
-    fit_value_model("XGBoost", lstate, X, y, 1.0, ss_async)
-    assert ss_async.get(Keys.XGB_FIT_FUTURE) is not None
-    assert ss_async.get(Keys.XGB_TRAIN_STATUS, {}).get("state") == "running"
-
-    # Async OFF → no future, cache set synchronously
-    ss_sync = {Keys.XGB_TRAIN_ASYNC: False}
-    fit_value_model("XGBoost", lstate, X, y, 1.0, ss_sync)
-    assert ss_sync.get(Keys.XGB_FIT_FUTURE) is None
-    assert isinstance(ss_sync.get(Keys.XGB_CACHE, {}).get("model"), object)
-
+    # Regardless of toggle, XGB trains synchronously now
+    for flag in (True, False):
+        ss = {Keys.XGB_TRAIN_ASYNC: flag}
+        fit_value_model("XGBoost", lstate, X, y, 1.0, ss)
+        assert ss.get(Keys.XGB_FIT_FUTURE) is None
+        assert ss.get(Keys.XGB_TRAIN_STATUS, {}).get("state") == "ok"
+        assert isinstance(ss.get(Keys.XGB_CACHE, {}).get("model"), object)
