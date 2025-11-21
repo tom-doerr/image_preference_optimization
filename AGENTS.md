@@ -1325,6 +1325,9 @@ New learnings (Nov 21, 2025 — batch-only polish)
 - Safety checker: disabled in `flux_local` (`safety_checker=None`; set `requires_safety_checker=False`).
 - Persistence: dataset counters come from per-sample folders `data/<hash>/<row>/sample.npz` only; rows update immediately after Good/Bad via `st.rerun()`.
 - Per‑prompt and per‑dim datasets: Training data isolation is by design. Changing the prompt (now includes `latex, ...`) or changing resolution will make the sidebar look empty for the new scope; older rows remain on disk under the previous prompt hash and/or latent dimension.
+
+Loader refinement (Nov 21, 2025):
+- `persistence.get_dataset_for_prompt_or_session` now ignores rows whose feature dimension doesn’t match the current latent dim (`lstate.d`) instead of bailing out. It still sets `dataset_dim_mismatch=(d_row, d_current)` when skipping. This lets training/scoring proceed with in‑scope rows even if the folder contains mixed resolutions. Test added: `tests/test_dataset_loader_ignores_mismatched_dim.py`.
 sd‑turbo sizing tips (Nov 21, 2025)
 - Best speed/quality: 640×640, steps=6, CFG=0.0 (as the app already enforces for *-turbo). Observed ~3.1 s per image on 640×640 here.
 - Fast default: 512×512, steps=6, CFG=0.0 — snappy UI and stable training dim (d=16,384).
