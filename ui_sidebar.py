@@ -98,16 +98,16 @@ def build_pair_controls(st, expanded: bool = False):
     alpha = sld("Alpha (ridge d1)", value=0.5, step=0.05)
     beta = sld("Beta (ridge d2)", value=0.5, step=0.05)
     trust_r = sld("Trust radius (||y||)", value=2.5, step=0.1)
-    lr_mu_ui = sld("Step size (lr_μ)", value=0.3, step=0.01)
+    lr_mu_ui = sld("Step size (lr_μ)", value=0.001, step=0.001)
     gamma_orth = sld("Orth explore (γ)", value=0.2, step=0.05)
     # Pull iterative params from session (keeps semantics)
     sess = getattr(st, "session_state", None)
     if sess is not None and hasattr(sess, "get"):
         steps_default = int((sess.get("iter_steps") or 100))
-        eta_default = float((sess.get("iter_eta") or 0.01))
+        eta_default = float((sess.get("iter_eta") or 0.001))
     else:
         steps_default = 100
-        eta_default = 0.01
+        eta_default = 0.001
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return (
