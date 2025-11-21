@@ -649,6 +649,26 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
     st.session_state[Keys.VM_CHOICE] = vm_choice
     st.session_state[Keys.VM_TRAIN_CHOICE] = vm_choice
     batch_size = build_batch_controls(st, expanded=True)
+    # Optional: random anchor toggle (ignore prompt when sampling around anchor)
+    try:
+        use_rand = bool(
+            getattr(st.sidebar, "checkbox", lambda *a, **k: False)(
+                "Use random anchor (ignore prompt)",
+                value=bool(st.session_state.get(Keys.USE_RANDOM_ANCHOR, False)),
+            )
+        )
+        st.session_state[Keys.USE_RANDOM_ANCHOR] = use_rand
+        # Reflect immediately on the active latent state when present
+        try:
+            ls = getattr(st.session_state, "lstate", None)
+            if ls is not None:
+                setattr(ls, "use_random_anchor", use_rand)
+                # Reset cached random anchor so the next call recreates it
+                setattr(ls, "random_anchor_z", None)
+        except Exception:
+            pass
+    except Exception:
+        pass
     try:
         st.session_state[Keys.BATCH_SIZE] = int(batch_size)
     except Exception:
