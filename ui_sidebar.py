@@ -297,6 +297,28 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
     try:
         exp = getattr(st.sidebar, "expander", None)
         stats = _mem_dataset_stats(st, lstate)
+        # Always show where we look for persisted rows and whether a dim mismatch causes ignores.
+        try:
+            import os, hashlib
+            h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+            folder = os.path.join("data", h)
+            st.sidebar.write(f"Dataset path: {folder}")
+            # If a folder exists, show on‑disk row count, even if ignored later
+            from persistence import dataset_rows_for_prompt as _rows
+            disk_rows = _rows(prompt)
+            st.sidebar.write(f"Rows (disk): {int(disk_rows)}")
+            # Dim mismatch hint
+            try:
+                from persistence import get_dataset_for_prompt_or_session as _get_ds
+                Xd, _ = _get_ds(prompt, st.session_state)
+                d_disk = int(getattr(Xd, 'shape', (0, 0))[1]) if Xd is not None else 0
+            except Exception:
+                d_disk = 0
+            d_cur = int(getattr(lstate, 'd', 0))
+            if d_disk and d_disk != d_cur:
+                st.sidebar.write(f"Dataset recorded at d={d_disk}; current d={d_cur} (ignored)")
+        except Exception:
+            pass
         if callable(exp):
             with exp("Training data", expanded=False):
                 sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
