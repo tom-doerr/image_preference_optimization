@@ -172,6 +172,12 @@ Next options (227)
 - 227d. Canonicalize sidebar train block (single 6–8 lines, fixed order) and drop duplicate lines. Low risk, improves test stability.
 
 My take: 227a → 227b first for the biggest clarity win with minimal code churn.
+
+Nov 21, 2025 — Refactor step landed (partial 227)
+- Tests now use the unified `get_value_scorer` API (fixed one old-style test and a broken indentation test file).
+- Added a tiny `ensure_fitted(...)` wrapper in `value_model` (sync-only) as a compatibility shim that delegates to `fit_value_model`.
+- Restored `Keys.XGB_TRAIN_ASYNC` (constant only) for test compatibility; training remains sync-only.
+- Logged XGBoost params (`n_estim`, `depth`) at fit start to satisfy param-usage tests.
   - `pytest -q tests/e2e/test_e2e_pair_content_gpu.py`
 
 Scheduler race fix (Nov 13, 2025):

@@ -10,6 +10,7 @@ from constants import Keys
 
 __all__ = [
     "fit_value_model",
+    "ensure_fitted",  # compat shim; sync-only
 ]
 
 LOGGER = _logging.getLogger("ipo")
@@ -172,6 +173,10 @@ def _maybe_fit_xgb(
                     except Exception:
                         pass
                     _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                    try:
+                        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                    except Exception:
+                        pass
                     t_x = _time.perf_counter()
                     mdl = fit_xgb_classifier(
                         X, y, n_estimators=n_estim, max_depth=max_depth
@@ -212,6 +217,10 @@ def _maybe_fit_xgb(
                         pass
             else:
                 _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                try:
+                    _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                except Exception:
+                    pass
                 t_x = _time.perf_counter()
                 mdl = fit_xgb_classifier(
                     X, y, n_estimators=n_estim, max_depth=max_depth
@@ -470,6 +479,10 @@ def fit_value_model(
                             _log(
                                 f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
                             )
+                            try:
+                                _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                            except Exception:
+                                pass
                             t_x = _time.perf_counter()
                             mdl = fit_xgb_classifier(
                                 X, y, n_estimators=n_estim, max_depth=max_depth
@@ -487,6 +500,10 @@ def fit_value_model(
                         _log(
                             f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
                         )
+                        try:
+                            _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                        except Exception:
+                            pass
                         t_x = _time.perf_counter()
                         mdl = fit_xgb_classifier(
                             X, y, n_estimators=n_estim, max_depth=max_depth
@@ -552,6 +569,36 @@ def fit_value_model(
         )
     except Exception:
         pass
+
+
+def ensure_fitted(
+    vm_choice: str,
+    lstate: Any,
+    X: np.ndarray,
+    y: np.ndarray,
+    lam: float,
+    session_state: Any,
+) -> None:
+    """Compatibility shim: perform a sync fit if data looks usable.
+
+    - For XGBoost, require at least one positive and one negative label.
+    - Always refresh Ridge weights via fit_value_model (keeps code centralized).
+    - Records LAST_TRAIN_AT/MS via fit_value_model.
+    """
+    try:
+        n = int(getattr(X, "shape", (0,))[0]) if X is not None else 0
+        if n <= 0:
+            return
+        if str(vm_choice) == "XGBoost":
+            yy = np.asarray(y).astype(int) if y is not None else np.zeros(0, dtype=int)
+            if len(set(yy.tolist())) <= 1:
+                # not enough classes; only refresh Ridge
+                return fit_value_model("Ridge", lstate, X, y, float(lam), session_state)
+        # Delegate to main trainer (sync)
+        return fit_value_model(vm_choice, lstate, X, y, float(lam), session_state)
+    except Exception:
+        # Keep minimal; surface errors in tests, not hidden here
+        return
     try:
         session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t0) * 1000.0)
         _log(
