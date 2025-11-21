@@ -211,7 +211,10 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
         st.session_state[_K.REG_LAMBDA] = float(reg_lambda)
     except Exception:
         pass
-eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.001); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.001, format="%.3f") or eta_default
+    eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.001)
+    iter_eta_num = safe_sidebar_num(
+        st, "Iterative step (eta)", value=eta_default, step=0.0001, format="%.4f"
+    ) or eta_default
     try:
         st.session_state[_K.ITER_ETA] = float(iter_eta_num)
     except Exception:
