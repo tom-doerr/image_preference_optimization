@@ -1,44 +1,19 @@
 import numpy as np
-from metrics import pair_metrics
 from typing import Any, Optional, List
 import numpy as _np
 
 
 def sidebar_metric(label: str, value) -> None:
-    import streamlit as st  # ensure we use the currently stubbed module in tests
+    # Delegate to ui_sidebar to keep a single implementation
+    from ui_sidebar import sidebar_metric as _sm
 
-    try:
-        if hasattr(st.sidebar, "metric") and callable(
-            getattr(st.sidebar, "metric", None)
-        ):
-            st.sidebar.metric(label, str(value))
-        else:
-            st.sidebar.write(f"{label}: {value}")
-    except Exception:
-        st.sidebar.write(f"{label}: {value}")
+    return _sm(label, value)
 
 
 def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
-    import streamlit as st  # ensure we use the currently stubbed module in tests
+    from ui_sidebar import sidebar_metric_rows as _smr
 
-    try:
-        for i in range(0, len(pairs), per_row):
-            row = pairs[i : i + per_row]
-            if (
-                hasattr(st.sidebar, "columns")
-                and callable(getattr(st.sidebar, "columns", None))
-                and len(row) > 1
-            ):
-                cols = st.sidebar.columns(len(row))
-                for (label, value), col in zip(row, cols):
-                    with col:
-                        sidebar_metric(label, value)
-            else:
-                for label, value in row:
-                    sidebar_metric(label, value)
-    except Exception:
-        for label, value in pairs:
-            sidebar_metric(label, value)
+    return _smr(pairs, per_row=per_row)
 
 
 def render_pair_sidebar(
@@ -110,30 +85,27 @@ def render_pair_sidebar(
 
 
 def env_panel(env: dict) -> None:
+    # Keep minimal panel; reuse shared row renderer
     import streamlit as st
-
     pairs = [("Python", f"{env.get('python')}")]
     cuda = env.get("cuda", "unknown")
     pairs.append(("torch/CUDA", f"{env.get('torch')} | {cuda}"))
     if env.get("streamlit") and env["streamlit"] not in ("unknown", "not imported"):
-        pairs.append(("Streamlit", f"{env['streamlit']}"))
+        pairs.append(("Streamlit", f"{env['streamlit']}") )
     st.sidebar.subheader("Environment")
-    sidebar_metric_rows(pairs, per_row=2)
+    from ui_sidebar import sidebar_metric_rows as _smr
+    _smr(pairs, per_row=2)
 
 
 def status_panel(images: tuple, mu_image) -> None:
-    import streamlit as st
+    from ui_sidebar import status_panel as _sp
 
-    st.sidebar.subheader("Images status")
-    left_ready = "ready" if images and images[0] is not None else "empty"
-    right_ready = "ready" if images and images[1] is not None else "empty"
-    sidebar_metric_rows([("Left", left_ready), ("Right", right_ready)], per_row=2)
+    return _sp(images, mu_image)
 
 
 def perf_panel(last_call: dict, last_train_ms) -> None:
-    """Render a minimal Performance panel (decode_s, train_ms)."""
+    # Keep the old entrypoint; leverage ui_sidebar’s row renderer
     import streamlit as st
-
     pairs = []
     d = last_call.get("dur_s") if isinstance(last_call, dict) else None
     if d is not None:
@@ -145,12 +117,13 @@ def perf_panel(last_call: dict, last_train_ms) -> None:
             pass
     if not pairs:
         return
+    from ui_sidebar import sidebar_metric_rows as _smr
     exp = getattr(st.sidebar, "expander", None)
     if callable(exp):
         with exp("Performance", expanded=False):
-            sidebar_metric_rows(pairs, per_row=2)
+            _smr(pairs, per_row=2)
     else:
-        sidebar_metric_rows(pairs, per_row=2)
+        _smr(pairs, per_row=2)
 
 
 # Collapsed from ui_metrics.py (195d)

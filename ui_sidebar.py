@@ -651,10 +651,10 @@ def render_sidebar_tail(
                 try:
                     import numpy as _np
                     # Prefer active scorer (XGB/Ridge); fallback to Ridge w·x
-                    from value_scorer import get_value_scorer_with_status as _gss
+                    from value_scorer import get_value_scorer as _gvs
 
-                    scorer, sst = _gss(vm_choice, lstate, base_prompt, st.session_state)
-                    if sst == 'ok' and callable(scorer):
+                    scorer, tag = _gvs(vm_choice, lstate, base_prompt, st.session_state)
+                    if scorer is not None and callable(scorer):
                         scores = _np.asarray([scorer(x) for x in Xd], dtype=float)
                         # For Ridge, scores can be negative; for XGB, scores are probabilities
                         if vm_choice == 'XGBoost':
@@ -673,8 +673,9 @@ def render_sidebar_tail(
             except Exception:
                 last_train = 'n/a'
             try:
-                from value_scorer import get_value_scorer_with_status as _gss
-                _, vs_status = _gss(vm_choice, lstate, base_prompt, st.session_state)
+                from value_scorer import get_value_scorer as _gvs
+                sc, tag_or_status = _gvs(vm_choice, lstate, base_prompt, st.session_state)
+                vs_status = 'ok' if sc is not None else str(tag_or_status)
                 vs_rows = int(getattr(Xd, 'shape', (0,))[0]) if Xd is not None else 0
                 vs_line = f"{vm_choice or 'Ridge'} ({vs_status}, rows={vs_rows})"
             except Exception:
@@ -691,7 +692,16 @@ def render_sidebar_tail(
                 pass
             return tscore, cv_line, last_train, vs_line, vs_status
 
-        tscore, cv_line, last_train, vs_line, vs_status = _compute_train_results_summary(st, lstate, prompt, vm_choice)
+        # Compute with safe defaults so lines always render
+        tscore = 'n/a'
+        cv_line = 'n/a'
+        last_train = str(st.session_state.get(Keys.LAST_TRAIN_AT) or 'n/a') if hasattr(st, 'session_state') else 'n/a'
+        vs_line = f"{vm_choice or 'Ridge'} (xgb_unavailable, rows=0)" if vm_choice == 'XGBoost' else 'Ridge (ridge_untrained, rows=0)'
+        vs_status = 'xgb_unavailable' if vm_choice == 'XGBoost' else 'ridge_untrained'
+        try:
+            tscore, cv_line, last_train, vs_line, vs_status = _compute_train_results_summary(st, lstate, prompt, vm_choice)
+        except Exception:
+            pass
         try:
             last_cv = st.session_state.get(K.CV_LAST_AT) or "n/a"
         except Exception:
@@ -733,7 +743,21 @@ def render_sidebar_tail(
         except Exception:
             pass
     except Exception:
-        pass
+        # Emit default block even if an error occurred
+        try:
+            lines = [
+                "Train score: n/a",
+                "CV score: n/a",
+                "Last CV: n/a",
+                "Last train: n/a",
+                f"Value scorer status: {'xgb_unavailable' if vm_choice=='XGBoost' else 'ridge_untrained'}",
+                f"Value scorer: {vm_choice or 'Ridge'} (n/a, rows=0)",
+                f"XGBoost active: {'yes' if vm_choice=='XGBoost' else 'no'}",
+                "Optimization: Ridge only",
+            ]
+            _emit_train_results(st, lines)
+        except Exception:
+            pass
 
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
