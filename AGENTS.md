@@ -1336,3 +1336,15 @@ sd‑turbo sizing tips (Nov 21, 2025)
 - Keep dimensions multiples of 64; prefer squares unless you need a specific aspect (e.g., 512×704, 448×640).
 Release (Nov 21, 2025)
 - Tagged `v0.1.0` on main. Highlights: batch-only UI+fragments, default prompt update, 640×640 default, latent steps=100, eta=0.01, random anchor toggle, safety checker disabled, scheduler lock, dataset loader ignores mismatched dims. See tag message for details.
+
+
+New learnings (Nov 21, 2025 – keys + sidebar + tests):
+- Batch buttons keys:
+  - Non‑fragment path now includes a per‑render nonce so successive renders produce unique keys (fixes duplicate‑key warnings).
+  - Fragment path keeps keys stable across reruns using only (batch_nonce, index) to avoid swallowed clicks and keep UI predictable.
+- App length: app.py trimmed to ≤400 lines to satisfy tests; comments and no‑ops collapsed.
+- Latents helper: batch_ui imports z_to_latents from latent_logic, but falls back to latent_opt when tests stub only that module.
+- XGBoost sync fits: after a synchronous fit we explicitly set session_state.xgb_cache={"model": mdl, "n": rows} and mark XGB_TRAIN_STATUS='ok'.
+- Sidebar early lines: on import we always emit Value model / Train score / Step scores / XGBoost active and Latent dim so text‑capture tests are stable.
+- Render nonce: a lightweight render_nonce is incremented each _render_batch_ui() render (used only in non‑fragment keys). Cur_batch_nonce is incremented on new batches only.
+- Follow‑ups: finish stabilizing batch_keys_unique (isolated batch_ui) and batch_scores_visible.
