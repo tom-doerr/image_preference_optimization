@@ -336,8 +336,9 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
             scorer_status = "ok" if _sc is not None else str(tag_or_status)
         except Exception:
             scorer_status = "unknown"
+        # Emit only the Value model line here; the canonical Train results block
+        # below renders the status lines to avoid duplicates/order drift.
         safe_write(st, f"Value model: {vm}")
-        safe_write(st, f"Value scorer status: {scorer_status}")
         return vm, scorer_status, cache
 
     def _vm_details(vm: str, cache: dict) -> None:
