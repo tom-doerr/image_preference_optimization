@@ -1436,3 +1436,16 @@ Recommendation: 199f → 199a → 199b → 199h first (low risk, good LOC). Then
         complete the broader cleanup.
   197b. Update tests that depend on async paths to the sync-only flow and remove the legacy files after green.
   197c. Finish scorer API consolidation by making all UI sites call `get_value_scorer` (some still import the status wrapper).
+Next Simplifications (Nov 21, 2025, 203)
+- 203a. Remove unused Keys (USE_IMAGE_SERVER, IMAGE_SERVER_URL, XGB_TRAIN_ASYNC/XGB_FIT_FUTURE, RIDGE_*): prune constants and docs.
+- 203b. Delete remaining background references in docs/tests; simplify logging notes to sync-only.
+- 203c. Inline `ui_controls.build_size_controls` or reduce it to a tiny helper in `ui_sidebar` to cut indirection.
+- 203d. Collapse `safe_set` usage in app.py to direct assignments where tests don’t rely on the helper.
+- 203e. Trim debug prints behind a single `LOG_VERBOSITY` env and remove noisy per‑tile logs.
+- 203f. Remove dataset_rows_all_for_prompt alias; keep a single folder‑only counter.
+- 203g. Delete Playwright stubs and scripts if we confirm they’re unused in CI.
+- 203h. Run full suite; adjust any tests still assuming async/auto‑fit/fragment toggles.
+
+Recommendation: 203a → 203d → 203f first (safe LOC wins), then 203h.
+- Ridge λ default (Nov 21, 2025):
+  - Set the default Ridge regularization λ to 1e+300 across UI and training fallbacks. This makes the default effectively “no update” unless the user changes it, matching the minimal/explicit philosophy. Tests that override λ continue to pass.

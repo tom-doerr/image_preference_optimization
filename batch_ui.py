@@ -512,7 +512,7 @@ def _curation_train_and_next() -> None:
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
         try:
-            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
+            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
             # Only train Ridge automatically; XGB trains via explicit button
             vm_train = "Ridge"
             try:
@@ -555,7 +555,7 @@ def _refit_from_dataset_keep_batch() -> None:
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
         if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
-            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
+            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
             vm_train = "Ridge"
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")

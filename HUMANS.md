@@ -221,6 +221,7 @@ What I changed
    single pass. This simplifies event handling and key generation.
 - 199e: Purged legacy aggregated dataset_*.npz files and the backups/ tree. The app and tests are folder-only now
   (data/<hash>/<row>/sample.npz + optional image.png). Added .gitignore entries.
+- Ridge λ default set to 1e+300 (Nov 21, 2025): UI number input and all fallback paths now default to λ=1e+300. This keeps training inert until a user explicitly chooses a smaller λ. Tests that set λ explicitly are unaffected.
 
 Observations
 - A number of tests still assert the async UI and future-based behavior. After this change they fail. Choosing a direction will
@@ -239,3 +240,13 @@ Pointers
 - Scores under tiles appear once a scorer is ready:
   - XGBoost: after clicking "Train XGBoost now (sync)" and the cache is set → captions show "[XGB] value".
  - 199f: Removed the "Use Ridge captions" toggle. Captions rule is now: [XGB] when an XGBoost cache exists; else [Ridge] when ‖w‖>0; otherwise n/a.
+Nov 21, 2025 — More simplification ideas
+
+What we can still simplify next
+- 203a: Remove unused Keys (image server, async toggles) from constants and scrub code/docs.
+- 203d: Replace remaining safe_set calls with direct assignment where tests don’t depend on the helper.
+- 203f: Drop the `dataset_rows_all_for_prompt` alias; keep only the folder‑only counter.
+
+Questions for you
+1) Is it OK to remove `XGB_TRAIN_ASYNC` entirely (and update tests), or keep it as a dummy key for a while?
+2) Are the Playwright stubs still in use? If not, I will delete the scripts and notes to slim the repo.

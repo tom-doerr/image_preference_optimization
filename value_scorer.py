@@ -124,6 +124,27 @@ def get_value_scorer_with_status(
         return _build_ridge_scorer(lstate)
     if choice == "XGBoost":
         return _build_xgb_scorer(choice, lstate, prompt, session_state)
+    if choice == "Distance":
+        try:
+            from constants import Keys as _K
+            p = float(getattr(session_state, _K.DIST_EXP, session_state.get(_K.DIST_EXP, 2.0)))
+        except Exception:
+            p = 2.0
+        def _dist(fvec: np.ndarray) -> float:
+            fv = np.asarray(fvec, dtype=float)
+            try:
+                if p == 2.0:
+                    return float(-np.sum(fv * fv))
+                if p == 1.0:
+                    return float(-np.sum(np.abs(fv)))
+                return float(-np.sum(np.abs(fv) ** p))
+            except Exception:
+                return float(-np.sum(fv * fv))
+        try:
+            print(f"[dist] exponent p={p}")
+        except Exception:
+            pass
+        return _dist, "ok"
     # Fallback to Ridge semantics (DH/CH pruned)
     return _build_ridge_scorer(lstate)
 

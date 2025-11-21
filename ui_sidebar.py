@@ -139,13 +139,13 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
     return xgb_line, ridge_line
 
 
-def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
+    def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
     def _sb_w(line: str) -> None:
         safe_write(st, line)
 
     def _vm_header_and_status() -> tuple[str, str, dict]:
         # Display the selected value model, not availability of a cached model
-        vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge") else vm_choice
+        vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge", "Distance") else vm_choice
         cache = st.session_state.get("xgb_cache") or {}
         try:
             from value_scorer import get_value_scorer_with_status
@@ -186,6 +186,20 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                 except Exception:
                     rows = 0
                 st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
+            elif vm == "Distance":
+                # Distance exponent input
+                try:
+                    from helpers import safe_sidebar_num as _num
+                except Exception:
+                    _num = None
+                p = float(st.session_state.get(Keys.DIST_EXP, 2.0))
+                try:
+                    if callable(_num):
+                        p = float(_num(st, "Distance exponent (p)", value=p, step=0.1))
+                        st.session_state[Keys.DIST_EXP] = p
+                except Exception:
+                    pass
+                st.sidebar.write(f"Distance exponent p={p:.2f}")
             else:
                 # XGBoost availability and lightweight params
                 try:
@@ -550,9 +564,9 @@ def render_sidebar_tail(
     except Exception:
         pass
     try:
-        reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+        reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA, 1e300))
     except Exception:
-        reg_lambda = 1.0
+        reg_lambda = 1e300
     _sidebar_value_model_block(st, lstate, prompt, vm_choice, reg_lambda)
     # Step size readouts for current pair (A/B); always emit lines for tests
     try:
