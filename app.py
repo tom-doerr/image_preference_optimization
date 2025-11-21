@@ -159,14 +159,10 @@ if "lstate" not in st.session_state or prompt_changed:
             _apply_state(st, init_latent_state())
     else:
         _apply_state(st, init_latent_state())
-    if "prompt_image" not in st.session_state:
-        st.session_state.prompt_image = None
     # Initialize placeholders without decoding at import time.
     from constants import Keys as _K
     if _K.IMAGES not in st.session_state:
         st.session_state[_K.IMAGES] = (None, None)
-    if "prompt_image" not in st.session_state:
-        st.session_state.prompt_image = None
 
 def build_controls(st, lstate, base_prompt):  # noqa: E402
     from constants import Keys as _K
@@ -216,7 +212,6 @@ z_a, z_b = st.session_state.lz_pair
 vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, async_queue_mode = build_controls(
     st, lstate, base_prompt
 )
-use_xgb = bool(vm_choice == "XGBoost")
 # Ensure a fresh batch exists for tests/import-time helpers (no decode here)
 try:
     if not getattr(st.session_state, "cur_batch", None):
