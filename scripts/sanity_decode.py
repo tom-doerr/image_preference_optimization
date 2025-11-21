@@ -8,7 +8,7 @@ def main():
     import flux_local as fl
 
     model = os.getenv("SANITY_MODEL") or os.getenv("FLUX_LOCAL_MODEL") or "stabilityai/sd-turbo"
-    prompt = os.getenv("SANITY_PROMPT", "neon punk city, women with short hair, standing in the rain")
+    prompt = os.getenv("SANITY_PROMPT", "latex, neon punk city, women with short hair, standing in the rain")
     width = int(os.getenv("SANITY_W", 512))
     height = int(os.getenv("SANITY_H", 512))
     steps = int(os.getenv("SANITY_STEPS", 6))

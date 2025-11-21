@@ -43,7 +43,7 @@ class TestE2EPairContentGPU(unittest.TestCase):
         set_model(model_id)
 
         st = init_latent_state(width=512, height=512, seed=0)
-        prompt = "neon punk city, women with short hair, standing in the rain"
+        prompt = "latex, neon punk city, women with short hair, standing in the rain"
         za, zb = propose_next_pair(
             st, prompt, opts=ProposerOpts(mode="line", trust_r=st.sigma)
         )

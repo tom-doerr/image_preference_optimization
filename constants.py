@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 APP_VERSION = "0.1.0"
-DEFAULT_PROMPT = "neon punk city, women with short hair, standing in the rain"
+DEFAULT_PROMPT = "latex, neon punk city, women with short hair, standing in the rain"
 DEFAULT_MODEL = "stabilityai/sd-turbo"
 MODEL_CHOICES = [
     DEFAULT_MODEL,

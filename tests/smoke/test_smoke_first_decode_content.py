@@ -38,11 +38,11 @@ class TestSmokeFirstDecodeContent(unittest.TestCase):
 
         st = init_latent_state(width=512, height=512, seed=0)
         z = z_from_prompt(
-            st, "neon punk city, women with short hair, standing in the rain"
+            st, "latex, neon punk city, women with short hair, standing in the rain"
         )
         lat = z_to_latents(st, z)
         img = generate_flux_image_latents(
-            "neon punk city, women with short hair, standing in the rain",
+            "latex, neon punk city, women with short hair, standing in the rain",
             latents=lat,
             width=512,
             height=512,

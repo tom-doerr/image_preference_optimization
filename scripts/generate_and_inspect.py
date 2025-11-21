@@ -16,7 +16,7 @@ def main():
     steps = int(os.getenv("GEN_STEPS", "6"))
     guidance = float(os.getenv("GEN_GUIDE", "2.5"))
     prompt = os.getenv(
-        "GEN_PROMPT", "neon punk city, women with short hair, standing in the rain"
+        "GEN_PROMPT", "latex, neon punk city, women with short hair, standing in the rain"
     )
 
     set_model(model)

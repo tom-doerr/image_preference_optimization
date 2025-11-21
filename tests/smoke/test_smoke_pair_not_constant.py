@@ -38,7 +38,7 @@ class TestSmokePairNotConstant(unittest.TestCase):
         )
         from flux_local import set_model, generate_flux_image_latents
 
-        prompt = "neon punk city, women with short hair, standing in the rain"
+        prompt = "latex, neon punk city, women with short hair, standing in the rain"
         model_id = os.getenv("SMOKE_MODEL", "stabilityai/sd-turbo")
         set_model(model_id)
 

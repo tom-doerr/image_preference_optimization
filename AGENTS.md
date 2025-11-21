@@ -217,8 +217,8 @@ Run checklist (Nov 12, 2025):
 - Tests: `python -m unittest discover -s tests -p 'test_*.py'`
 - Persistence file: `latent_state.npz` auto-loads/saves; delete to reset.
 
-Default prompt update (Nov 12, 2025):
-- The default prompt in the UI is now: `neon punk city, women with short hair, standing in the rain`.
+Default prompt update (Nov 21, 2025):
+- The default prompt in the UI is now: `latex, neon punk city, women with short hair, standing in the rain`.
 
 Decision (8b):
 - Implemented persistence to `.npz`; load-if-exists at startup; save after every update. No try/except masking—failures surface.

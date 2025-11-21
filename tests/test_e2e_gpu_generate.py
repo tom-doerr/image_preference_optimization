@@ -32,7 +32,7 @@ class TestE2EGpuGenerate(unittest.TestCase):
         lat = z_to_latents(st, za)
 
         img = generate_flux_image_latents(
-            "neon punk city, women with short hair, standing in the rain",
+            "latex, neon punk city, women with short hair, standing in the rain",
             latents=lat,
             width=512,
             height=384,

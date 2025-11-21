@@ -154,6 +154,7 @@ Nov 21, 2025 — Quick Q&A (batch/XGB)
 - Where to see scores? Under each tile caption: `Item i • Value: …`. Captions show `Value: n/a` until the active scorer status becomes `ok` (e.g., once XGBoost finishes training and is cached).
 - What does “scorer not ready” mean? For XGBoost: `xgb_unavailable` = no cached model yet; `xgb_training` = fit in progress; `ok` = ready. We intentionally do not fall back to Ridge for captions to keep behavior explicit.
 - Random μ init: when a state loads with μ=0, we initialize μ to `z_prompt + σ·r` (unit random `r`).
+- Default prompt: `latex, neon punk city, women with short hair, standing in the rain`.
 - Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
 
 Open questions

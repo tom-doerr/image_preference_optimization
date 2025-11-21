@@ -46,7 +46,7 @@ class TestE2ETurboContent(unittest.TestCase):
         lb = z_to_latents(st, zb)
 
         img_a = generate_flux_image_latents(
-            "neon punk city, women with short hair, standing in the rain",
+            "latex, neon punk city, women with short hair, standing in the rain",
             latents=la,
             width=512,
             height=512,
@@ -54,7 +54,7 @@ class TestE2ETurboContent(unittest.TestCase):
             guidance=2.5,
         )
         img_b = generate_flux_image_latents(
-            "neon punk city, women with short hair, standing in the rain",
+            "latex, neon punk city, women with short hair, standing in the rain",
             latents=lb,
             width=512,
             height=512,
