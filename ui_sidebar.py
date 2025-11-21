@@ -614,12 +614,25 @@ def render_sidebar_tail(
                     Xs, Ys = (Xm, ym) if (
                         Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
                     ) else (Xd, yd)
-                    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
+                    # Print a small debug line for clarity
+                    try:
+                        yy = None if Ys is None else [int(v) for v in list(Ys)]
+                        pos = 0 if yy is None else sum(1 for v in yy if v > 0)
+                        neg = 0 if yy is None else sum(1 for v in yy if v < 0)
+                        print(f"[xgb] train button clicked rows={getattr(Xs,'shape',(0,))[0] if Xs is not None else 0} pos={pos} neg={neg}")
+                    except Exception:
+                        pass
+                    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1 and pos > 0 and neg > 0:
                         lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
                         # Trigger a synchronous fit (value_model is sync-only now)
                         _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
                         try:
                             getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            print("[xgb] train skipped by UI guard: need >=2 rows and both classes present")
                         except Exception:
                             pass
                 # 196b: Cancel button removed in sync-only training

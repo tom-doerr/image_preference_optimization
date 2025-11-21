@@ -86,7 +86,8 @@ def fit_value_model(
 
             n = int(X.shape[0])
             d = int(X.shape[1]) if X.ndim == 2 else 0
-            if n > 0 and len(set(np.asarray(y).astype(int).tolist())) > 1:
+            classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
+            if n > 0 and len(classes) > 1:
                 yy = np.asarray(y).astype(int)
                 pos = int((yy > 0).sum())
                 neg = int((yy < 0).sum())
@@ -142,6 +143,10 @@ def fit_value_model(
                         }
                     except Exception:
                         pass
+                else:
+                    _log(f"[xgb] skip: cache up-to-date rows={n}")
+            else:
+                _log(f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}")
         except Exception:
             pass
 
@@ -200,8 +205,12 @@ def ensure_fitted(
             yy = np.asarray(y).astype(int) if y is not None else np.zeros(0, dtype=int)
             if len(set(yy.tolist())) <= 1:
                 # not enough classes; only refresh Ridge
+                _log("[ensure] ridge sync fit (xgb insufficient classes)")
                 return fit_value_model("Ridge", lstate, X, y, float(lam), session_state)
+            _log("[ensure] xgb sync fit")
         # Delegate to main trainer (sync)
+        if str(vm_choice) == "Ridge":
+            _log("[ensure] ridge sync fit")
         return fit_value_model(vm_choice, lstate, X, y, float(lam), session_state)
     except Exception:
         # Minimal shim; swallow to keep import-time behavior stable

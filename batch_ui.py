@@ -255,6 +255,11 @@ def _curation_replace_at(idx: int) -> None:
             _log(f"[batch] replace_at idx={i} nonce={int(st.session_state.get('cur_batch_nonce', 0))}")
         except Exception:
             pass
+        # Unconditional short debug for tests capturing stdout
+        try:
+            print(f"[batch] replace_at idx={i}")
+        except Exception:
+            pass
         # Deterministic resample keyed on (batch_nonce, idx)
         try:
             import numpy as _np
@@ -298,6 +303,11 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
         _log(f"[data] append label={int(label)} ‖feat‖={float(np.linalg.norm(feat)):.3f}")
     except Exception:
         pass
+    # Unconditional short debug for tests capturing stdout
+    try:
+        print(f"[data] append label={int(label)}")
+    except Exception:
+        pass
     lab = np.array([float(label)])
     st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
     st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
@@ -316,6 +326,11 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
         msg = f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
         try:
             _log(f"[data] saved row={row_idx} path={save_dir}/{row_idx:06d}")
+        except Exception:
+            pass
+        # Unconditional short debug for tests capturing stdout
+        try:
+            print(f"[data] saved row={row_idx}")
         except Exception:
             pass
         # Single line notice only (no toasts): keep it boring and explicit
