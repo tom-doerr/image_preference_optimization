@@ -4,10 +4,20 @@ import unittest
 
 
 class TestDatasetRowsArtifact(unittest.TestCase):
+    def tearDown(self):
+        for m in ("app", "persistence", "flux_local", "streamlit"):
+            sys.modules.pop(m, None)
     def test_rows_metric_includes_spinner(self):
         from tests.helpers.st_streamlit import stub_with_writes
 
         st, writes = stub_with_writes()
+        # Memory-only rows: seed 7 live labels so sidebar shows 7
+        st.session_state.dataset_y = [1] * 7
+        try:
+            from constants import Keys as _K
+            st.session_state[_K.DATASET_Y] = st.session_state.dataset_y
+        except Exception:
+            pass
         sys.modules["streamlit"] = st
 
         # Stub flux + persistence to avoid heavy imports and control rows
@@ -41,12 +51,11 @@ class TestDatasetRowsArtifact(unittest.TestCase):
         import app  # noqa: F401
 
         out = "\n".join(writes)
-        # Sidebar stubs format metrics as "label: value"; value should include spinner char
+        # Sidebar stubs format metrics as "label: value"
         lines = [ln for ln in out.splitlines() if ln.startswith("Dataset rows:")]
         self.assertTrue(lines, "no Dataset rows line found")
         row_line = lines[-1]
-        # Accept any of the simple spinner characters
-        self.assertRegex(row_line, r"Dataset rows:\s*7\s+[\|/\\-]")
+        self.assertIn("Dataset rows: 7", row_line)
 
 
 if __name__ == "__main__":

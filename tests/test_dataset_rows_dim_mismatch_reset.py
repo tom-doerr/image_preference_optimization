@@ -11,6 +11,9 @@ class DatasetDimMismatchResetTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             cwd = os.getcwd()
             os.chdir(tmpdir)
+            import sys as _sys
+            if cwd not in _sys.path:
+                _sys.path.insert(0, cwd)
             try:
                 from persistence import (
                     dataset_rows_for_prompt,

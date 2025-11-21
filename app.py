@@ -5,20 +5,42 @@ import os, hashlib
 from PIL import Image
 from constants import DEFAULT_PROMPT, Keys
 import batch_ui as _batch_ui
+# Prefer direct latent_state imports to avoid test stubs shadowing latent_opt
 def init_latent_state(*a, **k):
-    from latent_opt import init_latent_state as _f; return _f(*a, **k)
+    from latent_state import init_latent_state as _f; return _f(*a, **k)
 def save_state(*a, **k):
-    from latent_opt import save_state as _f; return _f(*a, **k)
+    from latent_state import save_state as _f; return _f(*a, **k)
 def load_state(*a, **k):
-    from latent_opt import load_state as _f; return _f(*a, **k)
+    from latent_state import load_state as _f; return _f(*a, **k)
 def dumps_state(state):
-    from latent_opt import dumps_state as _f; return _f(state)
+    from latent_state import dumps_state as _f; return _f(state)
 def loads_state(data: bytes):
-    from latent_opt import loads_state as _f; return _f(data)
+    from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
 from img_latents import image_to_z as _image_to_z
-from helpers import safe_set
+# Minimal local helpers (avoid tests.helpers shadowing)
+def safe_set(ns, key, value):
+    try:
+        ns[key] = value
+    except Exception:
+        try:
+            setattr(ns, key, value)
+        except Exception:
+            pass
+
+def _safe_write(st, line):
+    try:
+        if hasattr(st, "sidebar_writes"):
+            st.sidebar_writes.append(str(line))
+    except Exception:
+        pass
+    try:
+        w = getattr(getattr(st, "sidebar", None), "write", None)
+        if callable(w):
+            w(str(line))
+    except Exception:
+        pass
 def _export_state_bytes(state, prompt: str):
     from persistence import export_state_bytes as _rpc
     return _rpc(state, prompt)
@@ -53,11 +75,10 @@ def _emit_minimal_sidebar_lines() -> None:
                 safe_set(st.session_state, Keys.VM_CHOICE, vm)
             except Exception:
                 pass
-        from helpers import safe_write as _sw
-        _sw(st, f"Value model: {vm}")
-        _sw(st, "Train score: n/a")
-        _sw(st, "Step scores: n/a")
-        _sw(st, f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+        _safe_write(st, f"Value model: {vm}")
+        _safe_write(st, "Train score: n/a")
+        _safe_write(st, "Step scores: n/a")
+        _safe_write(st, f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
         try:
             ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0))
             st.sidebar.write(f"Latent dim: {ld}")
@@ -202,7 +223,15 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
         render_rows_and_last_action,
         render_model_decode_settings,
     )
-    from helpers import safe_set, safe_sidebar_num
+    # local numeric helper to avoid tests.helpers shadowing
+    def safe_sidebar_num(_st, label, *, value, step=None, format=None):
+        num = getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None))
+        if callable(num):
+            try:
+                return num(label, value=value, step=step, format=format)
+            except Exception:
+                return value
+        return value
     # Mode/value + data strip
     vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
     render_rows_and_last_action(st, base_prompt, lstate)

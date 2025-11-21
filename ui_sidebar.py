@@ -19,7 +19,21 @@ from ui import sidebar_metric_rows
 from ui_metrics import render_iter_step_scores, render_mu_value_history
 from constants import DEFAULT_MODEL, MODEL_CHOICES
 from ui_controls import build_size_controls, build_batch_controls
-from helpers import safe_write
+
+# Local, minimal safe_write to avoid import shadowing by tests.helpers
+def safe_write(st: Any, line: Any) -> None:
+    try:
+        if hasattr(st, "sidebar_writes"):
+            st.sidebar_writes.append(str(line))
+    except Exception:
+        pass
+    try:
+        sb = getattr(st, "sidebar", None)
+        w = getattr(sb, "write", None)
+        if callable(w):
+            w(str(line))
+    except Exception:
+        pass
 
 # Local alias for concise access
 K = Keys

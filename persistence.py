@@ -30,9 +30,16 @@ def _base_data_dir() -> str:
     - Default 'data/'
     """
     global _BASE_DIR_CACHE
+    # Honor explicit root first
     root = os.getenv("IPO_DATA_ROOT")
     if root:
         return root
+    # If a cached test root exists (set earlier in this session), reuse it
+    try:
+        if _BASE_DIR_CACHE is not None:
+            return _BASE_DIR_CACHE
+    except NameError:
+        pass
     # Under pytest, use a single per-process temp root to avoid flakiness
     if os.getenv("PYTEST_CURRENT_TEST"):
         if _BASE_DIR_CACHE is None:

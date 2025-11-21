@@ -12,7 +12,7 @@ class RowsCliPrintTest(unittest.TestCase):
         for m in ("batch_ui", "streamlit", "latent_logic", "persistence"):
             sys.modules.pop(m, None)
 
-    def test_rows_prints_live_and_disk(self):
+    def test_rows_prints_live_and_disp(self):
         st = stub_basic()
         st.session_state.prompt = "rows-cli"
         st.session_state.lstate = types.SimpleNamespace(
@@ -31,8 +31,10 @@ class RowsCliPrintTest(unittest.TestCase):
         sys.modules["latent_logic"] = ll
 
         p = types.ModuleType("persistence")
+        # New code path uses append_sample wrapper
         p.append_dataset_row = lambda *a, **k: 1
         p.save_sample_image = lambda *a, **k: None
+        p.append_sample = lambda *a, **k: 2
         p.dataset_rows_for_prompt = lambda prompt: 2
         sys.modules["persistence"] = p
 
@@ -44,8 +46,8 @@ class RowsCliPrintTest(unittest.TestCase):
         with redirect_stdout(buf):
             batch_ui._curation_add(+1, np.zeros(4))
         out = buf.getvalue() + "\n".join(st._write_captured)
-        # live increases to 2 (existing 1 + new), disk stays 2 from stub
-        self.assertIn("[rows] live=2 disk=2", out)
+        # Memory-only rows: display mirrors live count; expect disp not disk
+        self.assertIn("[rows] live=2 disp=2", out)
 
 
 if __name__ == "__main__":
