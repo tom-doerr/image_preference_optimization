@@ -1255,7 +1255,7 @@ Sidebar polish (Nov 21, 2025 — 147c):
 - Kept labels stable where tests assert exact strings (e.g., `Dataset rows`, `Rows (disk)`, `prompt_hash:`).
 
 Default resolution (Nov 21, 2025):
-- Default width/height is now 1024×1024 (constants.Config).
+- Default width/height is now 640×640 (constants.Config). Good balance for sd‑turbo with ~3.1 s/tile here; stick to multiples of 64.
 
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
@@ -1310,7 +1310,7 @@ Mini patch notes (Nov 21, 2025):
 - Batch Good/Bad keys stabilized (prefix + batch_nonce + index); fragments disabled for tiles to avoid missed clicks.
 - Sidebar rows counter updates immediately after saves; we also trigger st.rerun when available.
 - persistence.export_state_bytes now imports dumps_state lazily to play nice with test stubs.
-- Default resolution set to 1024×1024; updated default-size test accordingly.
+- Default resolution set to 640×640; updated default-size test accordingly.
 
 Follow‑up (Nov 21, 2025, later):
 - Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
