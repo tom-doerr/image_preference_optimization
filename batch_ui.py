@@ -911,9 +911,10 @@ def _render_batch_ui() -> None:
             # inside a fragment and place buttons outside to keep clicks reliable.
             try:
                 from constants import Keys as _K
-                use_frags = bool(st.session_state.get(_K.USE_FRAGMENTS, False))
+                # Re-enable fragments by default; UI checkbox sets this key.
+                use_frags = bool(st.session_state.get(_K.USE_FRAGMENTS, True))
             except Exception:
-                use_frags = False
+                use_frags = True
 
             def _tile_cache_key() -> str:
                 try:
