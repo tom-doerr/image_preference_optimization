@@ -148,18 +148,12 @@ def compute_step_scores(
         scorer = None
         status = "ok"
         try:
-            from value_scorer import get_value_scorer_with_status as _gvs
-
-            scorer, status = _gvs(vm_choice, lstate, prompt, session_state)
+            from value_scorer import get_value_scorer as _gvs
+            scorer, tag_or_status = _gvs(vm_choice, lstate, prompt, session_state)
+            status = "ok" if scorer is not None else str(tag_or_status)
         except Exception:
-            try:
-                from value_scorer import get_value_scorer as _gvs2
-
-                scorer = _gvs2(vm_choice, lstate, prompt, session_state)
-                status = "ok"
-            except Exception:
-                scorer = None
-                status = "unavailable"
+            scorer = None
+            status = "unavailable"
         if w is None or n == 0.0:
             return None
         if vm_choice != "Ridge" and status != "ok":

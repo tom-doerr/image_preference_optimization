@@ -338,32 +338,8 @@ def ensure_fitted(
         # Delegate to main trainer (sync)
         return fit_value_model(vm_choice, lstate, X, y, float(lam), session_state)
     except Exception:
-        # Keep minimal; surface errors in tests, not hidden here
+        # Minimal shim; swallow to keep import-time behavior stable
         return
-    try:
-        session_state[Keys.LAST_TRAIN_MS] = float((_time.perf_counter() - t0) * 1000.0)
-        _log(
-            f"[perf] train: rows={X.shape[0]} d={X.shape[1]} took {session_state[Keys.LAST_TRAIN_MS]:.1f} ms"
-        )
-    except Exception:
-        pass
-    # Mark async fit as done if we were running in background
-    try:
-        session_state[Keys.XGB_TRAIN_STATUS] = {
-            "state": "ok",
-            "rows": int(X.shape[0]),
-            "lam": float(lam),
-        }
-        session_state["xgb_last_updated_rows"] = int(X.shape[0])
-        session_state["xgb_last_updated_lam"] = float(lam)
-    except Exception:
-        pass
-    try:
-        fut = session_state.get(Keys.XGB_FIT_FUTURE)
-        if fut is not None and hasattr(fut, "done"):
-            fut._done = True  # simple flag; don't rely on Future internals
-    except Exception:
-        pass
 
 
 def _ensure_fitted_removed(
