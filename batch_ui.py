@@ -926,11 +926,19 @@ def _render_batch_ui() -> None:
             def _render_visual_and_cache() -> None:
                 # Minimal duplication of _render_item visual section to avoid
                 # button rendering inside fragments. Stores z/img for button handlers.
-                try:
-                    # Reuse scorer/z_p from outer scope when available
-                    zi = cur_batch[i]
-                except Exception:
-                    zi = None
+                # First try to use cached tile payload to avoid extra decodes
+                key = _tile_cache_key()
+                cache = st.session_state.get("_tile_cache", {}) or {}
+                cached = cache.get(key) if isinstance(cache, dict) else None
+                if isinstance(cached, dict) and "z" in cached and "img" in cached:
+                    zi = cached["z"]
+                    img_local = cached["img"]
+                else:
+                    try:
+                        # Reuse scorer/z_p from outer scope when available
+                        zi = cur_batch[i]
+                    except Exception:
+                        zi = None
                 # Optionally resample using XGB hill when active
                 try:
                     vm_choice_local = st.session_state.get("vm_choice")
@@ -966,34 +974,43 @@ def _render_batch_ui() -> None:
                         )
                     except Exception:
                         pass
-                if zi is None:
+                if cached is None:
+                    if zi is None:
+                        try:
+                            zi = _sample_around_prompt(scale=0.8)
+                        except Exception:
+                            zi = cur_batch[i]
+                    # Persist latent only if it changed
                     try:
-                        zi = _sample_around_prompt(scale=0.8)
+                        import numpy as _np
+                        same = (
+                            isinstance(cur_batch[i], _np.ndarray)
+                            and _np.array_equal(cur_batch[i], zi)
+                        )
                     except Exception:
-                        zi = cur_batch[i]
-                # Persist latent for stability across reruns
-                try:
-                    cur_batch[i] = zi
-                    st.session_state.cur_batch = cur_batch
-                except Exception:
-                    pass
-                la = z_to_latents(lstate, zi)
-                img_local = generate_flux_image_latents(
-                    prompt,
-                    latents=la,
-                    width=lstate.width,
-                    height=lstate.height,
-                    steps=steps,
-                    guidance=guidance_eff,
-                )
-                # Cache for button handler
-                try:
-                    key = _tile_cache_key()
-                    cache = st.session_state.get("_tile_cache", {})
-                    cache[key] = {"z": zi, "img": img_local}
-                    st.session_state["_tile_cache"] = cache
-                except Exception:
-                    pass
+                        same = False
+                    try:
+                        if not same:
+                            cur_batch[i] = zi
+                            st.session_state.cur_batch = cur_batch
+                    except Exception:
+                        pass
+                    la = z_to_latents(lstate, zi)
+                    img_local = generate_flux_image_latents(
+                        prompt,
+                        latents=la,
+                        width=lstate.width,
+                        height=lstate.height,
+                        steps=steps,
+                        guidance=guidance_eff,
+                    )
+                    # Cache for button handler
+                    try:
+                        cache = st.session_state.get("_tile_cache", {}) or {}
+                        cache[key] = {"z": zi, "img": img_local}
+                        st.session_state["_tile_cache"] = cache
+                    except Exception:
+                        pass
                 # Caption with value if scorer present
                 v_text = "Value: n/a"
                 if scorer is not None and z_p is not None:
