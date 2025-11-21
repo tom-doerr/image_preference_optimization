@@ -278,7 +278,18 @@ def render_sidebar_tail(
     try:
         render_metadata_panel(state_path, prompt)
     except Exception:
-        pass
+        # Fallback: emit minimal metadata lines when persistence_ui is unavailable
+        try:
+            import hashlib as _hl
+            from constants import APP_VERSION as _APPV
+            ph = _hl.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+            safe_write(st, f"prompt_hash: {ph}")
+            safe_write(st, f"State path: {state_path}")
+            safe_write(st, f"app_version: {_APPV}")
+        except Exception:
+            pass
+    # Status lines (Value model/XGBoost active/Optimization) are emitted later in the
+    # canonical train-results block to preserve expected ordering in tests.
     _render_iter_step_scores_block(st, lstate, prompt, vm_choice, iter_steps, iter_eta)
     set_model(selected_model)
     _ensure_sidebar_shims(st)
