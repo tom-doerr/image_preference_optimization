@@ -129,15 +129,35 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                     rows = 0
                 st.sidebar.write(f"λ={reg_lambda:.3g}, ||w||={w_norm:.3f}, rows={rows}")
             else:
+                # XGBoost availability and lightweight params
+                try:
+                    try:
+                        import xgboost  # type: ignore
+                        avail = "yes"
+                    except Exception:
+                        avail = "no"
+                    st.sidebar.write(f"XGBoost available: {avail}")
+                except Exception:
+                    pass
+                # Numeric inputs to tweak XGB params
+                try:
+                    from helpers import safe_sidebar_num as _num
+                except Exception:
+                    _num = None
                 n_fit = cache.get("n") or 0
                 try:
                     n_estim = int(st.session_state.get("xgb_n_estimators", 50))
-                except Exception:
-                    n_estim = 50
-                try:
                     max_depth = int(st.session_state.get("xgb_max_depth", 3))
                 except Exception:
-                    max_depth = 3
+                    n_estim, max_depth = 50, 3
+                try:
+                    if callable(_num):
+                        n_estim = int(_num(st, "XGB n_estimators", value=n_estim, step=1))
+                        max_depth = int(_num(st, "XGB max_depth", value=max_depth, step=1))
+                        st.session_state["xgb_n_estimators"] = n_estim
+                        st.session_state["xgb_max_depth"] = max_depth
+                except Exception:
+                    pass
                 st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
 
     # Always emit cached CV lines so tests/stubs see them
