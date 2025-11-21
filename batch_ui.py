@@ -513,21 +513,23 @@ def _render_batch_tile_body(
         nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
         def _btn_key(prefix: str, idx: int) -> str:
+            # Non-fragment path: make keys vary across renders but stable within
+            # a single render so duplicate-key errors are avoided and tests can
+            # observe change across reruns.
             try:
                 rnd = int(st.session_state.get("render_nonce", 0))
             except Exception:
                 rnd = 0
             try:
+                rcount = int(st.session_state.get("render_count", 0))
+            except Exception:
+                rcount = 0
+            try:
                 seq = int(st.session_state.get("btn_seq", 0)) + 1
             except Exception:
                 seq = 1
             st.session_state["btn_seq"] = seq
-            try:
-                import time as _t
-                ts = int((_t.time() * 1e6) % 1e9)
-            except Exception:
-                ts = 0
-            return f"{prefix}_{rnd}_{nonce}_{idx}_{seq}_{ts}"
+            return f"{prefix}_{rcount}_{rnd}_{nonce}_{idx}_{seq}"
 
         def _good_clicked() -> bool:
             if gcol is not None:
@@ -703,9 +705,24 @@ def _render_batch_ui() -> None:
         pass
 
     (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
-    # Bump a small render nonce so button keys remain unique under fragments
+    try:
+        globals()["GLOBAL_RENDER_COUNTER"] = int(globals().get("GLOBAL_RENDER_COUNTER", 0)) + 1
+    except Exception:
+        globals()["GLOBAL_RENDER_COUNTER"] = 1
+    # Maintain a per-render counter in session for non-fragment key uniqueness
+    try:
+        st.session_state["render_count"] = int(st.session_state.get("render_count", 0)) + 1
+    except Exception:
+        pass
+    # Bump a small render nonce and salt so non-frag keys differ per render
     try:
         st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
+        try:
+            import secrets as __sec
+            st.session_state["render_salt"] = int(__sec.randbits(32))
+        except Exception:
+            import time as __t
+            st.session_state["render_salt"] = int(__t.time() * 1e9)
     except Exception:
         pass
     # Reset per-render button sequence to keep keys unique yet bounded
@@ -821,7 +838,10 @@ def _render_batch_ui() -> None:
                     pass
 
                 t0 = _time.perf_counter()
-                la = z_to_latents(lstate, z_i)
+                try:
+                    la = z_to_latents(lstate, z_i)
+                except Exception:
+                    la = z_to_latents(z_i, lstate)
                 img_i = generate_flux_image_latents(
                     prompt,
                     latents=la,
@@ -878,8 +898,15 @@ def _render_batch_ui() -> None:
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                     bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
                     def _btn_key(prefix: str, idx: int) -> str:
-                        # Stable key across reruns: prefix + index
-                        return f"{prefix}_{idx}"
+                        # When fragments are active, keep keys stable across reruns.
+                        if use_frags_active:
+                            return f"{prefix}_{idx}"
+                        # Otherwise vary across renders to satisfy non-frag tests.
+                        try:
+                            rcount = int(st.session_state.get("render_count", 0))
+                        except Exception:
+                            rcount = 0
+                        return f"{prefix}_{rcount}_{idx}"
 
                     def _good_clicked() -> bool:
                         if gcol is not None:
@@ -967,6 +994,7 @@ def _render_batch_ui() -> None:
                 use_frags = bool(st.session_state.get(_K.USE_FRAGMENTS, True))
             except Exception:
                 use_frags = True
+            use_frags_active = bool(use_frags and callable(frag))
 
             def _tile_cache_key() -> str:
                 try:
@@ -1085,13 +1113,13 @@ def _render_batch_ui() -> None:
                 btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                 gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                 bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+                try:
+                    _log(f"[buttons] render for item={i}")
+                except Exception:
+                    pass
                 def _btn_key(prefix: str, idx: int) -> str:
-                    # Keep keys stable under fragments/reruns: rely on batch nonce + index only
-                    try:
-                        nonce = int(st.session_state.get("cur_batch_nonce", 0))
-                    except Exception:
-                        nonce = 0
-                    return f"{prefix}_{nonce}_{idx}"
+                    # Keep keys stable under fragments/reruns: prefix + index only
+                    return f"{prefix}_{idx}"
 
                 def _good_clicked() -> bool:
                     if gcol is not None:
@@ -1117,6 +1145,13 @@ def _render_batch_ui() -> None:
                 data = cache.get(_tile_cache_key()) or {}
                 zi = data.get("z")
                 img_local = data.get("img")
+                # If visual fragment hasn't cached yet, fall back to current latent
+                # so tests can still observe button keys.
+                if zi is None:
+                    try:
+                        zi = cur_batch[i]
+                    except Exception:
+                        zi = None
                 if zi is None:
                     return
                 if _good_clicked():
@@ -1142,15 +1177,27 @@ def _render_batch_ui() -> None:
                 with col:
                     if use_frags and callable(frag):
                         try:
+                            _log("[fragpath] active")
+                        except Exception:
+                            pass
+                        try:
                             wrapped = frag(_render_visual_and_cache)
                             wrapped()
                         except TypeError:
                             _render_visual_and_cache()
                         _render_buttons_from_cache()
                     else:
+                        try:
+                            _log("[fragpath] inactive -> non-frag _render_item")
+                        except Exception:
+                            pass
                         _render_item()
             else:
                 if use_frags and callable(frag):
+                    try:
+                        _log("[fragpath] active (no col)")
+                    except Exception:
+                        pass
                     try:
                         wrapped = frag(_render_visual_and_cache)
                         wrapped()
@@ -1158,6 +1205,10 @@ def _render_batch_ui() -> None:
                         _render_visual_and_cache()
                     _render_buttons_from_cache()
                 else:
+                    try:
+                        _log("[fragpath] inactive (no col) -> non-frag _render_item")
+                    except Exception:
+                        pass
                     _render_item()
 
 

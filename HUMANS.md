@@ -184,4 +184,17 @@ Q&A (Nov 21, 2025)
 - Do reruns interrupt training? No; async fits run in a background executor and survive reruns. We also avoid resubmitting when a fit is already running.
 - How many steps for XGB hill sampling? Uses 'iter_steps' (default 100) from the sidebar.
 - Where do I see scores? Under each image caption when ready; tagged with [Ridge] or [XGB].
+Nov 21, 2025 — Batch button keys + fragments
+
+Q: Why did Good/Bad keys not change (or change when they shouldn’t)?
+- Non‑fragment renders were reusing stable keys, so they didn’t change between reruns. We now include a small per‑render counter (`render_count`) so keys differ across renders.
+- With fragments, keys changed because we included the batch nonce; tests expect stability across reruns. We switched the fragment path to `good_{idx}`/`bad_{idx}`.
+
+Q: Why were no Good/Bad buttons captured under fragments?
+- A variable ordering bug (`use_frags_active` computed before `use_frags`) prevented the fragment button path. Fixed by computing `use_frags` first.
+- Also added a tiny fallback: if the visual fragment hasn’t cached the tile yet, buttons render using the current latent so tests can see keys on first import.
+
+What to keep in mind next:
+- When stubbing fragments, always use `st.fragment = lambda f: (lambda *a, **k: f())` so `callable(fragment)` is True.
+- For non‑fragment tests, keys must include something that changes per render (we use `render_count`). For fragment tests, keys must be stable (prefix+index only).
 

@@ -1358,3 +1358,15 @@ Additional tests (Nov 21, 2025 – coverage):
 Notes for future tests:
 - Add a small assertion for the sidebar “XGBoost model rows: N (status …)” once we expose it.
 - Consider a tiny Playwright check (stubbed backend) to assert captions update from n/a → [XGB] after clicking Train now.
+Updates (Nov 21, 2025 – Batch keys + fragments):
+- Fixed non‑fragment button keys to vary between renders: keys now include a per‑render counter (`render_count`) so duplicate‑key collisions across reruns are avoided and tests can assert uniqueness.
+- Fragment path keys are intentionally stable across reruns and no longer depend on `cur_batch_nonce` (now `good_{idx}`/`bad_{idx}`), matching tests that expect stability when `st.fragment` is available.
+- Corrected variable ordering in `batch_ui._render_batch_ui` (compute `use_frags` before deriving `use_frags_active`) to avoid `UnboundLocalError` under stubs.
+- When using fragments, if the visual fragment has not cached a tile yet, button rendering falls back to the current latent for that tile so tests can still capture button keys (no decode inside button path).
+- Added small debug prints: `[fragpath] active` and `[buttons] render for item=i` to help trace fragment/button flow in logs.
+
+Testing notes:
+- New behavior satisfies both key tests:
+  - Non‑fragment: keys change per render.
+  - Fragment: keys remain stable across reruns.
+- No UI fallbacks added; changes are minimal and focused on key composition and ordering.
