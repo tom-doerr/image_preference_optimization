@@ -696,10 +696,22 @@ def _render_batch_ui() -> None:
     # Reset per-render button sequence to keep keys unique yet bounded
     # Keep button keys stable across reruns so clicks are captured
     lstate, prompt = _lstate_and_prompt()
-    steps = int(getattr(st.session_state, "steps", 6))
-    guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0))
+    try:
+        steps = int(getattr(st.session_state, "steps", 6) or 6)
+    except Exception:
+        steps = 6
+    try:
+        guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0)
+    except Exception:
+        guidance_eff = 0.0
     best_of = False  # Best-of removed: always use Good/Bad buttons
     cur_batch = st.session_state.cur_batch or []
+    if not cur_batch:
+        try:
+            _curation_init_batch()
+        except Exception:
+            pass
+        cur_batch = st.session_state.cur_batch or []
     # Prepare optional value scorer once per batch
     scorer = None
     scorer_status = None
@@ -733,20 +745,6 @@ def _render_batch_ui() -> None:
             col = cols[col_idx] if cols and len(cols) > col_idx else None
 
             def _render_item() -> None:
-                _render_batch_tile_body(
-                    i,
-                    render_nonce,
-                    lstate,
-                    prompt,
-                    steps,
-                    guidance_eff,
-                    best_of,
-                    scorer,
-                    fut_running,
-                    cur_batch,
-                    z_p,
-                )
-                return
                 # Create the vector for this image immediately before decode so
                 # each tile uses a freshly sampled latent under the current
                 # settings, independent of cur_batch.
@@ -851,11 +849,9 @@ def _render_batch_ui() -> None:
                     btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                     bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
-                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
-
                     def _btn_key(prefix: str, idx: int) -> str:
-                        # Stable key across reruns: prefix + batch nonce + index
-                        return f"{prefix}_{nonce}_{idx}"
+                        # Stable key across reruns: prefix + index
+                        return f"{prefix}_{idx}"
 
                     def _good_clicked() -> bool:
                         if gcol is not None:
@@ -895,12 +891,9 @@ def _render_batch_ui() -> None:
                             msg = "Labeled Good (+1)"
                             getattr(st, "toast", lambda *a, **k: None)(msg)
                             try:
-                                import time as _time
-
+                                import time as __t
                                 st.session_state[Keys.LAST_ACTION_TEXT] = msg
-                                st.session_state[Keys.LAST_ACTION_TS] = float(
-                                    _time.time()
-                                )
+                                st.session_state[Keys.LAST_ACTION_TS] = float(__t.time())
                             except Exception:
                                 pass
                         except Exception:
@@ -922,12 +915,9 @@ def _render_batch_ui() -> None:
                             msg = "Labeled Bad (-1)"
                             getattr(st, "toast", lambda *a, **k: None)(msg)
                             try:
-                                import time as _time
-
+                                import time as __t
                                 st.session_state[Keys.LAST_ACTION_TEXT] = msg
-                                st.session_state[Keys.LAST_ACTION_TS] = float(
-                                    _time.time()
-                                )
+                                st.session_state[Keys.LAST_ACTION_TS] = float(__t.time())
                             except Exception:
                                 pass
                         except Exception:
@@ -941,25 +931,176 @@ def _render_batch_ui() -> None:
             # image and can run independently. Streamlit exposes fragments
             # as a decorator, so we decorate _render_item and then call it.
             frag = getattr(st, "fragment", None)
-            # Do not use fragments for batch tiles (button reliability)
-            use_frags = False
+            # Respect global toggle: when enabled, render the heavy visual part
+            # inside a fragment and place buttons outside to keep clicks reliable.
+            try:
+                from constants import Keys as _K
+                use_frags = bool(st.session_state.get(_K.USE_FRAGMENTS, False))
+            except Exception:
+                use_frags = False
+
+            def _tile_cache_key() -> str:
+                try:
+                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
+                except Exception:
+                    nonce = 0
+                return f"tile_{nonce}_{i}"
+
+            def _render_visual_and_cache() -> None:
+                # Minimal duplication of _render_item visual section to avoid
+                # button rendering inside fragments. Stores z/img for button handlers.
+                try:
+                    # Reuse scorer/z_p from outer scope when available
+                    zi = cur_batch[i]
+                except Exception:
+                    zi = None
+                # Optionally resample using XGB hill when active
+                try:
+                    vm_choice_local = st.session_state.get("vm_choice")
+                    use_xgb_local = vm_choice_local == "XGBoost"
+                except Exception:
+                    use_xgb_local = False
+                if (
+                    use_xgb_local
+                    and scorer is not None
+                    and not fut_running
+                ):
+                    try:
+                        from latent_logic import sample_z_xgb_hill  # local import
+
+                        steps_local = int(st.session_state.get("iter_steps", 10))
+                        lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
+                        trust_val = st.session_state.get("trust_r", None)
+                        trust_r_local = (
+                            float(trust_val)
+                            if (trust_val is not None and float(trust_val) > 0.0)
+                            else None
+                        )
+                        step_scale_local = lr_mu_local * float(
+                            getattr(lstate, "sigma", 1.0)
+                        )
+                        zi = sample_z_xgb_hill(
+                            lstate,
+                            prompt,
+                            scorer,
+                            steps=steps_local,
+                            step_scale=step_scale_local,
+                            trust_r=trust_r_local,
+                        )
+                    except Exception:
+                        pass
+                if zi is None:
+                    try:
+                        zi = _sample_around_prompt(scale=0.8)
+                    except Exception:
+                        zi = cur_batch[i]
+                # Persist latent for stability across reruns
+                try:
+                    cur_batch[i] = zi
+                    st.session_state.cur_batch = cur_batch
+                except Exception:
+                    pass
+                la = z_to_latents(lstate, zi)
+                img_local = generate_flux_image_latents(
+                    prompt,
+                    latents=la,
+                    width=lstate.width,
+                    height=lstate.height,
+                    steps=steps,
+                    guidance=guidance_eff,
+                )
+                # Cache for button handler
+                try:
+                    key = _tile_cache_key()
+                    cache = st.session_state.get("_tile_cache", {})
+                    cache[key] = {"z": zi, "img": img_local}
+                    st.session_state["_tile_cache"] = cache
+                except Exception:
+                    pass
+                # Caption with value if scorer present
+                v_text = "Value: n/a"
+                if scorer is not None and z_p is not None:
+                    try:
+                        fvec = zi - z_p
+                        v = float(scorer(fvec))
+                        v_text = f"Value: {v:.3f}"
+                    except Exception:
+                        v_text = "Value: n/a"
+                cap_txt = f"Item {i} • {v_text}"
+                st.image(img_local, caption=cap_txt, width="stretch")
+
+            def _render_buttons_from_cache() -> None:
+                # Render Good/Bad using cached z/img to avoid work inside fragments
+                btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
+                gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
+                bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+                def _btn_key(prefix: str, idx: int) -> str:
+                    return f"{prefix}_{idx}"
+
+                def _good_clicked() -> bool:
+                    if gcol is not None:
+                        with gcol:
+                            return st.button(
+                                f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                            )
+                    return st.button(
+                        f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                    )
+
+                def _bad_clicked() -> bool:
+                    if bcol is not None:
+                        with bcol:
+                            return st.button(
+                                f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                            )
+                    return st.button(
+                        f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                    )
+
+                cache = st.session_state.get("_tile_cache", {}) or {}
+                data = cache.get(_tile_cache_key()) or {}
+                zi = data.get("z")
+                img_local = data.get("img")
+                if zi is None:
+                    return
+                if _good_clicked():
+                    _curation_add(1, zi, img_local)
+                    st.session_state.cur_labels[i] = 1
+                    _refit_from_dataset_keep_batch()
+                    _curation_replace_at(i)
+                    try:
+                        getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
+                    except Exception:
+                        pass
+                if _bad_clicked():
+                    _curation_add(-1, zi, img_local)
+                    st.session_state.cur_labels[i] = -1
+                    _refit_from_dataset_keep_batch()
+                    _curation_replace_at(i)
+                    try:
+                        getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
+                    except Exception:
+                        pass
+
             if col is not None:
                 with col:
                     if use_frags and callable(frag):
                         try:
-                            wrapped = frag(_render_item)
+                            wrapped = frag(_render_visual_and_cache)
                             wrapped()
                         except TypeError:
-                            _render_item()
+                            _render_visual_and_cache()
+                        _render_buttons_from_cache()
                     else:
                         _render_item()
             else:
                 if use_frags and callable(frag):
                     try:
-                        wrapped = frag(_render_item)
+                        wrapped = frag(_render_visual_and_cache)
                         wrapped()
                     except TypeError:
-                        _render_item()
+                        _render_visual_and_cache()
+                    _render_buttons_from_cache()
                 else:
                     _render_item()
 
