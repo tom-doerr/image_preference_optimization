@@ -2,23 +2,18 @@ import streamlit as st
 import concurrent.futures as futures  # re-exported for tests
 import numpy as np
 import os, hashlib
-from PIL import Image
 from constants import DEFAULT_PROMPT, Keys
 import batch_ui as _batch_ui
 # Prefer direct latent_state imports to avoid test stubs shadowing latent_opt
 def init_latent_state(*a, **k):
     from latent_state import init_latent_state as _f; return _f(*a, **k)
-def save_state(*a, **k):
-    from latent_state import save_state as _f; return _f(*a, **k)
-def load_state(*a, **k):
-    from latent_state import load_state as _f; return _f(*a, **k)
 def dumps_state(state):
     from latent_state import dumps_state as _f; return _f(state)
 def loads_state(data: bytes):
     from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
-from img_latents import image_to_z as _image_to_z
+## image_to_z wrapper removed (unused)
 # Minimal local helpers (avoid tests.helpers shadowing)
 def safe_set(ns, key, value):
     try:
@@ -29,18 +24,7 @@ def safe_set(ns, key, value):
         except Exception:
             pass
 
-def _safe_write(st, line):
-    try:
-        if hasattr(st, "sidebar_writes"):
-            st.sidebar_writes.append(str(line))
-    except Exception:
-        pass
-    try:
-        w = getattr(getattr(st, "sidebar", None), "write", None)
-        if callable(w):
-            w(str(line))
-    except Exception:
-        pass
+# _safe_write removed (199h)
 def _export_state_bytes(state, prompt: str):
     from persistence import export_state_bytes as _rpc
     return _rpc(state, prompt)
@@ -52,14 +36,7 @@ def z_from_prompt(*a, **k):
 def propose_latent_pair_ridge(*a, **k):
     from latent_logic import propose_latent_pair_ridge as _f; return _f(*a, **k)  # type: ignore
 
-# Optional helpers (text-only path and debug accessor); may be absent in tests
-try:
-    from flux_local import generate_flux_image  # type: ignore
-except Exception: generate_flux_image = None  # type: ignore
-try:
-    from flux_local import get_last_call  # type: ignore
-except Exception:
-    def get_last_call(): return {}
+# Optional debug accessor not required here (used via flux_local in tests)
 
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
@@ -75,10 +52,10 @@ def _emit_minimal_sidebar_lines() -> None:
                 safe_set(st.session_state, Keys.VM_CHOICE, vm)
             except Exception:
                 pass
-        _safe_write(st, f"Value model: {vm}")
-        _safe_write(st, "Train score: n/a")
-        _safe_write(st, "Step scores: n/a")
-        _safe_write(st, f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+        st.sidebar.write(f"Value model: {vm}")
+        st.sidebar.write("Train score: n/a")
+        st.sidebar.write("Step scores: n/a")
+        st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
         try:
             ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0))
             st.sidebar.write(f"Latent dim: {ld}")
@@ -89,37 +66,20 @@ def _emit_minimal_sidebar_lines() -> None:
 
 _emit_minimal_sidebar_lines()
 try:
-    from constants import DEFAULT_MODEL as _DEF_MODEL; set_model(_DEF_MODEL)
-except Exception: pass
+    from constants import DEFAULT_MODEL as _DEF_MODEL
+    set_model(_DEF_MODEL)
+except Exception:
+    pass
 # modules call st.toast directly where needed
 
 
-def image_to_z(img: Image.Image, lstate) -> np.ndarray: return _image_to_z(img, lstate)
+## image_to_z wrapper removed (199h)
 
 
 # Back-compat for tests: keep names on app module
-def _state_path_for_prompt(prompt: str) -> str:
-    try:
-        from persistence import state_path_for_prompt as _spp
-        return _spp(prompt)
-    except Exception:
-        h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-        return f"latent_state_{h}.npz"
+## _state_path_for_prompt removed (199h); inline call to persistence.state_path_for_prompt
 
-def prompt_first_bootstrap(st, lstate, base_prompt: str) -> None:
-    try:
-        from constants import Keys as _K
-
-        if _K.IMAGES not in st.session_state:
-            st.session_state[_K.IMAGES] = (None, None)
-    except Exception:
-        if "images" not in st.session_state:
-            st.session_state.images = (None, None)
-    try:
-        if "prompt_image" not in st.session_state:
-            st.session_state.prompt_image = None
-    except Exception:
-        pass
+## prompt_first_bootstrap removed (199h); inline minimal placeholders below
 
 def _apply_state(*args) -> None:  # re-exported for tests
     # Flexible arity for test/back-compat: _apply_state(new_state) or _apply_state(st, new_state)
@@ -195,7 +155,12 @@ if prompt_changed:
 
 sp = st.session_state.get("state_path")
 if not isinstance(sp, str) or not sp:
-    st.session_state.state_path = _state_path_for_prompt(st.session_state.prompt)
+    try:
+        from persistence import state_path_for_prompt as _spp
+        st.session_state.state_path = _spp(st.session_state.prompt)
+    except Exception:
+        h = hashlib.sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
+        st.session_state.state_path = f"latent_state_{h}.npz"
 
 #
 if "lstate" not in st.session_state or prompt_changed:
@@ -208,8 +173,12 @@ if "lstate" not in st.session_state or prompt_changed:
         _apply_state(st, init_latent_state())
     if "prompt_image" not in st.session_state:
         st.session_state.prompt_image = None
-    # Initialize prompt-first placeholders without decoding at import time.
-    prompt_first_bootstrap(st, st.session_state.lstate, base_prompt)
+    # Initialize placeholders without decoding at import time.
+    from constants import Keys as _K
+    if _K.IMAGES not in st.session_state:
+        st.session_state[_K.IMAGES] = (None, None)
+    if "prompt_image" not in st.session_state:
+        st.session_state.prompt_image = None
 
 def build_controls(st, lstate, base_prompt):  # noqa: E402
     from constants import Keys as _K
