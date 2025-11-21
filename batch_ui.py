@@ -397,45 +397,8 @@ def _render_batch_tile_body(
     from flux_local import generate_flux_image_latents
     import time as _time
 
+    # Do not resample latents on render; keep the batch stable until replaced or new batch is created
     z_i = cur_batch[i]
-    try:
-        vm_choice_local = st.session_state.get("vm_choice")
-    except Exception:
-        vm_choice_local = None
-    if vm_choice_local == "XGBoost" and scorer is not None and not fut_running:
-        try:
-            from latent_logic import sample_z_xgb_hill
-
-            steps_local = int(st.session_state.get("iter_steps", DEFAULT_ITER_STEPS))
-            lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
-            trust_val = st.session_state.get("trust_r", None)
-            trust_r_local = (
-                float(trust_val)
-                if (trust_val is not None and float(trust_val) > 0.0)
-                else None
-            )
-            step_scale_local = lr_mu_local * float(getattr(lstate, "sigma", 1.0))
-            z_i = sample_z_xgb_hill(
-                lstate,
-                prompt,
-                scorer,
-                steps=steps_local,
-                step_scale=step_scale_local,
-                trust_r=trust_r_local,
-            )
-        except Exception:
-            pass
-    else:
-        try:
-            z_i = _sample_around_prompt(scale=0.8)
-        except Exception:
-            z_i = cur_batch[i]
-
-    try:
-        cur_batch[i] = z_i
-        st.session_state.cur_batch = cur_batch
-    except Exception:
-        pass
 
     t0 = _time.perf_counter()
     la = z_to_latents(lstate, z_i)
@@ -468,9 +431,9 @@ def _render_batch_tile_body(
                 pass
             try:
                 _val = getattr(st.session_state, "log_verbosity", None)
-                _lv = 1 if (_val is None) else int(_val)
+                _lv = 0 if (_val is None) else int(_val)
             except Exception:
-                _lv = 1
+                _lv = 0
             if _lv > 0:
                 try:
                     vmn = st.session_state.get("vm_choice")
@@ -767,9 +730,9 @@ def _render_batch_ui() -> None:
         # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
         try:
             _val = getattr(st.session_state, "log_verbosity", None)
-            _lv = 1 if (_val is None) else int(_val)
+            _lv = 0 if (_val is None) else int(_val)
         except Exception:
-            _lv = 1
+            _lv = 0
         if _lv > 0:
             try:
                 _log(f"[scorer] vm={vm_choice} status={scorer_status}")
@@ -797,54 +760,8 @@ def _render_batch_ui() -> None:
                 # Create the vector for this image immediately before decode so
                 # each tile uses a freshly sampled latent under the current
                 # settings, independent of cur_batch.
+                # Keep latents stable: use the current batch value; do not resample here
                 z_i = cur_batch[i]
-                try:
-                    vm_choice_local = st.session_state.get("vm_choice")
-                except Exception:
-                    vm_choice_local = None
-                if (
-                    vm_choice_local == "XGBoost"
-                    and scorer is not None
-                    and not fut_running
-                ):
-                    try:
-                        from latent_logic import sample_z_xgb_hill  # local import
-
-                        steps_local = int(st.session_state.get("iter_steps", DEFAULT_ITER_STEPS))
-                        lr_mu_local = float(st.session_state.get("lr_mu_ui", 0.3))
-                        trust_val = st.session_state.get("trust_r", None)
-                        trust_r_local = (
-                            float(trust_val)
-                            if (trust_val is not None and float(trust_val) > 0.0)
-                            else None
-                        )
-                        step_scale_local = lr_mu_local * float(
-                            getattr(lstate, "sigma", 1.0)
-                        )
-                        z_i = sample_z_xgb_hill(
-                            lstate,
-                            prompt,
-                            scorer,
-                            steps=steps_local,
-                            step_scale=step_scale_local,
-                            trust_r=trust_r_local,
-                        )
-                    except Exception:
-                        pass
-                else:
-                    # Non-XGB modes: reuse the shared helper to keep logic DRY.
-                    try:
-                        z_i = _sample_around_prompt(scale=0.8)
-                    except Exception:
-                        z_i = cur_batch[i]
-
-                # Persist the per-image latent so reruns see the same vector
-                # until a new batch is created.
-                try:
-                    cur_batch[i] = z_i
-                    st.session_state.cur_batch = cur_batch
-                except Exception:
-                    pass
 
                 t0 = _time.perf_counter()
                 try:

@@ -50,11 +50,11 @@ def test_scorer_logs_suppressed_when_log_verbosity_zero():
     assert "[scorer]" not in out
 
 
-def test_scorer_logs_present_when_log_verbosity_default():
+def test_scorer_logs_present_when_log_verbosity_one():
     st = _setup_stub("Ridge")
-    # default is 1
+    # explicitly set to 1
+    st.session_state["log_verbosity"] = 1
     import batch_ui
 
     out = _capture(batch_ui._render_batch_ui)
     assert "[scorer]" in out
-
