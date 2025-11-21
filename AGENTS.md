@@ -1334,3 +1334,5 @@ sd‑turbo sizing tips (Nov 21, 2025)
 - Low‑VRAM (≈7–8 GB): 384–448 square; keep steps≤10 to avoid stalls; still CFG=0.0.
 - Larger than 640 (e.g., 704/768) increases latency and VRAM; use only if the box has headroom.
 - Keep dimensions multiples of 64; prefer squares unless you need a specific aspect (e.g., 512×704, 448×640).
+Release (Nov 21, 2025)
+- Tagged `v0.1.0` on main. Highlights: batch-only UI+fragments, default prompt update, 640×640 default, latent steps=100, eta=0.01, random anchor toggle, safety checker disabled, scheduler lock, dataset loader ignores mismatched dims. See tag message for details.
