@@ -327,29 +327,7 @@ def fit_value_model(
     t0 = _time.perf_counter()
     choice = str(vm_choice)
 
-    # Fast-path: Ridge async requested → schedule and return immediately.
-    if choice == "Ridge" and bool(getattr(session_state, Keys.RIDGE_TRAIN_ASYNC, False)):
-        try:
-            from latent_logic import ridge_fit  # type: ignore
-            from background import get_executor
-
-            def _bg():
-                w_new = ridge_fit(X, y, float(lam))
-                lock = getattr(lstate, "w_lock", None)
-                if lock is not None:
-                    with lock:
-                        lstate.w = w_new
-                else:
-                    lstate.w = w_new
-                return True
-
-            fut = get_executor().submit(_bg)
-            session_state[Keys.RIDGE_FIT_FUTURE] = fut
-            session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-            return
-        except Exception:
-            pass
-    scheduled_async = False
+    # Ridge fits are always synchronous now; ignore any async toggles.
     _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
 
     # Optional XGB cache refresh
@@ -551,16 +529,6 @@ def fit_value_model(
                 pass
         except Exception:
             pass
-
-    # If any part was scheduled asynchronously, return early to avoid blocking.
-    if scheduled_async:
-        try:
-            session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            )
-        except Exception:
-            pass
-        return
 
     # Training bookkeeping
     try:

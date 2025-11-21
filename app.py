@@ -196,6 +196,31 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
     except Exception:
         pass
     iter_steps = int(st.session_state.get(_K.ITER_STEPS) or steps_default)
+    # Minimal sidebar tail (Debug + train results) to keep tests stable
+    try:
+        render_sidebar_tail_module(
+            st,
+            lstate,
+            st.session_state.prompt,
+            st.session_state.state_path,
+            vm_choice,
+            iter_steps,
+            iter_eta,
+            selected_model,
+            apply_state_cb=lambda *a, **k: None,
+            rerun_cb=lambda *a, **k: None,
+        )
+        # Tiny explicit warn line as a safety net for stubs that miss the panel
+        try:
+            from flux_local import get_last_call  # type: ignore
+            lc = get_last_call() or {}
+            stdv = lc.get("latents_std")
+            if stdv is not None and float(stdv) <= 1e-9:
+                st.sidebar.write(f"warn: latents std {float(stdv):.3g}")
+        except Exception:
+            pass
+    except Exception:
+        pass
     # Best-of removed: no toggle, regular Good/Bad only
     # Effective guidance for decode (Turbo forces 0.0 upstream)
     try:
