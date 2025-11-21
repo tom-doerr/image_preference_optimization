@@ -210,7 +210,7 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
     selected_model, width, height, steps, guidance, apply_clicked = render_model_decode_settings(st, lstate)
     safe_set(st.session_state, _K.STEPS, int(steps)); safe_set(st.session_state, _K.GUIDANCE, float(guidance))
     # Minimal advanced controls: Ridge λ and iterative params
-    reg_lambda = safe_sidebar_num(st, "Ridge λ", value=100000.0, step=1000.0, format="%.6f") or 100000.0
+    reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1.0, step=0.1, format="%.6f") or 1.0
     safe_set(st.session_state, _K.REG_LAMBDA, float(reg_lambda))
     eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.01); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.001, format="%.3f") or eta_default
     safe_set(st.session_state, _K.ITER_ETA, float(iter_eta_num)); iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
