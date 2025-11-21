@@ -118,6 +118,20 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
         if not callable(subexp):
             return
         with subexp("Details", expanded=False):
+            # XGBoost status line (rows + status)
+            try:
+                rows_n = int((cache or {}).get("n") or 0)
+            except Exception:
+                rows_n = 0
+            try:
+                st_info = st.session_state.get(Keys.XGB_TRAIN_STATUS) or {}
+                status = str(st_info.get("state") or ("ok" if rows_n > 0 else "unavailable"))
+            except Exception:
+                status = "unavailable"
+            try:
+                st.sidebar.write(f"XGBoost model rows: {rows_n} (status: {status})")
+            except Exception:
+                pass
             if vm == "Ridge":
                 try:
                     w_norm = float(np.linalg.norm(lstate.w))
