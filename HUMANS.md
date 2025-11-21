@@ -105,6 +105,7 @@ Nov 21, 2025 — 157b batch flow (Best‑of removed)
 - Counter refresh: after Good/Bad we call `st.rerun()` when available so the sidebar “Dataset rows” updates immediately.
 - Fragments: disabled by default for batch tiles (can re‑enable via `USE_FRAGMENTS`). This ensures Good/Bad button events are always captured.
 - Added a tiny debug helper in the sidebar: check “Debug (saves)” then click “Append +1 (debug)” to write a dummy row for the current prompt. Use this to confirm counters update and that the app can write to `data/<prompt-hash>/`.
+- Important: Button keys are now stable across reruns (prefix + batch_nonce + index). Previously they included a render nonce/sequence which changed on each render, so Streamlit couldn’t match the post‑click rerun to the original key. This is why Good/Bad clicks didn’t save. Fixed by removing render‑dependent parts from the key.
 
 Answer to your question (“what was it?”):
 - Primarily a UI problem: under fragments, button events sometimes didn’t fire; and the counter line didn’t force an immediate refresh. Disabling fragments for batch tiles and calling `st.rerun()` after saves fixed it. The debug button confirmed the write path was fine.

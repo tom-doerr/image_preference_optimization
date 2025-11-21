@@ -694,17 +694,7 @@ def _render_batch_ui() -> None:
 
     (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
     # Reset per-render button sequence to keep keys unique yet bounded
-    try:
-        st.session_state["btn_seq"] = 0
-    except Exception:
-        pass
-    try:
-        st.session_state["render_nonce"] = (
-            int(st.session_state.get("render_nonce", 0)) + 1
-        )
-    except Exception:
-        pass
-    render_nonce = int(st.session_state.get("render_nonce", 0))
+    # Keep button keys stable across reruns so clicks are captured
     lstate, prompt = _lstate_and_prompt()
     steps = int(getattr(st.session_state, "steps", 6))
     guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0))
@@ -862,15 +852,11 @@ def _render_batch_ui() -> None:
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                     bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
 
-                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
+        nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
-                    def _btn_key(prefix: str, idx: int) -> str:
-                        try:
-                            seq = int(st.session_state.get("btn_seq", 0)) + 1
-                        except Exception:
-                            seq = 1
-                        st.session_state["btn_seq"] = seq
-                        return f"{prefix}_{render_nonce}_{nonce}_{idx}_{seq}"
+        def _btn_key(prefix: str, idx: int) -> str:
+            # Stable key across reruns: prefix + batch nonce + index
+            return f"{prefix}_{nonce}_{idx}"
 
                     def _good_clicked() -> bool:
                         if gcol is not None:
