@@ -177,3 +177,11 @@ Nov 21, 2025 — Diffusion steps vs. optimization steps
 Open questions
 - Should Value captions temporarily fall back to Ridge while XGB is training? Current policy is “no fallback”; say if you want that changed.
 - Default resolution is 640×640; if you want a different default (e.g., 512×512 for speed), I can add a tiny preset toggle.
+
+Q&A (Nov 21, 2025)
+- Why no values under images yet? The caption shows values once the scorer is ready. Ridge needs ||w||>0; XGB needs a cached model. Until then it shows 'Value: n/a'.
+- What does 'scorer not ready' mean? No usable scorer for the selected model yet (XGB training or missing cache; Ridge with ||w||≈0).
+- Do reruns interrupt training? No; async fits run in a background executor and survive reruns. We also avoid resubmitting when a fit is already running.
+- How many steps for XGB hill sampling? Uses 'iter_steps' (default 100) from the sidebar.
+- Where do I see scores? Under each image caption when ready; tagged with [Ridge] or [XGB].
+
