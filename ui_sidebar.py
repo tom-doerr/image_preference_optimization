@@ -683,14 +683,8 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
         except Exception:
             pass
 
-    _frag = getattr(st, "fragment", None)
-    if callable(_frag):
-        try:
-            _frag(_rows_refresh_tick)()
-        except TypeError:
-            _rows_refresh_tick()
-    else:
-        _rows_refresh_tick()
+    # 199d: fragments removed — refresh rows directly
+    _rows_refresh_tick()
     try:
         from ui import sidebar_metric
 

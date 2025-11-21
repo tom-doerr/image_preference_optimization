@@ -217,6 +217,8 @@ What I changed
   via the explicit "Train XGBoost now (sync)" button.
 - Removed the "Use fragments" sidebar option (195g). Batch tiles always render without fragments now to keep one stable path
   and avoid rare click issues seen with fragments in this Streamlit build.
+ - 199d: Removed fragment-specific helpers and tests. Rows heartbeat no longer uses fragments; captions/buttons render in a
+   single pass. This simplifies event handling and key generation.
 
 Observations
 - A number of tests still assert the async UI and future-based behavior. After this change they fail. Choosing a direction will

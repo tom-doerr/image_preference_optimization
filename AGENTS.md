@@ -1414,9 +1414,9 @@ Next Simplifications (Nov 21, 2025, 199)
 - 199c. Retire `ensure_fitted`/`train_and_record`; make UI call `fit_value_model` explicitly only on user actions.
   - Effect: no auto‑fits on reruns; fewer status states; simpler mental model.
   - LOC win: ~120–180. Tests: adapt ensure_fitted‑based tests.
-- 199d. Remove fragment‑specific helpers and tests.
-  - Effect: single rendering path; smaller suite.
-  - LOC win (tests+code): ~150–220. Risk: low.
+- 199d. Remove fragment‑specific helpers and tests — DONE.
+  - Effect: single rendering path; smaller suite; fewer key paths.
+  - LOC win (tests+code): ~150–220.
 - 199e. Purge legacy aggregated `dataset_*.npz` paths; folder‑only dataset.
   - Effect: consistent persistence; simpler loaders; add `.gitignore` rule.
   - LOC win: ~150–250. Tests: migrate to folder‑only.
