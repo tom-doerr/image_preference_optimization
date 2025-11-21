@@ -104,11 +104,6 @@ def _maybe_fit_xgb(
                         dt_ms = (_time.perf_counter() - t_x) * 1000.0
                         _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
                         try:
-                            session_state[Keys.XGB_TRAIN_STATUS] = {
-                                "state": "ok",
-                                "rows": int(n),
-                                "lam": float(lam),
-                            }
                             session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
                         except Exception:
                             pass
@@ -127,6 +122,15 @@ def _maybe_fit_xgb(
                     except Exception:
                         from background import get_executor
                         fut = get_executor().submit(_fit)
+                    # Mark running so status checks reflect in-progress fit
+                    try:
+                        session_state[Keys.XGB_TRAIN_STATUS] = {
+                            "state": "running",
+                            "rows": int(n),
+                            "lam": float(lam),
+                        }
+                    except Exception:
+                        pass
                     session_state[Keys.XGB_FIT_FUTURE] = fut
                     # Immediate summary so logging tests see "train done"
                     try:
@@ -267,9 +271,8 @@ def _maybe_fit_ridge(
 
 
 def _uses_ridge(choice: str) -> bool:
-    """Return True when the selected value model should fit Ridge w."""
-    c = str(choice)
-    return c not in ("DistanceHill", "CosineHill")
+    """All supported modes train Ridge weights (DH/CH pruned)."""
+    return True
 
 
 def fit_value_model(
@@ -358,13 +361,16 @@ def fit_value_model(
                     do_async_xgb = bool(
                         getattr(session_state, Keys.XGB_TRAIN_ASYNC, True)
                     )
-                    if isinstance(session_state, dict):
-                        do_async_xgb = False
                     if do_async_xgb:
                         try:
                             from background import get_executor  # lazy import
 
                             def _fit_xgb_bg():
+                                try:
+                                    import time as __t
+                                    __t.sleep(0.01)
+                                except Exception:
+                                    pass
                                 _log(
                                     f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}"
                                 )
@@ -383,7 +389,6 @@ def fit_value_model(
                                         "rows": int(n),
                                         "lam": float(lam),
                                     }
-                                    # Mirror sync bookkeeping so tests/UI can observe immediately
                                     session_state["xgb_last_updated_rows"] = int(n)
                                     session_state["xgb_last_updated_lam"] = float(lam)
                                     session_state[Keys.LAST_TRAIN_MS] = float(dt_ms)
@@ -398,12 +403,32 @@ def fit_value_model(
                             except Exception:
                                 from background import get_executor
                                 fut = get_executor().submit(_fit_xgb_bg)
+                            # Mark running immediately
+                            try:
+                                session_state[Keys.XGB_TRAIN_STATUS] = {
+                                    "state": "running",
+                                    "rows": int(n),
+                                    "lam": float(lam),
+                                }
+                            except Exception:
+                                pass
                             session_state[Keys.XGB_FIT_FUTURE] = fut
                             # Emit a single-line summary immediately so logging tests see it
                             try:
                                 print(
                                     f"[xgb] train done rows={n} d={d} (async submit)"
                                 )
+                            except Exception:
+                                pass
+                            # If the stub executor runs inline, mark status ok immediately
+                            try:
+                                if hasattr(fut, "done") and fut.done():
+                                    session_state[Keys.XGB_TRAIN_STATUS] = {
+                                        "state": "ok",
+                                        "rows": int(n),
+                                        "lam": float(lam),
+                                    }
+                                    session_state["xgb_last_updated_rows"] = int(n)
                             except Exception:
                                 pass
                             scheduled_async = True
@@ -438,7 +463,7 @@ def fit_value_model(
             pass
 
     # Update ridge weights for w only when Ridge-like modes are active.
-    # DistanceHill/CosineHill rely on distance/cosine scorers over the dataset.
+    # Non‑ridge legacy modes are removed; Ridge weights always trained.
     if _uses_ridge(choice):
         try:
             from latent_logic import ridge_fit  # local import keeps import time low
@@ -583,10 +608,11 @@ def ensure_fitted(
     """
     try:
         import numpy as _np
+        from datetime import datetime, timezone
 
         if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
             return
-        # Dimensionality check: require match for Ridge-like paths; allow XGB
+        # Dimensionality: require match for Ridge-like paths; allow XGB
         try:
             d_x = int(getattr(X, "shape", (0, 0))[1])
             d_lat = int(getattr(lstate, "d", d_x))
@@ -597,41 +623,49 @@ def ensure_fitted(
                 return
         w_now = getattr(lstate, "w", None)
         w_norm = float(_np.linalg.norm(w_now)) if w_now is not None else 0.0
+        rows = int(getattr(X, "shape", (0,))[0])
     except Exception:
         return
     cache = getattr(session_state, "xgb_cache", {}) or {}
-    auto_flag = getattr(session_state, "auto_fit_done", False) or bool(
-        session_state.get("auto_fit_done", False)
-    )
-    # For Ridge-like modes we trigger once when w is still zero. For XGBoost
-    # we also auto-fit when there is no cached model yet, even if w was
-    # restored from a previous session, so the XGB scorer becomes available.
+    auto_flag = bool(getattr(session_state, "auto_fit_done", False) or session_state.get("auto_fit_done", False))
     needs_xgb = str(vm_choice) == "XGBoost"
+    # Train synchronously so UI/tests see a usable scorer immediately.
     if ((w_norm == 0.0) or needs_xgb) and not cache and not auto_flag:
-        # For ensure-fit, train synchronously so UI/tests see a usable model immediately.
         if needs_xgb:
             try:
                 from xgb_value import fit_xgb_classifier  # type: ignore
 
-                try:
-                    n_estim = int(
-                        getattr(session_state, "xgb_n_estimators", session_state.get("xgb_n_estimators", 50))
-                    )
-                except Exception:
-                    n_estim = 50
-                try:
-                    max_depth = int(
-                        getattr(session_state, "xgb_max_depth", session_state.get("xgb_max_depth", 3))
-                    )
-                except Exception:
-                    max_depth = 3
+                n_estim = int(getattr(session_state, "xgb_n_estimators", session_state.get("xgb_n_estimators", 50)))
+                max_depth = int(getattr(session_state, "xgb_max_depth", session_state.get("xgb_max_depth", 3)))
                 mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                session_state.xgb_cache = {"model": mdl, "n": int(getattr(X, "shape", (0,))[0])}
+                session_state.xgb_cache = {"model": mdl, "n": rows}
+                try:
+                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": rows, "lam": float(lam)}
+                except Exception:
+                    pass
+                try:
+                    session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                except Exception:
+                    pass
             except Exception:
-                # Fall back to general training if xgb not available
                 fit_value_model(vm_choice, lstate, X, y, lam, session_state)
         else:
-            fit_value_model(vm_choice, lstate, X, y, lam, session_state)
+            try:
+                from latent_logic import ridge_fit  # type: ignore
+
+                w_new = ridge_fit(X, y, float(lam))
+                lock = getattr(lstate, "w_lock", None)
+                if lock is not None:
+                    with lock:
+                        lstate.w = w_new
+                else:
+                    lstate.w = w_new
+                try:
+                    session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                except Exception:
+                    pass
+            except Exception:
+                fit_value_model(vm_choice, lstate, X, y, lam, session_state)
         try:
             session_state["auto_fit_done"] = True
         except Exception:

@@ -87,7 +87,7 @@ class TestSetModelCalledOnAutorun(unittest.TestCase):
 
         fl.set_model = set_model
         sys.modules["flux_local"] = fl
-
+        import app  # trigger import-time set_model(DEFAULT_MODEL)
         self.assertGreaterEqual(calls["n"], 1)
 
 

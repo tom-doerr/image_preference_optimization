@@ -56,6 +56,8 @@ class TestSkipMuPreviewFast(unittest.TestCase):
     def test_mu_preview_skipped_when_off(self):
         sys.modules["streamlit"] = stub_streamlit_mu_off()
         # Stub flux_local so autorun on import doesn't require GPU/network
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         fl = types.ModuleType("flux_local")
         fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
         fl.generate_flux_image = lambda *a, **kw: "ok-image"

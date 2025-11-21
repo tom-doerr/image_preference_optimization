@@ -107,6 +107,8 @@ class TestAppE2E(unittest.TestCase):
         fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
         fl.set_model = lambda *a, **kw: None
         sys.modules["flux_local"] = fl
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         import app  # type: ignore
 
         # Mock image generator to avoid network/GPU

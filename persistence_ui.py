@@ -32,25 +32,40 @@ def render_metadata_panel(state_path: str, prompt: str, per_row: int = 2) -> Non
     from ui import sidebar_metric_rows
 
     try:
-        if os.path.exists(state_path):
-            meta = read_metadata(state_path)
-            if meta.get("app_version") or meta.get("created_at"):
-                st.sidebar.subheader("State metadata")
-                pairs = []
+        meta = None
+        path = state_path
+        if os.path.exists(path):
+            meta = read_metadata(path)
+        else:
+            try:
+                h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+                alt = os.path.join("data", h, "latent_state.npz")
+                if os.path.exists(alt):
+                    path = alt
+                    meta = read_metadata(path)
+            except Exception:
+                pass
+        if meta and (meta.get("app_version") or meta.get("created_at")):
+            st.sidebar.subheader("State metadata")
+            pairs = []
+            if meta.get("app_version"):
+                pairs.append(("app_version", f"{meta['app_version']}"))
+            if meta.get("created_at"):
+                pairs.append(("created_at", f"{meta['created_at']}"))
+            try:
+                h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+                pairs.append(("prompt_hash", h))
+            except Exception:
+                h = None
+            sidebar_metric_rows(pairs, per_row=per_row)
+            try:
                 if meta.get("app_version"):
-                    pairs.append(("app_version", f"{meta['app_version']}"))
+                    st.sidebar.write(f"app_version: {meta['app_version']}")
                 if meta.get("created_at"):
-                    pairs.append(("created_at", f"{meta['created_at']}"))
-                try:
-                    h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-                    pairs.append(("prompt_hash", h))
-                except Exception:
-                    pass
-                sidebar_metric_rows(pairs, per_row=per_row)
-                # Also emit a plain line for prompt hash for tests that scan text
-                try:
+                    st.sidebar.write(f"created_at: {meta['created_at']}")
+                if h:
                     st.sidebar.write(f"prompt_hash: {h}")
-                except Exception:
-                    pass
+            except Exception:
+                pass
     except Exception:
         pass

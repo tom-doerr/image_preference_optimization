@@ -103,7 +103,7 @@ class TestFooterRecentPrompts(unittest.TestCase):
         fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
         fl.set_model = lambda *a, **kw: None
         sys.modules["flux_local"] = fl
-
+        import app  # render footer captions
         joined = "\n".join(captions)
         self.assertIn("Recent states:", joined)
         self.assertIn(hash10(prompts[0]), joined)

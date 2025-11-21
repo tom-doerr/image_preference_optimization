@@ -7,7 +7,7 @@ from constants import Keys
 class TestSidebarEffectiveGuidance(unittest.TestCase):
     def test_effective_guidance_clamped_for_turbo(self):
         from tests.helpers.st_streamlit import stub_with_writes
-        import ui_sidebar_extra as ui
+        import ui_sidebar as ui
 
         st, writes = stub_with_writes()
         lstate = types.SimpleNamespace(width=512, height=512)

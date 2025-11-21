@@ -7,7 +7,7 @@ from tests.helpers.st_streamlit import stub_with_writes
 
 class SidebarDimMismatchWarningTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("ui_sidebar_extra", "streamlit"):
+        for m in ("ui_sidebar", "streamlit"):
             sys.modules.pop(m, None)
 
     def test_warning_shows_when_dim_mismatch(self):
@@ -17,9 +17,9 @@ class SidebarDimMismatchWarningTest(unittest.TestCase):
         st.session_state.lstate = types.SimpleNamespace(d=25600)
         sys.modules["streamlit"] = st
 
-        import ui_sidebar_extra
+        import ui_sidebar
 
-        ui_sidebar_extra.render_rows_and_last_action(st, st.session_state.prompt, st.session_state.lstate)
+        ui_sidebar.render_rows_and_last_action(st, st.session_state.prompt, st.session_state.lstate)
         out = "\n".join(writes)
         self.assertIn("Dataset recorded at d=16384 (ignored); current latent dim d=25600", out)
 

@@ -27,6 +27,8 @@ class TestGenLoopHelpers(unittest.TestCase):
         fl.set_model = lambda *a, **k: None
         sys.modules["flux_local"] = fl
 
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         import app  # autorun will call generate_pair once
 
         stats = app.st.session_state.get("img_stats") or {}

@@ -18,6 +18,8 @@ class TestAutorunPromptFirst(unittest.TestCase):
         fl.get_last_call = lambda: {}
         sys.modules["flux_local"] = fl
 
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         import app  # noqa: F401
 
         st = sys.modules["streamlit"]

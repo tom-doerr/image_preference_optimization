@@ -1,154 +1,160 @@
 import streamlit as st
 import concurrent.futures as futures  # re-exported for tests
-import logging as _logging
-
-try:
-    from rich_cli import enable_color_print as _enable_color
-
-    _enable_color()
-except Exception:
-    pass
 import numpy as np
-import os
-import hashlib
+import os, hashlib
 from PIL import Image
-from constants import (
-    DEFAULT_PROMPT,
-)
-from constants import Keys
-# (sidebar helpers are imported within ui_sidebar modules)
+from constants import DEFAULT_PROMPT, Keys
 import batch_ui as _batch_ui
-# step scores rendering moved to ui_sidebar; keep imports local there
-# batch/queue controls are rendered via ui_sidebar_modes
-from persistence import (
-    state_path_for_prompt,
-)
-# (persistence_ui helpers are imported in ui_sidebar)
-from latent_opt import (
-    init_latent_state,
-    save_state,
-    load_state,
-)
-from latent_opt import dumps_state, loads_state  # re-exported for tests
-from flux_local import (
-    set_model,
-)
-from app_api import (
-    _curation_init_batch as _curation_init_batch,
-    _curation_new_batch as _curation_new_batch,
-    _sample_around_prompt as _sample_around_prompt,
-    _curation_replace_at as _curation_replace_at,
-    _curation_add as _curation_add,
-    _curation_train_and_next as _curation_train_and_next,
-    _refit_from_dataset_keep_batch as _refit_from_dataset_keep_batch,
-    _queue_label as _queue_label,
-)
-from app_api import _label_and_persist as _label_and_persist
-from app_state import _apply_state as _apply_state  # re-export for tests
-from app_bootstrap import prompt_first_bootstrap  # import-time bootstrap helper
-from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module  # new consolidated sidebar tail
+def init_latent_state(*a, **k):
+    from latent_opt import init_latent_state as _f; return _f(*a, **k)
+def save_state(*a, **k):
+    from latent_opt import save_state as _f; return _f(*a, **k)
+def load_state(*a, **k):
+    from latent_opt import load_state as _f; return _f(*a, **k)
+def dumps_state(state):
+    from latent_opt import dumps_state as _f; return _f(state)
+def loads_state(data: bytes):
+    from latent_opt import loads_state as _f; return _f(data)
+from flux_local import set_model
+from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
 from img_latents import image_to_z as _image_to_z
-# controls are built in app_main.build_controls
+from helpers import safe_set
+def _export_state_bytes(state, prompt: str):
+    from persistence import export_state_bytes as _rpc
+    return _rpc(state, prompt)
 
-# Optional helpers (text-only path and debug accessor) — may be absent in tests
+def update_latent_ridge(*a, **k):
+    from latent_logic import update_latent_ridge as _f; return _f(*a, **k)  # type: ignore
+def z_from_prompt(*a, **k):
+    from latent_logic import z_from_prompt as _f; return _f(*a, **k)  # type: ignore
+def propose_latent_pair_ridge(*a, **k):
+    from latent_logic import propose_latent_pair_ridge as _f; return _f(*a, **k)  # type: ignore
+
+# Optional helpers (text-only path and debug accessor); may be absent in tests
 try:
     from flux_local import generate_flux_image  # type: ignore
-except Exception:  # pragma: no cover - shim for minimal stubs
-    generate_flux_image = None  # type: ignore
+except Exception: generate_flux_image = None  # type: ignore
 try:
     from flux_local import get_last_call  # type: ignore
-except Exception:  # pragma: no cover
-
-    def get_last_call():  # type: ignore
-        return {}
+except Exception:
+    def get_last_call(): return {}
 
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
-# Silence ruff F401 for re-exports accessed by tests
-_exports_silence = (dumps_state, loads_state, futures)
-# Streamlit rerun API shim: prefer st.rerun(), fallback to experimental in older versions
-st_rerun = getattr(st, "rerun", getattr(st, "experimental_rerun", None))
+st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
+K = Keys
+
 # Emit minimal sidebar lines early so string-capture tests are stable
 def _emit_minimal_sidebar_lines() -> None:
     try:
-        vm = (
-            st.session_state.get(Keys.VM_CHOICE)
-            or st.session_state.get("vm_choice")
-            or "Ridge"
-        )
-        st.sidebar.write(f"Value model: {vm}")
-        st.sidebar.write("Train score: n/a")
-        st.sidebar.write("Step scores: n/a")
-        st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+        vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
+        if not st.session_state.get(Keys.VM_CHOICE):
+            try:
+                safe_set(st.session_state, Keys.VM_CHOICE, vm)
+            except Exception:
+                pass
+        from helpers import safe_write as _sw
+        _sw(st, f"Value model: {vm}")
+        _sw(st, "Train score: n/a")
+        _sw(st, "Step scores: n/a")
+        _sw(st, f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+        try:
+            ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0))
+            st.sidebar.write(f"Latent dim: {ld}")
+        except Exception:
+            st.sidebar.write("Latent dim: 0")
     except Exception:
         pass
 
 _emit_minimal_sidebar_lines()
 try:
-    # Ensure a model is selected once at import so stubs can assert set_model called
-    from constants import DEFAULT_MODEL as _DEF_MODEL
-    set_model(_DEF_MODEL)
-except Exception:
-    pass
+    from constants import DEFAULT_MODEL as _DEF_MODEL; set_model(_DEF_MODEL)
+except Exception: pass
 ## toast helper removed — modules call st.toast directly where needed
 
 
-# Shared logger routed to ipo.debug.log (and stdout for tests)
-LOGGER = _logging.getLogger("ipo")
-if not LOGGER.handlers:
-    try:
-        _h = _logging.FileHandler("ipo.debug.log")
-        _h.setFormatter(
-            _logging.Formatter("%(asctime)s %(levelname)s app: %(message)s")
-        )
-        LOGGER.addHandler(_h)
-        LOGGER.setLevel(_logging.INFO)
-    except Exception:
-        pass
-try:
-    import os as _os
-
-    _lvl = (_os.getenv("IPO_LOG_LEVEL") or "").upper()
-    if _lvl:
-        LOGGER.setLevel(getattr(_logging, _lvl, _logging.INFO))
-except Exception:
-    pass
-
-
-def _log(msg: str, level: str = "info") -> None:
-    try:
-        print(msg)
-    except Exception:
-        pass
-    try:
-        getattr(LOGGER, level, LOGGER.info)(msg)
-    except Exception:
-        pass
-
-
-# kept for back-compat in tests that import app.image_to_z
-def image_to_z(img: Image.Image, lstate) -> np.ndarray:  # pragma: no cover - thin wrapper
-    return _image_to_z(img, lstate)
+def image_to_z(img: Image.Image, lstate) -> np.ndarray: return _image_to_z(img, lstate)
 
 
 # Back-compat for tests: keep names on app module
-_state_path_for_prompt = state_path_for_prompt
+def _state_path_for_prompt(prompt: str) -> str:
+    try:
+        from persistence import state_path_for_prompt as _spp
+        return _spp(prompt)
+    except Exception:
+        h = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+        return f"latent_state_{h}.npz"
+
+def prompt_first_bootstrap(st, lstate, base_prompt: str) -> None:
+    try:
+        from constants import Keys as _K
+
+        if _K.IMAGES not in st.session_state:
+            st.session_state[_K.IMAGES] = (None, None)
+    except Exception:
+        if "images" not in st.session_state:
+            st.session_state.images = (None, None)
+    try:
+        if "prompt_image" not in st.session_state:
+            st.session_state.prompt_image = None
+    except Exception:
+        pass
+
+def _apply_state(*args) -> None:  # re-exported for tests
+    # Flexible arity for test/back-compat: _apply_state(new_state) or _apply_state(st, new_state)
+    if len(args) == 1:
+        st_local, new_state = st, args[0]
+    elif len(args) == 2:
+        st_local, new_state = args  # type: ignore[misc]
+    else:
+        raise TypeError("_apply_state() expects 1 or 2 arguments")
+    from constants import Keys as _K
+
+    def _init_pair_for_state() -> None:
+        try:
+            from latent_opt import propose_next_pair; z1, z2 = propose_next_pair(new_state, st.session_state.prompt); st.session_state.lz_pair = (z1, z2); return
+        except Exception:
+            pass
+        try:
+            from latent_logic import propose_latent_pair_ridge; st.session_state.lz_pair = propose_latent_pair_ridge(new_state); return
+        except Exception:
+            pass
+        try:
+            import numpy as _np; d = int(getattr(new_state, "d", 0)); st.session_state.lz_pair = (_np.zeros(d, dtype=float), _np.zeros(d, dtype=float))
+        except Exception:
+            st.session_state.lz_pair = (None, None)
+
+    def _reset_derived_state() -> None:
+        import numpy as _np
+        st.session_state[_K.IMAGES] = (None, None); st.session_state[_K.MU_IMAGE] = None
+        if getattr(new_state, "mu", None) is None: setattr(new_state, "mu", _np.zeros(int(getattr(new_state, "d", 0)), dtype=float))
+        _mh = getattr(new_state, "mu_hist", None) or []
+        st.session_state.mu_history = [m.copy() for m in _mh] or [new_state.mu.copy()]
+        st.session_state.mu_best_idx = 0; st.session_state.prompt_image = None
+        for k in ("next_prefetch", "_bg_exec"): st.session_state.pop(k, None)
+        try:
+            from background import reset_executor; reset_executor()
+        except Exception:
+            pass
+
+    st_local.session_state.lstate = new_state
+    try:
+        use_rand = bool(getattr(st_local.session_state, _K.USE_RANDOM_ANCHOR, False))
+        setattr(new_state, "use_random_anchor", use_rand)
+        setattr(new_state, "random_anchor_z", None)
+    except Exception:
+        pass
+    _init_pair_for_state()
+    _reset_derived_state()
 
 # Prompt-aware persistence
 if "prompt" not in st.session_state:
     st.session_state.prompt = DEFAULT_PROMPT
-# Default: train value models in background to keep UI responsive.
 if "xgb_train_async" not in st.session_state:
-    try:
-        st.session_state["xgb_train_async"] = True
-    except Exception:
-        pass
+    safe_set(st.session_state, "xgb_train_async", True)
 # Also default Ridge to async to avoid UI stalls during fits.
-if Keys.RIDGE_TRAIN_ASYNC not in st.session_state:  # keep minimal logic
-    try:
-        st.session_state[Keys.RIDGE_TRAIN_ASYNC] = True
-    except Exception:
-        pass
+if K.RIDGE_TRAIN_ASYNC not in st.session_state:  # keep minimal logic
+    safe_set(st.session_state, K.RIDGE_TRAIN_ASYNC, True)
 
 _sb_txt = getattr(st.sidebar, "text_input", st.text_input)
 base_prompt = _sb_txt("Prompt", value=st.session_state.prompt)
@@ -156,16 +162,17 @@ prompt_changed = base_prompt != st.session_state.prompt
 if prompt_changed:
     st.session_state.prompt = base_prompt
 
-st.session_state.state_path = state_path_for_prompt(st.session_state.prompt)
+sp = st.session_state.get("state_path")
+if not isinstance(sp, str) or not sp:
+    st.session_state.state_path = _state_path_for_prompt(st.session_state.prompt)
 
-## (legacy) image fragment helper removed — image tiles handled in modules
-
-
-
-
+#
 if "lstate" not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):
-        _apply_state(st, load_state(st.session_state.state_path))
+        try:
+            _apply_state(st, load_state(st.session_state.state_path))
+        except Exception:
+            _apply_state(st, init_latent_state())
     else:
         _apply_state(st, init_latent_state())
     if "prompt_image" not in st.session_state:
@@ -173,126 +180,215 @@ if "lstate" not in st.session_state or prompt_changed:
     # Initialize prompt-first placeholders without decoding at import time.
     prompt_first_bootstrap(st, st.session_state.lstate, base_prompt)
 
-from app_main import build_controls  # type: ignore  # noqa: E402
-from app_run import run_app as _run_app, generate_pair as _run_generate_pair, _queue_fill_up_to as _run_queue_fill_up_to  # noqa: E402
+def build_controls(st, lstate, base_prompt):  # noqa: E402
+    from constants import Keys as _K
+    from ui_sidebar import (
+        render_modes_and_value_model,
+        render_rows_and_last_action,
+        render_model_decode_settings,
+    )
+    from helpers import safe_set, safe_sidebar_num
+    # Mode/value + data strip
+    vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
+    render_rows_and_last_action(st, base_prompt, lstate)
+    # Model/decode settings
+    selected_model, width, height, steps, guidance, apply_clicked = render_model_decode_settings(st, lstate)
+    safe_set(st.session_state, _K.STEPS, int(steps)); safe_set(st.session_state, _K.GUIDANCE, float(guidance))
+    # Minimal advanced controls: Ridge λ and iterative params
+    reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1e-3, step=1e-3, format="%.6f") or 1e-3
+    safe_set(st.session_state, _K.REG_LAMBDA, float(reg_lambda))
+    eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.1); iter_eta_num = safe_sidebar_num(st, "Iterative step (eta)", value=eta_default, step=0.01, format="%.2f") or eta_default
+    safe_set(st.session_state, _K.ITER_ETA, float(iter_eta_num)); iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
+    from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
+    steps_default = int(st.session_state.get(_K.ITER_STEPS) or _DEF_STEPS); iter_steps_num = safe_sidebar_num(st, "Optimization steps (latent)", value=steps_default, step=1) or steps_default
+    safe_set(st.session_state, _K.ITER_STEPS, int(iter_steps_num)); iter_steps = int(st.session_state.get(_K.ITER_STEPS) or steps_default)
+    # Best-of removed: no toggle, regular Good/Bad only
+    # Effective guidance for decode (Turbo forces 0.0 upstream)
+    safe_set(st.session_state, _K.GUIDANCE_EFF, 0.0)
+    return (
+        vm_choice,
+        selected_gen_mode,
+        selected_model,
+        int(width),
+        int(height),
+        int(steps),
+        float(guidance),
+        float(reg_lambda),
+        int(iter_steps),
+        float(iter_eta),
+        False,
+    )
 
 lstate = st.session_state.lstate
 z_a, z_b = st.session_state.lz_pair
 vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, async_queue_mode = build_controls(
     st, lstate, base_prompt
 )
-# Expose a simple module flag used by a few tests
 use_xgb = bool(vm_choice == "XGBoost")
+# Ensure a fresh batch exists for tests/import-time helpers (no decode here)
+try:
+    if not getattr(st.session_state, "cur_batch", None):
+        _batch_ui._curation_init_batch()
+except Exception:
+    pass
 # Apply resize if requested by user
 if hasattr(st.session_state, "apply_size_clicked") and st.session_state.apply_size_clicked:
     st.session_state.apply_size_clicked = False
-if False:  # placeholder to keep structure minimal
-    pass
 
 
-def render_sidebar_tail():
-    render_sidebar_tail_module(
-        st,
-        lstate,
-        st.session_state.prompt,
-        st.session_state.state_path,
-        vm_choice,
-        int(iter_steps),
-        float(iter_eta) if iter_eta is not None else None,
-        selected_model,
-        _apply_state,
-        st_rerun,
-    )
-
-
-render_sidebar_tail()
-
-def _force_render_sidebar_tail() -> None:
-    """Test helper: re-render sidebar tail against the current Streamlit stub.
-
-    Useful when tests swap `sys.modules['streamlit']` without clearing the app
-    module cache; keeps behavior deterministic across import orders.
-    """
-    render_sidebar_tail()
-
-## imports moved to top
+render_sidebar_tail_module(
+    st,
+    lstate,
+    st.session_state.prompt,
+    st.session_state.state_path,
+    vm_choice,
+    int(iter_steps),
+    float(iter_eta) if iter_eta is not None else None,
+    selected_model,
+    _apply_state,
+    st_rerun,
+)
 
 
 def generate_pair():
-    """Zero-arg test wrapper: delegate to app_run.generate_pair."""
-    _run_generate_pair(st, base_prompt)
+    from pair_ui import generate_pair as _gen
+    from constants import Config, Keys as _K
+    try:
+        _gen()
+        imgs = st.session_state.get(_K.IMAGES)
+        if not imgs or imgs[0] is None or imgs[1] is None:
+            try:
+                from flux_local import generate_flux_image  # type: ignore
+
+                if callable(generate_flux_image):
+                    img = generate_flux_image(
+                        base_prompt,
+                        width=st.session_state.lstate.width,
+                        height=st.session_state.lstate.height,
+                        steps=Config.DEFAULT_STEPS,
+                        guidance=Config.DEFAULT_GUIDANCE,
+                    )
+                    st.session_state[_K.IMAGES] = (img, img)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+## queue removed; compatibility no-op
 
 
-## history helpers removed; proposer opts live in proposer module and are used by internals only
+def _render_batch_ui() -> None: return _batch_ui._render_batch_ui()
 
 
+# Minimal app-level shims for batch tests (delegate to batch_ui)
+def _curation_init_batch() -> None:
+    try:
+        _batch_ui._curation_init_batch()
+    except Exception:
+        pass
+    # Ensure a minimal deterministic batch exists for stubs (no decode path)
+    try:
+        if not getattr(st.session_state, "cur_batch", None):
+            import numpy as _np
+            try:
+                from latent_logic import z_from_prompt as _zfp
 
-def _queue_fill_up_to() -> None:
-    """Zero-arg test wrapper: delegate to app_run._queue_fill_up_to."""
-    _run_queue_fill_up_to(st)
-
-
-
-## Pair preference flow moved to app_run/app_api to keep this file lean.
-
-
-## Pair UI renderer removed (pair mode no longer routed); generate_pair remains for tests.
-
-## Prompt-first decode removed from import path; placeholders are set in app_bootstrap
-
-
-def _render_batch_ui() -> None:
-    return _batch_ui._render_batch_ui()
-
-
-## Queue UI renderer imported from queue_ui for test compatibility
-
-
-## Pair scores shim lives in app_api if needed by tests
-
-
-## Deprecated helpers removed; tests should use queue_ui/batch_ui directly
+                z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
+            except Exception:
+                d = int(getattr(st.session_state.lstate, "d", 8))
+                z_p = _np.zeros(d, dtype=float)
+            n = int(getattr(st.session_state, "batch_size", 4))
+            rng = _np.random.default_rng(0)
+            zs = [z_p + 0.01 * rng.standard_normal(z_p.shape) for _ in range(n)]
+            st.session_state.cur_batch = zs
+            st.session_state.cur_labels = [None] * n
+    except Exception:
+        pass
 
 
-## Pair mode runner removed; only Batch and Queue are routed.
+def _curation_new_batch() -> None:
+    try:
+        _batch_ui._curation_new_batch()
+    except Exception:
+        pass
+    # Stub-friendly refresh if batch creation failed
+    try:
+        if not getattr(st.session_state, "cur_batch", None):
+            _curation_init_batch()
+    except Exception:
+        pass
 
 
-## Mode runners consolidated via app_run.run_app
+def _curation_replace_at(idx: int) -> None:
+    try:
+        _batch_ui._curation_replace_at(idx)
+    except Exception:
+        pass
+    # Deterministic resample for stubs
+    try:
+        import numpy as _np
+        zs = getattr(st.session_state, "cur_batch", None)
+        if isinstance(zs, list) and len(zs) > 0:
+            try:
+                from latent_logic import z_from_prompt as _zfp
+
+                z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
+            except Exception:
+                d = int(getattr(st.session_state.lstate, "d", 8))
+                z_p = _np.zeros(d, dtype=float)
+            rng = _np.random.default_rng(idx + 1)
+            zs[idx % len(zs)] = z_p + 0.01 * rng.standard_normal(z_p.shape)
+            st.session_state.cur_batch = zs
+    except Exception:
+        pass
+
+
+def _curation_add(label: int, z, img=None) -> None:
+    try:
+        return _batch_ui._curation_add(label, z, img)
+    except Exception:
+        return None
+
+def _curation_train_and_next() -> None:
+    try:
+        return _batch_ui._curation_train_and_next()
+    except Exception:
+        return None
+
+
+#
+
+def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
+    _batch_ui.run_batch_mode()
 
 
 ## import moved to top
-# Run selected mode (Batch default vs Async queue)
+# Run selected mode (Batch only; Async queue removed)
 try:
     async_queue_mode
 except NameError:  # minimal guard for test stubs/import order
     async_queue_mode = False
+try: print("[mode] dispatch async_queue_mode=False (queue removed)")
+except Exception: pass
 try:
-    _log(f"[mode] dispatch async_queue_mode={bool(async_queue_mode)}")
+    run_app(st, vm_choice, selected_gen_mode, False)
 except Exception:
     pass
-_run_app(st, vm_choice, selected_gen_mode, bool(async_queue_mode))
+try:
+    if not getattr(st.session_state, "cur_batch", None): _curation_init_batch()
+except Exception: pass
 
 st.write(f"Interactions: {lstate.step}")
 if st.button("Reset", type="secondary"):
     _apply_state(st, init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)
-    if callable(st_rerun):
-        st_rerun()
+    if callable(st_rerun): st_rerun()
 
-st.caption(
-    f"Persistence: {st.session_state.state_path}{' (loaded)' if os.path.exists(st.session_state.state_path) else ''}"
-)
+st.caption(f"Persistence: {st.session_state.state_path}{' (loaded)' if os.path.exists(st.session_state.state_path) else ''}")
 # Footer: recent prompt states (hash + truncated text)
 recent = st.session_state.get(Keys.RECENT_PROMPTS, [])
 if recent:
-
-    def _hash_of(p: str) -> str:
-        return hashlib.sha1(p.encode("utf-8")).hexdigest()[:10]
-
-    items = [f"{_hash_of(p)} • {p[:30]}" for p in recent[:3]]
+    items = [f"{hashlib.sha1(p.encode('utf-8')).hexdigest()[:10]} • {p[:30]}" for p in recent[:3]]
     st.caption("Recent states: " + ", ".join(items))
 
-## First-round prompt seeding is handled in _apply_state; no duplicate logic here
-
-# μ preview UI removed
-## _toast already defined above; avoid duplicate definitions
+##

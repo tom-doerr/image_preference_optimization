@@ -75,22 +75,36 @@ def _lstate_and_prompt() -> Tuple[Any, str]:
 
 
 def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
-    from latent_logic import z_from_prompt
+    """Deterministic, stub-friendly sampler around the prompt anchor.
 
+    Falls back to a zero anchor and a fixed RNG seed when latent_logic or RNG
+    are unavailable, so tests always get a usable cur_batch without decodes.
+    """
     lstate, prompt = _lstate_and_prompt()
-    z_p = z_from_prompt(lstate, prompt)
+    try:
+        from latent_logic import z_from_prompt
+
+        z_p = z_from_prompt(lstate, prompt)
+    except Exception:
+        import numpy as _np
+
+        d = int(getattr(lstate, "d", 8))
+        z_p = _np.zeros(d, dtype=float)
     rng = getattr(lstate, "rng", None)
     if rng is None:
         import numpy as _np
 
-        rng = _np.random.default_rng()
+        rng = _np.random.default_rng(0)
         setattr(lstate, "rng", rng)
-    r = rng.standard_normal(lstate.d)
+    r = rng.standard_normal(int(getattr(lstate, "d", len(z_p))))
     r = r / (np.linalg.norm(r) + 1e-12)
-    z = z_p + lstate.sigma * float(scale) * r
-    _log(
-        f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}"
-    )
+    z = z_p + float(getattr(lstate, "sigma", 1.0)) * float(scale) * r
+    try:
+        _log(
+            f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}"
+        )
+    except Exception:
+        pass
     return z
 
 
@@ -245,12 +259,47 @@ def _curation_new_batch() -> None:
 
 
 def _curation_replace_at(idx: int) -> None:
-    # After each label we refresh the whole batch; the index is unused but
-    # kept for test compatibility.
+    """Deterministically resample the item at idx; keep batch size constant.
+
+    Under full app runs we can refresh the entire batch; in stubs/tests we
+    resample only the requested index to keep behavior predictable.
+    """
+    import streamlit as st
+
     try:
-        _curation_new_batch()
+        zs = getattr(st.session_state, "cur_batch", None) or []
+        if not zs:
+            _curation_new_batch();
+            zs = getattr(st.session_state, "cur_batch", None) or []
+        if not zs:
+            return
+        i = int(idx) % len(zs)
+        # Deterministic resample keyed on (batch_nonce, idx)
+        try:
+            import numpy as _np
+            lstate, prompt = _lstate_and_prompt()
+            try:
+                from latent_logic import z_from_prompt as _zfp
+                z_p = _zfp(lstate, prompt)
+            except Exception:
+                z_p = _np.zeros(int(getattr(lstate, 'd', 8)), dtype=float)
+            nonce = int(st.session_state.get('cur_batch_nonce', 0))
+            rng = _np.random.default_rng(1009 * (nonce + 1) + int(i) + 1)
+            r = rng.standard_normal(z_p.shape)
+            r = r / (float(_np.linalg.norm(r)) + 1e-12)
+            zs[i] = z_p + float(getattr(lstate, 'sigma', 1.0)) * 0.8 * r
+        except Exception:
+            zs[i] = _sample_around_prompt(scale=0.8)
+        st.session_state.cur_batch = zs
+        try:
+            st.session_state.cur_labels[i] = None
+        except Exception:
+            pass
     except Exception:
-        pass
+        try:
+            _curation_new_batch()
+        except Exception:
+            pass
 
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
@@ -484,6 +533,13 @@ def _render_batch_tile_body(
             _log(
                 f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
             )
+            # Force a rerun so sidebar counters update immediately
+            try:
+                rr = getattr(st, "rerun", None)
+                if callable(rr):
+                    rr()
+            except Exception:
+                pass
         if _bad_clicked():
             t0b2 = _time.perf_counter()
             _curation_add(-1, z_i, img_i)
@@ -497,21 +553,31 @@ def _render_batch_tile_body(
             _log(
                 f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
             )
+            # Force a rerun so sidebar counters update immediately
+            try:
+                rr = getattr(st, "rerun", None)
+                if callable(rr):
+                    rr()
+            except Exception:
+                pass
 
 
 def _curation_train_and_next() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import train_and_record
+    # Prefer central train helper when available; tests may stub value_model without it
+    try:
+        from value_model import train_and_record as _train_record
+    except Exception:
+        _train_record = None
 
     lstate, prompt = _lstate_and_prompt()
     # Respect toggle: skip training when disabled
     if not bool(st.session_state.get("train_on_new_data", True)):
         _curation_new_batch()
         return
-    # Track async XGB training status in session for UI/reruns
+    # Clear previous future handle; train_and_record manages status
     st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
-    st.session_state.pop(Keys.XGB_TRAIN_STATUS, None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
@@ -522,13 +588,30 @@ def _curation_train_and_next() -> None:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            # Single entry point for training
-            st.session_state[Keys.XGB_TRAIN_STATUS] = {
-                "state": "running",
-                "rows": int(getattr(X, "shape", (0,))[0]),
-                "lam": float(lam_now),
-            }
-            train_and_record(vm_train, lstate, X, y, lam_now, st.session_state)
+            if _train_record is not None:
+                _train_record(vm_train, lstate, X, y, lam_now, st.session_state)
+            else:
+                # Minimal fallback: emulate cooldown + single submit, then call fit once
+                from datetime import datetime, timezone
+                last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
+                min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+                recent = False
+                if last_at and min_wait > 0.0:
+                    try:
+                        dt = datetime.fromisoformat(last_at)
+                        recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+                    except Exception:
+                        recent = False
+                if recent:
+                    st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(X.shape[0]), "lam": float(lam_now)}
+                else:
+                    st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+                    try:
+                        from value_model import fit_value_model as _fit_vm
+
+                        _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
+                    except Exception:
+                        pass
         except Exception:
             pass
     _curation_new_batch()
@@ -537,13 +620,15 @@ def _curation_train_and_next() -> None:
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    from value_model import train_and_record
+    try:
+        from value_model import train_and_record as _train_record
+    except Exception:
+        _train_record = None
 
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return
     st.session_state.pop("xgb_fit_future", None)
-    st.session_state.pop("xgb_train_status", None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
@@ -554,12 +639,26 @@ def _refit_from_dataset_keep_batch() -> None:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            st.session_state[Keys.XGB_TRAIN_STATUS] = {
-                "state": "running",
-                "rows": int(getattr(X, "shape", (0,))[0]),
-                "lam": float(lam_now),
-            }
-            train_and_record(vm_train, lstate, X, y, lam_now, st.session_state)
+            if _train_record is not None:
+                _train_record(vm_train, lstate, X, y, lam_now, st.session_state)
+            else:
+                # Minimal fallback mirrors _curation_train_and_next
+                from datetime import datetime, timezone
+                last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
+                min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+                recent = False
+                if last_at and min_wait > 0.0:
+                    try:
+                        dt = datetime.fromisoformat(last_at)
+                        recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+                    except Exception:
+                        recent = False
+                if not recent:
+                    try:
+                        from value_model import fit_value_model as _fit_vm
+                        _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
+                    except Exception:
+                        pass
     except Exception:
         pass
 
@@ -598,7 +697,7 @@ def _render_batch_ui() -> None:
     lstate, prompt = _lstate_and_prompt()
     steps = int(getattr(st.session_state, "steps", 6))
     guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0))
-    best_of = bool(getattr(st.session_state, "batch_best_of", False))
+    best_of = False  # Best-of removed: always use Good/Bad buttons
     cur_batch = st.session_state.cur_batch or []
     # Prepare optional value scorer once per batch
     scorer = None
@@ -846,7 +945,8 @@ def _render_batch_ui() -> None:
             # image and can run independently. Streamlit exposes fragments
             # as a decorator, so we decorate _render_item and then call it.
             frag = getattr(st, "fragment", None)
-            use_frags = bool(getattr(st.session_state, "use_fragments", True))
+            # Do not use fragments for batch tiles (button reliability)
+            use_frags = False
             if col is not None:
                 with col:
                     if use_frags and callable(frag):

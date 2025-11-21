@@ -16,7 +16,7 @@ class TestStepScoresUnfitted(unittest.TestCase):
         fl.set_model = lambda *a, **k: None
         fl.generate_flux_image_latents = lambda *a, **k: "img"
         sys.modules["flux_local"] = fl
-
+        import app  # ensure sidebar tail renders minimal lines
         out = "\n".join(writes)
         self.assertIn("Step scores: n/a", out)
 

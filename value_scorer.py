@@ -43,8 +43,22 @@ def _build_xgb_scorer(
         return 0.0
 
     try:
+        # If training has been marked as running, report xgb_training early
+        try:
+            from constants import Keys as _K  # local import to avoid cycles
+        except Exception:
+            _K = None  # type: ignore
         cache = getattr(session_state, "xgb_cache", {}) or {}
         fut = getattr(session_state, "xgb_fit_future", None)
+        try:
+            st_status = (
+                getattr(session_state, _K.XGB_TRAIN_STATUS, None) if _K else None
+            ) or session_state.get(getattr(_K, "XGB_TRAIN_STATUS", "xgb_train_status"))
+            if isinstance(st_status, dict) and st_status.get("state") == "running":
+                if fut is None or not getattr(fut, "done", lambda: False)():
+                    return _zero, "xgb_training"
+        except Exception:
+            pass
         if (
             fut is not None
             and not getattr(fut, "done", lambda: False)()
@@ -91,41 +105,7 @@ def _build_xgb_scorer(
         return _zero, "xgb_error"
 
 
-def _build_dist_scorer(
-    kind: str, lstate: Any, prompt: str, session_state: Any
-) -> Tuple[Callable[[np.ndarray], float], str]:
-    def _zero(_fvec: np.ndarray) -> float:
-        return 0.0
-
-    try:
-        from persistence import get_dataset_for_prompt_or_session
-
-        X, y = get_dataset_for_prompt_or_session(prompt, session_state)
-        if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
-            print(f"[{kind}] scorer unavailable: empty dataset")
-            return _zero, f"{'dist' if kind == 'dist' else 'cos'}_empty"
-        from latent_logic import z_from_prompt
-
-        z_p = z_from_prompt(lstate, prompt)
-        if kind == "dist":
-            from latent_logic import distancehill_score
-
-            def _dist(fvec: np.ndarray) -> float:
-                zc = z_p + np.asarray(fvec, dtype=float)
-                return float(distancehill_score(prompt, zc, lstate, X, y, gamma=0.5))
-
-            return _dist, "ok"
-        else:
-            from latent_logic import cosinehill_score
-
-            def _cos(fvec: np.ndarray) -> float:
-                zc = z_p + np.asarray(fvec, dtype=float)
-                return float(cosinehill_score(prompt, zc, lstate, X, y, beta=5.0))
-
-            return _cos, "ok"
-    except Exception:
-        print(f"[{kind}] scorer error; returning 0 for all scores")
-        return _zero, f"{'dist' if kind == 'dist' else 'cos'}_error"
+## Legacy non‑ridge value models were removed.
 
 
 def get_value_scorer_with_status(
@@ -140,11 +120,7 @@ def get_value_scorer_with_status(
         return _build_ridge_scorer(lstate)
     if choice == "XGBoost":
         return _build_xgb_scorer(choice, lstate, prompt, session_state)
-    if choice == "DistanceHill":
-        return _build_dist_scorer("dist", lstate, prompt, session_state)
-    if choice == "CosineHill":
-        return _build_dist_scorer("cos", lstate, prompt, session_state)
-    # Fallback: Ridge semantics
+    # Fallback to Ridge semantics (DH/CH pruned)
     return _build_ridge_scorer(lstate)
 
 

@@ -81,6 +81,8 @@ class TestHistory(unittest.TestCase):
             del sys.modules["app"]
         sys.modules["streamlit"] = st
         # Stub flux_local to allow autorun on import
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         fl = types.ModuleType("flux_local")
         fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
         fl.set_model = lambda *a, **kw: None

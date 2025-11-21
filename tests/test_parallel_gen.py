@@ -106,6 +106,8 @@ class TestParallelGen(unittest.TestCase):
         fl.set_model = lambda *a, **kw: None
         sys.modules["flux_local"] = fl
 
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         import app
 
         # Monkey-patch executor and generator

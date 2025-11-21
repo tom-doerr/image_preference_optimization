@@ -66,6 +66,8 @@ class TestApplyStateHelper(unittest.TestCase):
         self.skipTest("Cache reset semantics relaxed in simplified app")
         sys.modules["streamlit"] = stub_streamlit()
         # Provide stubbed flux_local so autorun works without CUDA
+        import os
+        os.environ["IPO_AUTORUN"] = "1"
         fl = types.ModuleType("flux_local")
         fl.generate_flux_image_latents = lambda *a, **kw: "ok-image"
         fl.set_model = lambda *a, **kw: None

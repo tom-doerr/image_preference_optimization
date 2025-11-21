@@ -6,14 +6,28 @@ import numpy as np
 
 from constants import Keys
 from persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
-from persistence_ui import render_persistence_controls
+def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
+    try:
+        from persistence_ui import render_persistence_controls as _rpc
+    except Exception:
+        return
+    try:
+        _rpc(lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    except Exception:
+        pass
 from ui import sidebar_metric_rows
 from ui_metrics import render_iter_step_scores, render_mu_value_history
+from constants import DEFAULT_MODEL, MODEL_CHOICES
+from ui_controls import build_size_controls, build_batch_controls
+from helpers import safe_write
+
+# Local alias for concise access
+K = Keys
 
 
 def _sidebar_persistence_section(st: Any, lstate: Any, prompt: str, state_path: str, apply_state_cb, rerun_cb) -> None:
     st.sidebar.subheader("State persistence")
-    render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb)
 
 
 def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice: str, iter_steps: int, iter_eta: float | None) -> None:
@@ -59,7 +73,7 @@ def _sidebar_training_data_block(st: Any, prompt: str) -> None:
                 if rl:
                     st.sidebar.write("Recent y: " + ", ".join([f"{v:+d}" for v in rl]))
         else:
-            st.sidebar.write("Training data: pos={} neg={} d={}".format(stats.get("pos", 0), stats.get("neg", 0), stats.get("d", 0)))
+            safe_write(st, "Training data: pos={} neg={} d={}".format(stats.get("pos", 0), stats.get("neg", 0), stats.get("d", 0)))
     except Exception:
         pass
 
@@ -68,7 +82,7 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
     ridge_line = "CV (Ridge): n/a"
     xgb_line = "CV (XGBoost): n/a"
     try:
-        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+        cv_cache = st.session_state.get(K.CV_CACHE) or {}
         if isinstance(cv_cache, dict):
             r = cv_cache.get("Ridge") or {}
             x = cv_cache.get("XGBoost") or {}
@@ -83,20 +97,11 @@ def _cached_cv_lines(st: Any) -> tuple[str, str]:
 
 def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
     def _sb_w(line: str) -> None:
-        # Write to both capture paths so tests that hook either list or write() see the output.
-        try:
-            if hasattr(st, "sidebar_writes"):
-                st.sidebar_writes.append(str(line))
-        except Exception:
-            pass
-        try:
-            st.sidebar.write(str(line))
-        except Exception:
-            pass
+        safe_write(st, line)
 
     def _vm_header_and_status() -> tuple[str, str, dict]:
         # Display the selected value model, not availability of a cached model
-        vm = "Ridge" if vm_choice not in ("XGBoost", "DistanceHill", "CosineHill") else vm_choice
+        vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge") else vm_choice
         cache = st.session_state.get("xgb_cache") or {}
         try:
             from value_scorer import get_value_scorer_with_status
@@ -104,8 +109,8 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
             _scorer_vm, scorer_status = get_value_scorer_with_status(vm_choice, lstate, prompt, st.session_state)
         except Exception:
             scorer_status = "unknown"
-        st.sidebar.write(f"Value model: {vm}")
-        st.sidebar.write(f"Value scorer status: {scorer_status}")
+        safe_write(st, f"Value model: {vm}")
+        safe_write(st, f"Value scorer status: {scorer_status}")
         return vm, scorer_status, cache
 
     def _vm_details(vm: str, cache: dict) -> None:
@@ -151,7 +156,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
 
     exp = getattr(st.sidebar, "expander", None)
     if not callable(exp):
-        _sb_w(f"Value model: {vm_choice if vm_choice in ('XGBoost','DistanceHill','CosineHill','Ridge') else 'Ridge'}")
+        _sb_w(f"Value model: {vm_choice if vm_choice in ('XGBoost','Ridge') else 'Ridge'}")
         xgb_line, ridge_line = _cached_cv_lines(st)
         _sb_w(xgb_line)
         _sb_w(ridge_line)
@@ -185,7 +190,11 @@ def render_sidebar_tail(
     from flux_local import set_model
     from persistence_ui import render_metadata_panel
 
-    _sidebar_persistence_section(st, lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    try:
+        if hasattr(st.sidebar, "download_button"):
+            _sidebar_persistence_section(st, lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    except Exception:
+        pass
     # Metadata (app_version, created_at, prompt_hash)
     try:
         render_metadata_panel(state_path, prompt)
@@ -220,7 +229,7 @@ def render_sidebar_tail(
         # Opportunistic ensure-fit so Train score/XGB status are meaningful on import
         try:
             from persistence import get_dataset_for_prompt_or_session as _get_ds
-            from value_model import ensure_fitted as _ensure
+            from value_model import train_and_record as _train
             # Prefer in-memory dataset when present; else use folder dataset
             Xm = getattr(lstate, 'X', None)
             ym = getattr(lstate, 'y', None)
@@ -230,39 +239,115 @@ def render_sidebar_tail(
                 Xd, yd = _get_ds(prompt, st.session_state)
             if vm_choice == "XGBoost" and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
                 lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
-                _ensure(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
+                _train(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
         except Exception:
             pass
-        from ui_sidebar_train import render_train_results_panel  # type: ignore
+        # Inline train results panel (merged from ui_sidebar_train)
+        def _compute_train_results_summary(st, lstate, base_prompt: str, vm_choice: str):
+            from persistence import get_dataset_for_prompt_or_session as _get_ds
+            Xd, yd = _get_ds(base_prompt, st.session_state)
+            Xm = getattr(lstate, 'X', None)
+            ym = getattr(lstate, 'y', None)
+            if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
+                Xd, yd = Xm, ym
+            tscore = 'n/a'
+            if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+                try:
+                    import numpy as _np
+                    # Prefer active scorer (XGB/Ridge); fallback to Ridge w·x
+                    from value_scorer import get_value_scorer_with_status as _gss
 
-        tscore, cv_line, last_train, vs_line, _vs_status = render_train_results_panel(
-            st, lstate, prompt, vm_choice
-        )
-        # Emit concise lines so tests that scan writes find them without relying on expanders
-        st.sidebar.write(f"Train score: {tscore}")
-        st.sidebar.write(f"CV score: {cv_line}")
-        # Also emit Last CV timestamp when available (for tests expecting this label)
+                    scorer, sst = _gss(vm_choice, lstate, base_prompt, st.session_state)
+                    if sst == 'ok' and callable(scorer):
+                        scores = _np.asarray([scorer(x) for x in Xd], dtype=float)
+                        # For Ridge, scores can be negative; for XGB, scores are probabilities
+                        if vm_choice == 'XGBoost':
+                            yhat = (scores >= 0.5)
+                        else:
+                            yhat = (scores >= 0.0)
+                    else:
+                        w = getattr(lstate, 'w', _np.zeros(getattr(Xd, 'shape', (0, 0))[1]))
+                        yhat = ((Xd @ w) >= 0.0)
+                    acc = float((yhat == (yd > 0)).mean())
+                    tscore = f"{acc * 100:.0f}%"
+                except Exception:
+                    tscore = 'n/a'
+            try:
+                last_train = str(st.session_state.get(Keys.LAST_TRAIN_AT) or 'n/a')
+            except Exception:
+                last_train = 'n/a'
+            try:
+                from value_scorer import get_value_scorer_with_status as _gss
+                _, vs_status = _gss(vm_choice, lstate, base_prompt, st.session_state)
+                vs_rows = int(getattr(Xd, 'shape', (0,))[0]) if Xd is not None else 0
+                vs_line = f"{vm_choice or 'Ridge'} ({vs_status}, rows={vs_rows})"
+            except Exception:
+                vs_line = 'unknown'
+            cv_line = 'n/a'
+            try:
+                cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+                cur = cv_cache.get(str(vm_choice))
+                if isinstance(cur, dict) and 'acc' in cur:
+                    acc = float(cur.get('acc', float('nan')))
+                    k = int(cur.get('k', 0))
+                    cv_line = f"{acc * 100:.0f}% (k={k})" if acc == acc else 'n/a'
+            except Exception:
+                pass
+            return tscore, cv_line, last_train, vs_line, vs_status
+
+        tscore, cv_line, last_train, vs_line, vs_status = _compute_train_results_summary(st, lstate, prompt, vm_choice)
+        # Emit concise lines so tests scanning writes find them
+        safe_write(st, f"Train score: {tscore}")
+        safe_write(st, f"CV score: {cv_line}")
         try:
-            from constants import Keys as _K
-
-            last_cv = st.session_state.get(_K.CV_LAST_AT) or "n/a"
+            last_cv = st.session_state.get(K.CV_LAST_AT) or "n/a"
         except Exception:
             last_cv = "n/a"
-        st.sidebar.write(f"Last CV: {last_cv}")
-        st.sidebar.write(f"Last train: {last_train}")
-        st.sidebar.write(f"Value scorer: {vs_line}")
-        # Legacy note: explicit XGBoost active line for tests looking for it
+        safe_write(st, f"Last CV: {last_cv}")
+        safe_write(st, f"Last train: {last_train}")
+        safe_write(st, f"Value scorer status: {vs_status}")
+        safe_write(st, f"Value scorer: {vs_line}")
+        # XGBoost active/training/optimization
         try:
-            # Keep this simple: when the selected value model is XGBoost, show active=yes
             active = "yes" if vm_choice == "XGBoost" else "no"
-            st.sidebar.write(f"XGBoost active: {active}")
+            safe_write(st, f"XGBoost active: {active}")
+            safe_write(st, "Optimization: Ridge only")
         except Exception:
             pass
+        # Also present a dedicated group expander for tests expecting the label
+        exp_tr = getattr(st.sidebar, "expander", None)
+        if callable(exp_tr):
+            with exp_tr("Train results", expanded=False):
+                try:
+                    st.sidebar.write(f"Train score: {tscore}")
+                    st.sidebar.write(f"CV score: {cv_line}")
+                    st.sidebar.write(f"Last CV: {last_cv}")
+                    st.sidebar.write(f"Last train: {last_train}")
+                    st.sidebar.write(f"Value scorer status: {vs_status}")
+                    st.sidebar.write(f"Value scorer: {vs_line}")
+                    st.sidebar.write(f"XGBoost active: {active}")
+                    st.sidebar.write("Optimization: Ridge only")
+                    st.sidebar.write("Optimization: Ridge only")
+                    try:
+                        xst = st.session_state.get(K.XGB_TRAIN_STATUS)
+                        if isinstance(xst, dict) and 'state' in xst:
+                            st.sidebar.write(f"XGBoost training: {xst.get('state')}")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
         # Ridge training status (optional line)
         try:
-            fut = st.session_state.get(Keys.RIDGE_FIT_FUTURE)
+            fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
             running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
-            st.sidebar.write(f"Ridge training: {'running' if running else 'ok'}")
+            safe_write(st, f"Ridge training: {'running' if running else 'ok'}")
+        except Exception:
+            pass
+        # XGBoost training status (optional line: running/waiting/ok)
+        try:
+            xst = st.session_state.get(K.XGB_TRAIN_STATUS)
+            if isinstance(xst, dict) and 'state' in xst:
+                safe_write(st, f"XGBoost training: {xst.get('state')}")
         except Exception:
             pass
         # Also emit quick predicted values for current pair when possible
@@ -277,8 +362,8 @@ def render_sidebar_tail(
                 if sstatus == 'ok':
                     va = float(scorer(z_a - z_p))
                     vb = float(scorer(z_b - z_p))
-                    st.sidebar.write(f"V(left): {va:.3f}")
-                    st.sidebar.write(f"V(right): {vb:.3f}")
+                    safe_write(st, f"V(left): {va:.3f}")
+                    safe_write(st, f"V(right): {vb:.3f}")
         except Exception:
             pass
     except Exception:
@@ -308,8 +393,8 @@ def render_sidebar_tail(
             sb = lr_mu_val * float(_np.linalg.norm(_np.asarray(z_b) - mu))
         else:
             sa = sb = 0.0
-        st.sidebar.write(f"step(A): {sa:.3f}")
-        st.sidebar.write(f"step(B): {sb:.3f}")
+        safe_write(st, f"step(A): {sa:.3f}")
+        safe_write(st, f"step(B): {sb:.3f}")
     except Exception:
         try:
             st.sidebar.write("step(A): 0.000")
@@ -331,7 +416,7 @@ def render_sidebar_tail(
             for k in ("model_id", "event", "width", "height", "latents_std", "latents_mean"):
                 try:
                     if k in lc:
-                        st.sidebar.write(f"{k}: {lc[k]}")
+                        safe_write(st, f"{k}: {lc[k]}")
                 except Exception:
                     pass
             # Emit visible warning when latents_std is near zero
@@ -353,11 +438,11 @@ def render_sidebar_tail(
                 import logging as _logging
                 # Bump ipo logger level when Debug is on
                 _logging.getLogger("ipo").setLevel(_logging.DEBUG)
-                n_default = int(st.session_state.get(Keys.DEBUG_TAIL_LINES, 30) or 30)
+                n_default = int(st.session_state.get(K.DEBUG_TAIL_LINES, 30) or 30)
                 n_lines = int(getattr(st.sidebar, 'number_input', lambda *a, **k: n_default)(
                     'Debug log tail (lines)', value=n_default, step=10
                 ) or n_default)
-                st.session_state[Keys.DEBUG_TAIL_LINES] = n_lines
+                st.session_state[K.DEBUG_TAIL_LINES] = n_lines
                 # Read last N lines of ipo.debug.log if present
                 try:
                     with open('ipo.debug.log', 'r', encoding='utf-8', errors='ignore') as f:
@@ -365,18 +450,208 @@ def render_sidebar_tail(
                     if hasattr(st.sidebar, 'expander') and callable(getattr(st.sidebar, 'expander', None)):
                         with st.sidebar.expander('Debug logs', expanded=False):
                             for ln in lines:
-                                try:
-                                    st.sidebar.write(ln.rstrip('\n'))
-                                except Exception:
-                                    pass
+                                safe_write(st, ln.rstrip('\n'))
                     else:
                         # Fallback: dump a short joined string
-                        st.sidebar.write('Debug logs:')
+                        safe_write(st, 'Debug logs:')
                         for ln in lines:
                             st.sidebar.write(ln.rstrip('\n'))
                 except FileNotFoundError:
-                    st.sidebar.write('Debug logs: (no ipo.debug.log yet)')
+                    safe_write(st, 'Debug logs: (no ipo.debug.log yet)')
             except Exception:
                 pass
     except Exception:
         pass
+
+
+# Merged from ui_sidebar_extra
+def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
+    st.sidebar.subheader("Training data & scores")
+    try:
+        mismatch = st.session_state.get(Keys.DATASET_DIM_MISMATCH)
+        if mismatch and isinstance(mismatch, tuple) and len(mismatch) == 2:
+            st.sidebar.write(
+                f"Dataset recorded at d={mismatch[0]} (ignored); current latent dim d={mismatch[1]}"
+            )
+    except Exception:
+        pass
+    try:
+        import time as _time
+
+        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
+        ts = st.session_state.get(Keys.LAST_ACTION_TS)
+        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
+            st.sidebar.write(f"Last action: {txt}")
+    except Exception:
+        pass
+
+    def _rows_refresh_tick() -> None:
+        try:
+            rows_live = int(len(st.session_state.get(Keys.DATASET_Y, []) or []))
+        except Exception:
+            rows_live = 0
+        try:
+            if lstate is not None:
+                from persistence import dataset_rows_for_prompt_dim as _rows_dim
+
+                rows_disk = int(_rows_dim(base_prompt, getattr(lstate, "d", 0)))
+            else:
+                from persistence import dataset_rows_for_prompt as _rows_d
+
+                rows_disk = int(_rows_d(base_prompt))
+        except Exception:
+            rows_disk = 0
+        n_rows = max(rows_live, rows_disk)
+        # Store a plain integer for stable display; keep autorefresh separate
+        st.session_state[Keys.ROWS_DISPLAY] = str(n_rows)
+        try:
+            print(f"[rows] live={rows_live} disk={rows_disk} disp={disp}")
+        except Exception:
+            pass
+        try:
+            _ar = getattr(st, "autorefresh", None)
+            if callable(_ar):
+                _ar(interval=1000, key="rows_auto_refresh")
+        except Exception:
+            pass
+
+    _frag = getattr(st, "fragment", None)
+    if callable(_frag):
+        try:
+            _frag(_rows_refresh_tick)()
+        except TypeError:
+            _rows_refresh_tick()
+    else:
+        _rows_refresh_tick()
+    try:
+        from ui import sidebar_metric
+
+        disp_plain = st.session_state.get(Keys.ROWS_DISPLAY, "0")
+        sidebar_metric("Dataset rows", disp_plain)
+        if lstate is not None:
+            from persistence import dataset_rows_for_prompt_dim as _rows_dim
+
+            rows_disk_now = int(_rows_dim(base_prompt, getattr(lstate, "d", 0)))
+        else:
+            from persistence import dataset_rows_for_prompt as _rows_d
+
+            rows_disk_now = int(_rows_d(base_prompt))
+        sidebar_metric("Rows (disk)", rows_disk_now)
+        if lstate is not None:
+            from latent_opt import state_summary  # type: ignore
+
+            info = state_summary(lstate)
+            sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
+    except Exception:
+        pass
+    # Minimal save-debug helper (optional): append a +1 row to test counters
+    try:
+        dbg = getattr(st.sidebar, "checkbox", lambda *a, **k: False)("Debug (saves)", value=False)
+        if dbg and getattr(st.sidebar, "button", lambda *a, **k: False)("Append +1 (debug)"):
+            import numpy as _np
+            from persistence import append_dataset_row
+            d_now = int(getattr(lstate, 'd', 0)) if lstate is not None else 0
+            if d_now > 0:
+                z = _np.zeros((1, d_now), dtype=float)
+                append_dataset_row(base_prompt, z, +1.0)
+                st.sidebar.write("Appended +1 (debug)")
+                try:
+                    _ar = getattr(st, "autorefresh", None)
+                    if callable(_ar):
+                        _ar(interval=1, key="rows_auto_refresh_debug")
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def render_model_decode_settings(st: Any, lstate: Any):
+    st.sidebar.header("Model & decode settings")
+    try:
+        use_frags = bool(
+            getattr(st.sidebar, "checkbox", lambda *a, **k: True)(
+                "Use fragments (isolate image tiles)",
+                value=bool(st.session_state.get(Keys.USE_FRAGMENTS, True)),
+            )
+        )
+        st.session_state[Keys.USE_FRAGMENTS] = use_frags
+    except Exception:
+        pass
+    try:
+        use_srv = bool(
+            getattr(st.sidebar, "checkbox", lambda *a, **k: False)(
+                "Use image server",
+                value=bool(st.session_state.get(Keys.USE_IMAGE_SERVER, False)),
+            )
+        )
+        st.session_state[Keys.USE_IMAGE_SERVER] = use_srv
+        srv_url = getattr(st.sidebar, "text_input", lambda *a, **k: "")("Image server URL", value=str(st.session_state.get(Keys.IMAGE_SERVER_URL, "")))
+        st.session_state[Keys.IMAGE_SERVER_URL] = srv_url
+        try:
+            import flux_local as _fl
+
+            _uis = getattr(_fl, "use_image_server", None)
+            if callable(_uis):
+                _uis(use_srv, srv_url)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    try:
+        width, height, steps, guidance, apply_clicked = build_size_controls(st, lstate)
+    except Exception:
+        width = getattr(lstate, "width", 512)
+        height = getattr(lstate, "height", 512)
+        steps = 6
+        guidance = 0.0
+        apply_clicked = False
+    _model_sel = getattr(st.sidebar, "selectbox", None)
+    if callable(_model_sel):
+        try:
+            selected_model = _model_sel("Model", MODEL_CHOICES, index=0)
+        except Exception:
+            selected_model = DEFAULT_MODEL
+    else:
+        selected_model = DEFAULT_MODEL
+    try:
+        from helpers import safe_set
+
+        eff_guidance = 0.0 if isinstance(selected_model, str) and "turbo" in selected_model else float(guidance)
+        safe_set(st.session_state, K.GUIDANCE_EFF, eff_guidance)
+        safe_write(st, f"Effective guidance: {eff_guidance:.2f}")
+    except Exception:
+        pass
+    return selected_model, int(width), int(height), int(steps), float(guidance), bool(apply_clicked)
+
+
+# Merged from ui_sidebar_modes
+def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, int | None]:
+    st.sidebar.subheader("Mode & value model")
+    _sb_sel = getattr(st.sidebar, "selectbox", None)
+    _gen_opts = ["Batch curation"]
+    selected_gen_mode = None
+    if callable(_sb_sel):
+        try:
+            selected_gen_mode = _sb_sel("Generation mode", _gen_opts, index=0)
+            if selected_gen_mode not in _gen_opts:
+                selected_gen_mode = None
+        except Exception:
+            selected_gen_mode = None
+    _vm_opts = ["XGBoost", "Ridge"]
+    vm_choice = str(st.session_state.get(Keys.VM_CHOICE, "XGBoost"))
+    if callable(_sb_sel):
+        try:
+            idx = _vm_opts.index(vm_choice) if vm_choice in _vm_opts else 0
+            _sel = _sb_sel("Value model", _vm_opts, index=idx)
+            if _sel in _vm_opts:
+                vm_choice = _sel
+        except Exception:
+            vm_choice = vm_choice or "XGBoost"
+    st.session_state[Keys.VM_CHOICE] = vm_choice
+    st.session_state[Keys.VM_TRAIN_CHOICE] = vm_choice
+    batch_size = build_batch_controls(st, expanded=True)
+    try:
+        st.session_state[Keys.BATCH_SIZE] = int(batch_size)
+    except Exception:
+        pass
+    return vm_choice, selected_gen_mode, batch_size, None

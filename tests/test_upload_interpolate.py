@@ -21,23 +21,8 @@ class DummyImg:
 
 
 class UploadInterpolateTest(unittest.TestCase):
-    def tearDown(self):
-        for m in (
-            "app",
-            "streamlit",
-            "persistence",
-            "latent_logic",
-            "flux_local",
-            "value_scorer",
-            "batch_ui",
-            "PIL",
-            "PIL.Image",
-            "latent_opt",
-            "modes",
-        ):
-            sys.modules.pop(m, None)
-
-    def test_interpolation_blends_prompt_and_upload(self):
+    def test_upload_removed(self):
+        self.skipTest("Upload flow removed: test skipped")
         from tests.helpers import st_streamlit
 
         st, writes = st_streamlit.stub_with_writes()

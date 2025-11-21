@@ -30,13 +30,16 @@ def _base_data_dir() -> str:
     - Per-test isolated folder when PYTEST_CURRENT_TEST is present
     - Default 'data/'
     """
+    global _BASE_DIR_CACHE
     root = os.getenv("IPO_DATA_ROOT")
     if root:
         return root
-    tname = os.getenv("PYTEST_CURRENT_TEST")
-    if tname:
-        hh = hashlib.sha1(tname.encode("utf-8")).hexdigest()[:10]
-        return os.path.join(".tmp_cli_models", f"tdata_{hh}")
+    # Under pytest, use a single per-process temp root to avoid flakiness
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        if _BASE_DIR_CACHE is None:
+            run = os.getenv("IPO_TEST_RUN") or str(os.getpid())
+            _BASE_DIR_CACHE = os.path.join(".tmp_cli_models", f"tdata_run_{run}")
+        return _BASE_DIR_CACHE
     return "data"
 
 
@@ -373,3 +376,4 @@ def _lock_for_prompt(prompt: str) -> threading.Lock:
                 lock = threading.Lock()
                 _APPEND_LOCKS[key] = lock
     return lock
+_BASE_DIR_CACHE: str | None = None

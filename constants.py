@@ -21,8 +21,8 @@ SMALL_VRAM_MAX_STEPS = 12
 
 @dataclass(frozen=True)
 class Config:
-    DEFAULT_WIDTH: int = 448
-    DEFAULT_HEIGHT: int = 448
+    DEFAULT_WIDTH: int = 384
+    DEFAULT_HEIGHT: int = 384
     DEFAULT_STEPS: int = 6
     DEFAULT_GUIDANCE: float = 3.5
 
@@ -40,9 +40,7 @@ DEFAULT_ITER_STEPS = 10
 DEFAULT_QUEUE_SIZE = 6
 DEFAULT_BATCH_SIZE = 4
 
-# Scoring defaults (avoid scattered literals)
-DISTANCEHILL_GAMMA = 0.5
-COSINEHILL_BETA = 5.0
+# Scoring defaults (legacy non‑ridge modes removed)
 
 
 class Keys:
