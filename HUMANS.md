@@ -204,3 +204,6 @@ What to keep in mind next:
 [189c] Sidebar early lines
 - We now always show prompt_hash, State path, app_version, and Latent dim in the sidebar, even before any training.
 - Status lines (Value model, XGBoost active, Optimization) are kept in the Train results block so tests that assert ordering keep passing; they still render without training.
+
+
+[195a] XGB async removed: now always sync. Adjusted tests and ensured stale futures are cleared; XGB_TRAIN_STATUS becomes 'ok' on completion. Completed at 2025-11-21T17:59:12+00:00.
