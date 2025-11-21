@@ -367,3 +367,22 @@ Notes:
 - Simplified VM header helper: we no longer compute/print scorer status there; the status line appears only in the Train results block to avoid duplicates.
  - Removed unused value_model helpers `_maybe_fit_xgb/_maybe_fit_ridge`; training is centralized in `fit_value_model`.
 - If XGBoost shows “xgb_unavailable”: collect data first (click Good/Bad to save samples); you need at least two classes (+1/−1) and more than one row, then click “Train XGBoost now (sync)”. Also ensure `xgboost` is installed in the venv (`pip install xgboost`). The sidebar now shows “XGBoost active: yes” only when the scorer is ready (status ok).
+Nov 21, 2025 — XGBoost status and simplification questions
+
+Summary of what we observed
+- “XGBoost active: no/unavailable” typically comes from one of three causes:
+  1) No in-scope data for the current prompt+latent-dim (dataset keyed by both).
+  2) Single-class data (all +1 or all −1). XGBoost needs both classes.
+  3) After a sync fit, the model wasn’t cached in session state, so the scorer stayed unavailable until a later rerun.
+- Reruns/async previously caused races; we are moving to sync-only fits to simplify.
+
+Questions for you
+1) Is it acceptable to keep XGBoost strictly “manual”: only train when you click “Train XGBoost now (sync)”, no auto‑fit on reruns?
+2) Do you want us to remove XGBoost entirely (Ridge-only) to eliminate this class of issues, or keep it behind a tiny plugin boundary?
+3) Are we okay to hardcode the model to sd‑turbo everywhere (remove any remaining selectors/image‑server paths) to reduce UI/code paths further?
+4) Do you want us to collapse all sidebar helpers into a single `ui_sidebar.py` now, or wait until after a green baseline?
+
+What we plan to do next (pending your pick)
+- If you pick 217a: purge XGBoost codepaths/tests and simplify captions to Ridge-only.
+- If you pick 217c: keep XGB sync-only and set the cache immediately after training; add a focused test that captions flip to [XGB] after a sync fit.
+- Regardless: keep early sidebar lines (prompt hash, latent dim, dataset path, status) always visible and keep logging minimal by default.

@@ -10,6 +10,26 @@ Notes (Nov 12, 2025):
 - We are building a tiny Streamlit app that shows two color images and learns preferences online via a simple perceptron-style update. Images are synthetic; no heavy deps.
 - Tests use `unittest` to avoid extra packages.
 
+Update (Nov 21, 2025 – XGBoost stability + simplification):
+- Batch-only UI remains; model hardcoded to sd‑turbo; no queue/fragments.
+- Training is sync-only. XGBoost trains only on explicit “Train XGBoost now (sync)”.
+- Single scorer policy: captions use [XGB] when a cached model exists; else [Ridge] if ‖w‖>0; else “n/a”.
+- Data is scoped by both prompt hash and latent dimension. If either changes, the dataset may appear empty. Dim-mismatched rows are ignored, not errored.
+- XGBoost requires ≥2 classes (+1/−1) and ≥2 rows per class; otherwise status is xgb_unavailable. This is often the root cause of “no values” under images despite having some rows.
+- After a sync fit, we must set a small cache in session state (e.g., `xgb_cache={'model': mdl, 'n': rows}`) so scorers become available immediately on the next render.
+- Logging: file logging via `helpers.enable_file_logging()` writes to `ipo.debug.log`. Noncritical logs are gated by `LOG_VERBOSITY` (0/1/2).
+
+What we learned today:
+- Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
+- Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.
+
+Next simplifications to consider (only if requested):
+- 217a. Remove XGBoost entirely (Ridge-only, smallest surface) — largest LOC reduction.
+- 217b. Keep XGB but ship as an optional plugin module loaded only when needed.
+- 217c. Keep XGB sync-only with a single ‘Train now’ button; delete all auto‑fit/ensure‑fit paths and futures.
+- 217d. One dataset source (memory-first): avoid rescans on rerun; write to disk only on label.
+- 217e. Collapse remaining sidebar helpers into a single `ui_sidebar` and keep captions simple.
+
 What was added:
 - `learning.py`: initial color-learner (kept for reference/tests).
 - `latent_opt.py`: direct latent optimizer (now optimizes the full latent tensor directly; no projection matrix). Ridge-based ranking/update; save/load helpers.
