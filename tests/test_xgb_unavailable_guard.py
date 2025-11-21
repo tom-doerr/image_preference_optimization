@@ -4,7 +4,7 @@ import numpy as np
 
 
 def test_xgb_unavailable_sets_status_and_skips_resubmit():
-    from value_model import ensure_fitted, fit_value_model
+    from value_model import fit_value_model
     from constants import Keys
 
     # Stub trainer to raise ImportError
@@ -19,7 +19,7 @@ def test_xgb_unavailable_sets_status_and_skips_resubmit():
     y = np.array([1, -1], dtype=int)
     ss = {}
 
-    ensure_fitted("XGBoost", lstate, X, y, 1.0, ss)
+    fit_value_model("XGBoost", lstate, X, y, 1.0, ss)
     st = ss.get(Keys.XGB_TRAIN_STATUS)
     assert isinstance(st, dict) and st.get("state") == "xgb_unavailable"
 
@@ -28,4 +28,3 @@ def test_xgb_unavailable_sets_status_and_skips_resubmit():
     fit_value_model("XGBoost", lstate, X, y, 1.0, ss)
     after = ss.copy()
     assert after.get(Keys.XGB_TRAIN_STATUS, {}).get("state") == "xgb_unavailable"
-

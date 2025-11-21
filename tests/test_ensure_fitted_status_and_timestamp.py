@@ -30,7 +30,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         xgb_mod.score_xgb_proba = lambda mdl, f: 0.5
         sys.modules["xgb_value"] = xgb_mod
 
-        from value_model import ensure_fitted
+        from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):
@@ -46,7 +46,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         lstate = LState(d)
         ss = SS()
 
-        ensure_fitted("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)
+        fit_value_model("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)
 
         # Model cached and status ok
         cache = ss.get("xgb_cache", {})
@@ -70,7 +70,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         ll.ridge_fit = lambda X, y, lam: np.ones(X.shape[1], dtype=float)
         sys.modules["latent_logic"] = ll
 
-        from value_model import ensure_fitted
+        from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):
@@ -86,7 +86,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         lstate = LState(d)
         ss = SS()
 
-        ensure_fitted("Ridge", lstate, X, y, lam=1e-3, session_state=ss)
+        fit_value_model("Ridge", lstate, X, y, lam=1e-3, session_state=ss)
 
         self.assertTrue(np.allclose(lstate.w, np.ones(d)))
         ts = ss.get(Keys.LAST_TRAIN_AT)
@@ -99,4 +99,3 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

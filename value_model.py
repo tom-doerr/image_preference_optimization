@@ -10,8 +10,6 @@ from constants import Keys
 
 __all__ = [
     "fit_value_model",
-    "ensure_fitted",
-    "train_and_record",
 ]
 
 LOGGER = _logging.getLogger("ipo")
@@ -580,7 +578,7 @@ def fit_value_model(
         pass
 
 
-def ensure_fitted(
+def _ensure_fitted_removed(
     vm_choice: str,
     lstate: Any,
     X: Any,
@@ -588,105 +586,14 @@ def ensure_fitted(
     lam: float,
     session_state: Any,
 ) -> None:
-    """Lazy-fit Ridge/XGBoost when a usable dataset exists and no model is ready.
-
-    - Requires X,y to be non-empty and feature dim to match lstate.d.
-    - If ‖w‖≈0 and there is no XGB cache yet, calls fit_value_model once and
-      records a small guard flag in session_state['auto_fit_done'].
-    """
+    """199c: ensure_fitted retired; do nothing (kept for import compatibility)."""
     try:
-        import numpy as _np
-        from datetime import datetime, timezone
-
-        if X is None or y is None or getattr(X, "shape", (0,))[0] == 0:
-            return
-        # Dimensionality: require match for Ridge-like paths; allow XGB
-        try:
-            d_x = int(getattr(X, "shape", (0, 0))[1])
-            d_lat = int(getattr(lstate, "d", d_x))
-            if d_x != d_lat and str(vm_choice) != "XGBoost":
-                return
-        except Exception:
-            if str(vm_choice) != "XGBoost":
-                return
-        w_now = getattr(lstate, "w", None)
-        w_norm = float(_np.linalg.norm(w_now)) if w_now is not None else 0.0
-        rows = int(getattr(X, "shape", (0,))[0])
+        session_state["auto_fit_done"] = True
     except Exception:
-        return
-    cache = getattr(session_state, "xgb_cache", {}) or {}
-    auto_flag = bool(getattr(session_state, "auto_fit_done", False) or session_state.get("auto_fit_done", False))
-    needs_xgb = str(vm_choice) == "XGBoost"
-    # Train synchronously so UI/tests see a usable scorer immediately.
-    if ((w_norm == 0.0) or needs_xgb) and not cache and not auto_flag:
-        if needs_xgb:
-            try:
-                from xgb_value import fit_xgb_classifier  # type: ignore
-
-                n_estim = int(getattr(session_state, "xgb_n_estimators", session_state.get("xgb_n_estimators", 50)))
-                max_depth = int(getattr(session_state, "xgb_max_depth", session_state.get("xgb_max_depth", 3)))
-                _log(f"[ensure] xgb sync fit rows={rows} d={d_x} n_estim={n_estim} depth={max_depth}")
-                mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                session_state.xgb_cache = {"model": mdl, "n": rows}
-                try:
-                    session_state["xgb_toast_ready"] = True
-                except Exception:
-                    pass
-                try:
-                    import streamlit as _st  # type: ignore
-
-                    getattr(_st, "toast", lambda *a, **k: None)(
-                        "XGBoost: model ready"
-                    )
-                    try:
-                        session_state["xgb_toast_ready"] = True
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                try:
-                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": rows, "lam": float(lam)}
-                except Exception:
-                    pass
-                try:
-                    session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-                except Exception:
-                    pass
-            except Exception as e:
-                _log(f"[xgb] unavailable: {type(e).__name__}")
-                try:
-                    session_state[Keys.XGB_TRAIN_STATUS] = {
-                        "state": "xgb_unavailable",
-                        "rows": rows,
-                        "lam": float(lam),
-                    }
-                except Exception:
-                    pass
-        else:
-            try:
-                from latent_logic import ridge_fit  # type: ignore
-
-                _log(f"[ensure] ridge sync fit rows={rows} d={d_x} lam={lam}")
-                w_new = ridge_fit(X, y, float(lam))
-                lock = getattr(lstate, "w_lock", None)
-                if lock is not None:
-                    with lock:
-                        lstate.w = w_new
-                else:
-                    lstate.w = w_new
-                try:
-                    session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
-                except Exception:
-                    pass
-            except Exception:
-                fit_value_model(vm_choice, lstate, X, y, lam, session_state)
-        try:
-            session_state["auto_fit_done"] = True
-        except Exception:
-            pass
+        pass
 
 
-def train_and_record(
+def _train_and_record_removed(
     vm_choice: str,
     lstate: Any,
     X: np.ndarray,
@@ -694,40 +601,6 @@ def train_and_record(
     lam: float,
     session_state: Any,
 ) -> str:
-    """Single training entry used by Batch/Queue/Pair.
-
-    - Applies a minimal cooldown via session_state['min_train_interval_s'].
-    - Sets xgb_train_status to 'running' or 'waiting'.
-    - Delegates to fit_value_model and returns 'ok' when training triggered.
-    """
-    try:
-        from datetime import datetime, timezone
-
-        min_wait = float(session_state.get("min_train_interval_s", 0.0))
-        last_at = session_state.get(Keys.LAST_TRAIN_AT)
-        if min_wait > 0 and last_at:
-            try:
-                last_dt = datetime.fromisoformat(last_at)
-            except Exception:
-                last_dt = None
-            if last_dt is not None:
-                elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
-                if elapsed < min_wait:
-                    session_state[Keys.XGB_TRAIN_STATUS] = {
-                        "state": "waiting",
-                        "rows": int(getattr(X, "shape", (0,))[0]),
-                        "lam": float(lam),
-                    }
-                    return "waiting"
-    except Exception:
-        pass
-    try:
-        session_state[Keys.XGB_TRAIN_STATUS] = {
-            "state": "running",
-            "rows": int(getattr(X, "shape", (0,))[0]),
-            "lam": float(lam),
-        }
-    except Exception:
-        pass
+    """199c: train_and_record retired; call fit_value_model directly in UI."""
     fit_value_model(vm_choice, lstate, X, y, lam, session_state)
     return "ok"

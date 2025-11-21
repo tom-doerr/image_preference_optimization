@@ -109,48 +109,9 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
 
 
 def _prepare_xgb_scorer(lstate: Any, prompt: str):
-    """Return (scorer, status) for XGB when available, else (None, status).
-
-    Keeps import surface tiny and avoids repeating dataset/ensure_fitted calls.
-    """
+    """Return (scorer, status) for XGB based on existing cache; no auto-fit (199c)."""
     try:
-        from persistence import get_dataset_for_prompt_or_session
-        from value_model import ensure_fitted
-
-        X_ds, y_ds = get_dataset_for_prompt_or_session(
-            prompt, __import__("streamlit").session_state
-        )
-        if (
-            X_ds is not None
-            and y_ds is not None
-            and getattr(X_ds, "shape", (0,))[0] > 0
-        ):
-            try:
-                from constants import Keys as _K
-
-                lam_now = float(
-                    getattr(__import__("streamlit").session_state, _K.REG_LAMBDA, 1e-3)
-                )
-            except Exception:
-                lam_now = 1e-3
-            try:
-                vm_train_choice = str(
-                    __import__("streamlit").session_state.get(
-                        "vm_train_choice", "XGBoost"
-                    )
-                )
-            except Exception:
-                vm_train_choice = "XGBoost"
-            ensure_fitted(
-                vm_train_choice,
-                lstate,
-                X_ds,
-                y_ds,
-                lam_now,
-                __import__("streamlit").session_state,
-            )
         from value_scorer import get_value_scorer_with_status
-
         return get_value_scorer_with_status(
             "XGBoost", lstate, prompt, __import__("streamlit").session_state
         )
@@ -540,18 +501,12 @@ def _render_batch_tile_body(
 def _curation_train_and_next() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    # Prefer central train helper when available; tests may stub value_model without it
-    try:
-        from value_model import train_and_record as _train_record
-    except Exception:
-        _train_record = None
-
     lstate, prompt = _lstate_and_prompt()
     # Respect toggle: skip training when disabled
     if not bool(st.session_state.get("train_on_new_data", True)):
         _curation_new_batch()
         return
-    # Clear previous future handle; train_and_record manages status
+    # Clear previous future handle
     st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
     X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
@@ -564,30 +519,26 @@ def _curation_train_and_next() -> None:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            if _train_record is not None:
-                _train_record(vm_train, lstate, X, y, lam_now, st.session_state)
+            # Cooldown + single synchronous fit
+            from datetime import datetime, timezone
+            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
+            min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+            recent = False
+            if last_at and min_wait > 0.0:
+                try:
+                    dt = datetime.fromisoformat(last_at)
+                    recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+                except Exception:
+                    recent = False
+            if recent:
+                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(X.shape[0]), "lam": float(lam_now)}
             else:
-                # Minimal fallback: emulate cooldown + single submit, then call fit once
-                from datetime import datetime, timezone
-                last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-                min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
-                recent = False
-                if last_at and min_wait > 0.0:
-                    try:
-                        dt = datetime.fromisoformat(last_at)
-                        recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
-                    except Exception:
-                        recent = False
-                if recent:
-                    st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "waiting", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                else:
-                    st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
-                    try:
-                        from value_model import fit_value_model as _fit_vm
-
-                        _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
-                    except Exception:
-                        pass
+                st.session_state[Keys.XGB_TRAIN_STATUS] = {"state": "running", "rows": int(X.shape[0]), "lam": float(lam_now)}
+                try:
+                    from value_model import fit_value_model as _fit_vm
+                    _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
+                except Exception:
+                    pass
         except Exception:
             pass
     _curation_new_batch()
@@ -596,11 +547,6 @@ def _curation_train_and_next() -> None:
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
     from persistence import get_dataset_for_prompt_or_session
-    try:
-        from value_model import train_and_record as _train_record
-    except Exception:
-        _train_record = None
-
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return
@@ -615,26 +561,23 @@ def _refit_from_dataset_keep_batch() -> None:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
                 pass
-            if _train_record is not None:
-                _train_record(vm_train, lstate, X, y, lam_now, st.session_state)
-            else:
-                # Minimal fallback mirrors _curation_train_and_next
-                from datetime import datetime, timezone
-                last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-                min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
-                recent = False
-                if last_at and min_wait > 0.0:
-                    try:
-                        dt = datetime.fromisoformat(last_at)
-                        recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
-                    except Exception:
-                        recent = False
-                if not recent:
-                    try:
-                        from value_model import fit_value_model as _fit_vm
-                        _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
-                    except Exception:
-                        pass
+            # Minimal cooldown then fit Ridge once
+            from datetime import datetime, timezone
+            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
+            min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+            recent = False
+            if last_at and min_wait > 0.0:
+                try:
+                    dt = datetime.fromisoformat(last_at)
+                    recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+                except Exception:
+                    recent = False
+            if not recent:
+                try:
+                    from value_model import fit_value_model as _fit_vm
+                    _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
+                except Exception:
+                    pass
     except Exception:
         pass
 

@@ -23,7 +23,7 @@ class TestEnsureFittedXGBoostAutoFit(unittest.TestCase):
         xgb_mod.score_xgb_proba = lambda mdl, f: 0.5  # pragma: no cover
         sys.modules["xgb_value"] = xgb_mod
 
-        from value_model import ensure_fitted
+        from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):
@@ -45,7 +45,7 @@ class TestEnsureFittedXGBoostAutoFit(unittest.TestCase):
 
         # No xgb_cache and w already non-zero: ensure_fitted should still
         # trigger a single XGB fit when vm_choice == 'XGBoost'.
-        ensure_fitted("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)
+        fit_value_model("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)
 
         cache = getattr(ss, "xgb_cache", {})
         self.assertIsInstance(cache.get("model"), object)
