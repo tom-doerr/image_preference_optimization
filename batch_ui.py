@@ -458,6 +458,12 @@ def _render_batch_tile_body(
             fvec = z_i - z_p
             v = float(scorer(fvec))
             v_text = f"Value: {v:.3f}"
+            # Append model tag for clarity
+            try:
+                tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
+                v_text = f"{v_text} [{tag}]"
+            except Exception:
+                pass
             try:
                 vmn = st.session_state.get("vm_choice")
                 _log(f"[scorer] tile={i} vm={vmn} v={v:.3f}")
@@ -801,6 +807,11 @@ def _render_batch_ui() -> None:
                         fvec = z_i - z_p
                         v = float(scorer(fvec))
                         v_text = f"Value: {v:.3f}"
+                        try:
+                            tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
+                            v_text = f"{v_text} [{tag}]"
+                        except Exception:
+                            pass
                     except Exception:
                         v_text = "Value: n/a"
                 cap_txt = f"Item {i} • {v_text}"
@@ -1022,6 +1033,11 @@ def _render_batch_ui() -> None:
                         fvec = zi - z_p
                         v = float(scorer(fvec))
                         v_text = f"Value: {v:.3f}"
+                        try:
+                            tag = "XGB" if str(vm_choice_local) == "XGBoost" else "Ridge"
+                            v_text = f"{v_text} [{tag}]"
+                        except Exception:
+                            pass
                     except Exception:
                         v_text = "Value: n/a"
                 cap_txt = f"Item {i} • {v_text}"

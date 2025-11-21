@@ -56,10 +56,10 @@ class TestTileValueCaptions(unittest.TestCase):
         import batch_ui
 
         batch_ui._render_batch_ui()
-        # Expect captions contain Value: 0.123 (3 decimals)
+        # Expect captions contain Value: 0.123 and a model tag
         self.assertTrue(any("Value: 0.123" in cap for cap in images))
+        self.assertTrue(any("[XGB]" in cap or "[Ridge]" in cap for cap in images))
 
 
 if __name__ == "__main__":
     unittest.main()
-

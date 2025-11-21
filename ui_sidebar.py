@@ -241,6 +241,32 @@ def render_sidebar_tail(
         if _ensure is not None and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
             lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
             _ensure(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
+        # One‑click synchronous XGBoost fit button
+        try:
+            if str(vm_choice) == "XGBoost":
+                if getattr(st.sidebar, "button", lambda *a, **k: False)(
+                    "Train XGBoost now (sync)"
+                ):
+                    # Prefer in‑memory dataset when present; else folder dataset
+                    from value_model import fit_value_model as _fit_vm
+                    Xs, Ys = (Xm, ym) if (
+                        Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
+                    ) else (Xd, yd)
+                    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
+                        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+                        # Force a synchronous fit for this action
+                        prev_async = bool(st.session_state.get(Keys.XGB_TRAIN_ASYNC, True))
+                        st.session_state[Keys.XGB_TRAIN_ASYNC] = False
+                        # Clear any stale future handle so guard doesn't skip
+                        st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
+                        _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
+                        st.session_state[Keys.XGB_TRAIN_ASYNC] = prev_async
+                        try:
+                            getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         # Inline train results panel (merged from ui_sidebar_train)
         def _compute_train_results_summary(st, lstate, base_prompt: str, vm_choice: str):
             from persistence import get_dataset_for_prompt_or_session as _get_ds
