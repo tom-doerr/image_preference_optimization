@@ -757,12 +757,26 @@ def _render_batch_ui() -> None:
     fut_running = False
     z_p = None
     try:
-        vm_choice = st.session_state.get("vm_choice")
         from value_scorer import get_value_scorer_with_status
-
-        scorer, scorer_status = get_value_scorer_with_status(
-            vm_choice, lstate, prompt, st.session_state
-        )
+        # Single-scorer rule:
+        # - If XGB cache exists → use XGB scorer
+        # - Else if Use Ridge captions → use Ridge scorer
+        # - Else → no scorer (n/a)
+        cache = st.session_state.get("xgb_cache") or {}
+        use_ridge_caps = bool(st.session_state.get("use_ridge_captions", False))
+        scorer = None
+        scorer_status = "n/a"
+        vm_choice = None
+        if cache.get("model") is not None:
+            vm_choice = "XGBoost"
+            scorer, scorer_status = get_value_scorer_with_status(
+                "XGBoost", lstate, prompt, st.session_state
+            )
+        elif use_ridge_caps:
+            vm_choice = "Ridge"
+            scorer, scorer_status = get_value_scorer_with_status(
+                "Ridge", lstate, prompt, st.session_state
+            )
         # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
         try:
             _val = getattr(st.session_state, "log_verbosity", None)
@@ -778,12 +792,6 @@ def _render_batch_ui() -> None:
         fut_running = bool(
             fut is not None and not getattr(fut, "done", lambda: False)()
         )
-        # For Ridge, allow showing a score even when untrained (it will be 0.0).
-        if scorer_status != "ok":
-            if str(vm_choice) == "Ridge":
-                pass
-            else:
-                scorer = None
         z_p = z_from_prompt(lstate, prompt)
     except Exception:
         scorer = None

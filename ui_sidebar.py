@@ -206,6 +206,20 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
         xgb_line, ridge_line = _cached_cv_lines(st)
         _sb_w(xgb_line)
         _sb_w(ridge_line)
+        # Toggle: use Ridge captions when XGB cache is absent
+        try:
+            val = bool(st.session_state.get(Keys.USE_RIDGE_CAPTIONS, False))
+        except Exception:
+            val = False
+        try:
+            chk = getattr(st.sidebar, "checkbox", None)
+            if callable(chk):
+                new_val = bool(chk("Use Ridge captions", value=val))
+                st.session_state[Keys.USE_RIDGE_CAPTIONS] = new_val
+            else:
+                st.session_state[Keys.USE_RIDGE_CAPTIONS] = val
+        except Exception:
+            pass
         _vm_details(vm, cache)
 
 

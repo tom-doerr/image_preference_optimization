@@ -16,6 +16,7 @@ def test_captions_include_ridge_and_numeric_when_w_nonzero():
     st.session_state.cur_batch = [np.zeros(4), np.ones(4)]
     st.session_state.cur_labels = [None, None]
     st.session_state.vm_choice = "Ridge"
+    st.session_state.use_ridge_captions = True
     sys.modules["streamlit"] = st
 
     ll = types.ModuleType("latent_logic")
@@ -32,4 +33,3 @@ def test_captions_include_ridge_and_numeric_when_w_nonzero():
     batch_ui._render_batch_ui()
     assert any("[Ridge]" in c and "Value:" in c for c in images)
     assert any(any(ch.isdigit() for ch in c) for c in images)
-
