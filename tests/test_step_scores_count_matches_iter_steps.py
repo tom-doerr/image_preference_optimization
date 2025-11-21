@@ -6,7 +6,7 @@ import numpy as np
 
 class StepScoresCountTest(unittest.TestCase):
     def tearDown(self):
-        for m in ("ui_metrics", "latent_logic", "value_scorer"):
+        for m in ("ui", "latent_logic", "value_scorer"):
             sys.modules.pop(m, None)
 
     def test_compute_step_scores_respects_iter_steps(self):
@@ -22,10 +22,10 @@ class StepScoresCountTest(unittest.TestCase):
         )
         sys.modules["value_scorer"] = vs
 
-        import ui_metrics
+        import ui
 
         lstate = types.SimpleNamespace(d=4, w=np.ones(4), sigma=1.0)
-        scores = ui_metrics.compute_step_scores(
+        scores = ui.compute_step_scores(
             lstate,
             prompt="p",
             vm_choice="Ridge",

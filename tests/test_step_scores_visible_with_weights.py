@@ -7,7 +7,7 @@ import numpy as np
 class StepScoresVisibleTest(unittest.TestCase):
     def tearDown(self):
         for m in (
-            "ui_metrics",
+            "ui",
             "latent_logic",
             "value_scorer",
             "streamlit",
@@ -33,13 +33,13 @@ class StepScoresVisibleTest(unittest.TestCase):
         sys.modules["value_scorer"] = vs
 
         sys.modules["streamlit"] = st
-        import ui_metrics
+        import ui
 
         lstate = types.SimpleNamespace(
             d=4, w=np.ones(4), sigma=1.0, mu=np.zeros(4)
         )
 
-        ui_metrics.render_iter_step_scores(
+        ui.render_iter_step_scores(
             st, lstate, st.session_state.prompt, "Ridge", iter_steps=3, iter_eta=None, trust_r=None
         )
 
