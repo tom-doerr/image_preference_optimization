@@ -101,6 +101,23 @@ def _maybe_fit_xgb(
                             X, y, n_estimators=n_estim, max_depth=max_depth
                         )
                         session_state.xgb_cache = {"model": mdl, "n": n}
+                        try:
+                            session_state["xgb_toast_ready"] = True
+                        except Exception:
+                            pass
+                        # Toast on readiness when Streamlit is available
+                        try:
+                            import streamlit as _st  # type: ignore
+
+                            getattr(_st, "toast", lambda *a, **k: None)(
+                                "XGBoost: model ready"
+                            )
+                            try:
+                                session_state["xgb_toast_ready"] = True
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
                         dt_ms = (_time.perf_counter() - t_x) * 1000.0
                         _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
                         try:
@@ -145,6 +162,22 @@ def _maybe_fit_xgb(
                         X, y, n_estimators=n_estim, max_depth=max_depth
                     )
                     session_state.xgb_cache = {"model": mdl, "n": n}
+                    try:
+                        session_state["xgb_toast_ready"] = True
+                    except Exception:
+                        pass
+                    try:
+                        import streamlit as _st  # type: ignore
+
+                        getattr(_st, "toast", lambda *a, **k: None)(
+                            "XGBoost: model ready"
+                        )
+                        try:
+                            session_state["xgb_toast_ready"] = True
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
                     dt_ms = (_time.perf_counter() - t_x) * 1000.0
                     _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
                     try:
@@ -169,6 +202,22 @@ def _maybe_fit_xgb(
                     X, y, n_estimators=n_estim, max_depth=max_depth
                 )
                 session_state.xgb_cache = {"model": mdl, "n": n}
+                try:
+                    session_state["xgb_toast_ready"] = True
+                except Exception:
+                    pass
+                try:
+                    import streamlit as _st  # type: ignore
+
+                    getattr(_st, "toast", lambda *a, **k: None)(
+                        "XGBoost: model ready"
+                    )
+                    try:
+                        session_state["xgb_toast_ready"] = True
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
                 dt_ms = (_time.perf_counter() - t_x) * 1000.0
                 _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
                 try:
@@ -423,6 +472,10 @@ def fit_value_model(
                                     X, y, n_estimators=n_estim, max_depth=max_depth
                                 )
                                 session_state.xgb_cache = {"model": mdl, "n": n}
+                                try:
+                                    session_state["xgb_toast_ready"] = True
+                                except Exception:
+                                    pass
                                 dt_ms = (_time.perf_counter() - t_x) * 1000.0
                                 _log(
                                     f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
@@ -486,6 +539,10 @@ def fit_value_model(
                                 X, y, n_estimators=n_estim, max_depth=max_depth
                             )
                             session_state.xgb_cache = {"model": mdl, "n": n}
+                            try:
+                                session_state["xgb_toast_ready"] = True
+                            except Exception:
+                                pass
                             dt_ms = (_time.perf_counter() - t_x) * 1000.0
                             _log(
                                 f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
@@ -499,6 +556,10 @@ def fit_value_model(
                             X, y, n_estimators=n_estim, max_depth=max_depth
                         )
                         session_state.xgb_cache = {"model": mdl, "n": n}
+                        try:
+                            session_state["xgb_toast_ready"] = True
+                        except Exception:
+                            pass
                         dt_ms = (_time.perf_counter() - t_x) * 1000.0
                         _log(
                             f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms"
@@ -684,6 +745,22 @@ def ensure_fitted(
                 _log(f"[ensure] xgb sync fit rows={rows} d={d_x} n_estim={n_estim} depth={max_depth}")
                 mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
                 session_state.xgb_cache = {"model": mdl, "n": rows}
+                try:
+                    session_state["xgb_toast_ready"] = True
+                except Exception:
+                    pass
+                try:
+                    import streamlit as _st  # type: ignore
+
+                    getattr(_st, "toast", lambda *a, **k: None)(
+                        "XGBoost: model ready"
+                    )
+                    try:
+                        session_state["xgb_toast_ready"] = True
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
                 try:
                     session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": rows, "lam": float(lam)}
                 except Exception:
