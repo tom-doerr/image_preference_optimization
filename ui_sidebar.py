@@ -659,6 +659,24 @@ def render_sidebar_tail(
                             pass
                 # 196b: Cancel button removed in sync-only training
             elif str(vm_choice) == "Logistic":
+                # Sidebar controls for Logistic steps and L2
+                try:
+                    steps0 = int(st.session_state.get(Keys.LOGIT_STEPS) or 120)
+                except Exception:
+                    steps0 = 120
+                try:
+                    l20 = float(st.session_state.get(Keys.LOGIT_L2) if st.session_state.get(Keys.LOGIT_L2) is not None else st.session_state.get(Keys.REG_LAMBDA, 1.0))
+                except Exception:
+                    l20 = 1.0
+                try:
+                    num = getattr(st.sidebar, "number_input", getattr(st, "number_input", None))
+                    if callable(num):
+                        steps_val = num("Logistic steps", value=int(steps0), step=10)
+                        st.session_state[Keys.LOGIT_STEPS] = int(steps_val)
+                        l2_val = num("Logistic λ (L2)", value=float(l20), step=0.1, format="%.4f")
+                        st.session_state[Keys.LOGIT_L2] = float(l2_val)
+                except Exception:
+                    pass
                 if getattr(st.sidebar, "button", lambda *a, **k: False)(
                     "Train Logistic now (sync)"
                 ):

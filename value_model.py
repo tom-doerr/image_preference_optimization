@@ -161,17 +161,24 @@ def fit_value_model(
                 yy = np.asarray(y).astype(float)
                 y01 = (yy > 0).astype(float)
                 W = np.asarray(session_state.get(Keys.LOGIT_W) or np.zeros(d), dtype=float)
-                # Fixed small steps for stability on tests; sync-only
-                steps = 120
+                # Steps/L2 from session (sidebar), with tiny defaults
+                try:
+                    steps = int(session_state.get(Keys.LOGIT_STEPS) or 120)
+                except Exception:
+                    steps = 120
+                try:
+                    lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam)
+                except Exception:
+                    lam_eff = float(lam)
                 lr = 0.1
                 for _ in range(steps):
                     z = X @ W
                     # sigmoid
                     p = 1.0 / (1.0 + np.exp(-z))
-                    g = (X.T @ (p - y01)) / float(n) + float(lam) * W
+                    g = (X.T @ (p - y01)) / float(n) + float(lam_eff) * W
                     W -= lr * g
                 session_state[Keys.LOGIT_W] = W
-                _log(f"[logit] fit rows={n} d={d} lam={lam} ||w||={float(np.linalg.norm(W)):.3f}")
+                _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")
         except Exception:
             pass
 
