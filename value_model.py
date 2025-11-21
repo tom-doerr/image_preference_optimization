@@ -333,6 +333,25 @@ def fit_value_model(
                 neg = int((yy < 0).sum())
                 cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
                 last_n = int(cache.get("n") or 0)
+                # Guard: if a previous XGB fit is still running, do not resubmit.
+                try:
+                    fut_running = False
+                    fut_prev = session_state.get(Keys.XGB_FIT_FUTURE)
+                    if fut_prev is not None and hasattr(fut_prev, "done"):
+                        fut_running = not bool(fut_prev.done())
+                    if fut_running:
+                        # Keep status 'running' and skip scheduling a new fit
+                        try:
+                            session_state[Keys.XGB_TRAIN_STATUS] = {
+                                "state": "running",
+                                "rows": int(n),
+                                "lam": float(lam),
+                            }
+                        except Exception:
+                            pass
+                        return
+                except Exception:
+                    pass
                 # Read simple hyperparams from session_state; default to 50/3.
                 try:
                     n_estim = int(
