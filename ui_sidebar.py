@@ -728,14 +728,9 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
 
 def render_model_decode_settings(st: Any, lstate: Any):
     st.sidebar.header("Model & decode settings")
+    # 195g: fragments option removed; always use non-fragment rendering
     try:
-        use_frags = bool(
-            getattr(st.sidebar, "checkbox", lambda *a, **k: True)(
-                "Use fragments (isolate image tiles)",
-                value=bool(st.session_state.get(Keys.USE_FRAGMENTS, True)),
-            )
-        )
-        st.session_state[Keys.USE_FRAGMENTS] = use_frags
+        st.session_state.pop(Keys.USE_FRAGMENTS, None)
     except Exception:
         pass
     try:

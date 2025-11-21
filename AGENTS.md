@@ -1395,3 +1395,18 @@ Early sidebar baseline (Nov 21, 2025 – 189c):
 - value_model: XGBoost training runs synchronously only; all async toggles/future checks are ignored. We clear any stale Keys.XGB_FIT_FUTURE and set Keys.XGB_TRAIN_STATUS='ok' on completion.
 - batch_ui: Batch auto‑training remains Ridge‑only; the explicit “Train XGBoost now (sync)” button performs a synchronous fit.
 - Tests updated: async‑specific tests now assert sync behavior (no future handle, status 'ok'), or expect Ridge training in batch flow.
+Simplification (Nov 21, 2025):
+- Started 195f: keep a single scorer entrypoint (`value_scorer.get_value_scorer`); `get_value_scorer_with_status` now thinly
+  wraps it. No behavior change expected for callers.
+- Began 196a/196b: removed the XGBoost async UI (toggle + cancel button) to cut indirection. Value model training is sync-only.
+  This touched `ui_sidebar.render_modes_and_value_model` and the Train-results panel. Minimal code; no fallbacks.
+- 195g: Removed the "Use fragments" sidebar option. Batch UI now renders via a single, non-fragment path; image tiles and buttons
+  are rendered in the same context to avoid the historical click-swallowing issue. Tests that asserted fragment toggling will be
+  updated (or replaced with non-fragment assertions) in the next pass.
+- Impact: several tests still assert the presence/behavior of the async UI. Next step is either to (a) reintroduce a no-op
+  compatibility toggle, or (b) update those tests to the new sync-only contract (preferred for clarity).
+- Proposed follow-ups (choose):
+  197a. Keep a no-op "Train XGBoost asynchronously" checkbox (writes the key but unused) to unbreak legacy tests while we
+        complete the broader cleanup.
+  197b. Update tests that depend on async paths to the sync-only flow and remove the legacy files after green.
+  197c. Finish scorer API consolidation by making all UI sites call `get_value_scorer` (some still import the status wrapper).

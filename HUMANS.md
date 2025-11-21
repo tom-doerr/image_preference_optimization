@@ -208,3 +208,30 @@ What to keep in mind next:
 
 [195a] XGB async removed: now always sync. Adjusted tests and ensured stale futures are cleared; XGB_TRAIN_STATUS becomes 'ok' on completion. Completed at 2025-11-21T17:59:12+00:00.
 [195e] Hardcoded model to sd-turbo; removed model selector and image server UI. Effective guidance remains at 0.00 for turbo. 2025-11-21T18:08:29Z
+Nov 21, 2025 — Worklog + questions
+
+What I changed
+- Simplification pass (195f/196a–b):
+  - Kept a single scorer entrypoint (`value_scorer.get_value_scorer`); `get_value_scorer_with_status` is a thin wrapper.
+- Removed the XGBoost async UI ("Train XGBoost asynchronously" and "Cancel current XGB fit"). XGB training is now sync-only
+  via the explicit "Train XGBoost now (sync)" button.
+- Removed the "Use fragments" sidebar option (195g). Batch tiles always render without fragments now to keep one stable path
+  and avoid rare click issues seen with fragments in this Streamlit build.
+
+Observations
+- A number of tests still assert the async UI and future-based behavior. After this change they fail. Choosing a direction will
+  let me either restore a no-op checkbox for compatibility or update those tests to the new contract.
+
+Questions for you
+1) Should I keep a no-op "Train XGBoost asynchronously" toggle (writes the state key but unused) to keep legacy tests green while
+   we finish simplification, or should I update those tests now to the sync-only contract and remove the legacy assertions?
+2) For rows counters: do you want the sidebar to stay memory-only (fast, deterministic) or re-scan disk every render for those
+   specific tests that assert disk counts? I can add a tiny helper that returns both memory and disk counts if we want both.
+3) With fragments removed from the UI, do you want me to also strip fragment-based refresh paths elsewhere (e.g., the rows
+   heartbeat) for complete consistency, or is it acceptable to keep those internal fragment calls since they’re transparent to
+   end users?
+
+Pointers
+- Scores under tiles appear once a scorer is ready:
+  - XGBoost: after clicking "Train XGBoost now (sync)" and the cache is set → captions show "[XGB] value".
+  - Ridge: toggle "Use Ridge captions" for deterministic linear values; when w=0 this shows 0.000 by design.

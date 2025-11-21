@@ -911,16 +911,10 @@ def _render_batch_ui() -> None:
             # latent sampling, decode, buttons, and saves are scoped per
             # image and can run independently. Streamlit exposes fragments
             # as a decorator, so we decorate _render_item and then call it.
-            frag = getattr(st, "fragment", None)
-            # Respect global toggle: when enabled, render the heavy visual part
-            # inside a fragment and place buttons outside to keep clicks reliable.
-            try:
-                from constants import Keys as _K
-                # Re-enable fragments by default; UI checkbox sets this key.
-                use_frags = bool(st.session_state.get(_K.USE_FRAGMENTS, True))
-            except Exception:
-                use_frags = True
-            use_frags_active = bool(use_frags and callable(frag))
+            # 195g: fragments option removed — always use non-fragment path
+            frag = None
+            use_frags = False
+            use_frags_active = False
 
             def _tile_cache_key() -> str:
                 try:
