@@ -226,22 +226,21 @@ def render_sidebar_tail(
         pass
     # Train results panel (train score, CV, last train, XGB status)
     try:
-        # Opportunistic ensure-fit so Train score/XGB status are meaningful on import
+        # Opportunistic auto-fit exactly once: use ensure_fitted so we don't resubmit on reruns
+        from persistence import get_dataset_for_prompt_or_session as _get_ds
         try:
-            from persistence import get_dataset_for_prompt_or_session as _get_ds
-            from value_model import train_and_record as _train
-            # Prefer in-memory dataset when present; else use folder dataset
-            Xm = getattr(lstate, 'X', None)
-            ym = getattr(lstate, 'y', None)
-            if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
-                Xd, yd = Xm, ym
-            else:
-                Xd, yd = _get_ds(prompt, st.session_state)
-            if vm_choice == "XGBoost" and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-                lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
-                _train(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
+            from value_model import ensure_fitted as _ensure
         except Exception:
-            pass
+            _ensure = None
+        Xm = getattr(lstate, 'X', None)
+        ym = getattr(lstate, 'y', None)
+        if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
+            Xd, yd = Xm, ym
+        else:
+            Xd, yd = _get_ds(prompt, st.session_state)
+        if _ensure is not None and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
+            lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1e-3))
+            _ensure(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
         # Inline train results panel (merged from ui_sidebar_train)
         def _compute_train_results_summary(st, lstate, base_prompt: str, vm_choice: str):
             from persistence import get_dataset_for_prompt_or_session as _get_ds
