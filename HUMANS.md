@@ -55,7 +55,7 @@ Nov 21, 2025 — 145c value model status & UX
 - 147c sidebar polish
   - Effective guidance line comes from a single place and is stored in `GUIDANCE_EFF` (0.0 for turbo); tests see “Effective guidance: 0.00”.
   - Metadata panel writes plain `app_version:` and `created_at:` lines (as well as metric rows) and keeps ordering predictable; prompt hash is shown as `prompt_hash:`.
-- Default resolution set to 640×640 in `constants.Config` for sd‑turbo; good quality/speed tradeoff.
+- Default resolution set to 1024×1024 in `constants.Config` per request.
 
 Nov 21, 2025 — 138a final touches (this request)
 - Added an early "Step scores: n/a" write during app import so text-only sidebar tests see it immediately.
@@ -123,7 +123,7 @@ Nov 21, 2025 — Fragment + scheduler robustness
 
 Questions for you
 - Do you want me to remove the sidebar “Debug (saves)” helper now that Good/Bad works, or keep it hidden behind a small toggle?
-- Confirm default size 640×640 works for your GPU; I updated the default‑size test accordingly.
+- Confirm default size 1024×1024 works for your GPU; I updated the default‑size test accordingly.
 
 Verification — real image generation (GPU)
 - One‑off decode (fast):
@@ -176,4 +176,4 @@ Nov 21, 2025 — Diffusion steps vs. optimization steps
 
 Open questions
 - Should Value captions temporarily fall back to Ridge while XGB is training? Current policy is “no fallback”; say if you want that changed.
-- Default resolution is 640×640; if you want a different default (e.g., 512×512 for speed), I can add a tiny preset toggle.
+- Default resolution is 1024×1024; if you want a different default (e.g., 512×512 for speed), I can add a tiny preset toggle.

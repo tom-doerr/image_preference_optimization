@@ -1255,7 +1255,7 @@ Sidebar polish (Nov 21, 2025 — 147c):
 - Kept labels stable where tests assert exact strings (e.g., `Dataset rows`, `Rows (disk)`, `prompt_hash:`).
 
 Default resolution (Nov 21, 2025):
-- Default width/height is now 640×640 (constants.Config). Good balance for sd‑turbo with ~3.1 s/tile here; stick to multiples of 64.
+- Default width/height is now 1024×1024 (constants.Config).
 
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
@@ -1310,7 +1310,7 @@ Mini patch notes (Nov 21, 2025):
 - Batch Good/Bad keys stabilized (prefix + batch_nonce + index); fragments disabled for tiles to avoid missed clicks.
 - Sidebar rows counter updates immediately after saves; we also trigger st.rerun when available.
 - persistence.export_state_bytes now imports dumps_state lazily to play nice with test stubs.
-- Default resolution set to 640×640; updated default-size test accordingly.
+- Default resolution set to 1024×1024; updated default-size test accordingly.
 
 Follow‑up (Nov 21, 2025, later):
 - Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
@@ -1329,7 +1329,7 @@ New learnings (Nov 21, 2025 — batch-only polish)
 Loader refinement (Nov 21, 2025):
 - `persistence.get_dataset_for_prompt_or_session` now ignores rows whose feature dimension doesn’t match the current latent dim (`lstate.d`) instead of bailing out. It still sets `dataset_dim_mismatch=(d_row, d_current)` when skipping. This lets training/scoring proceed with in‑scope rows even if the folder contains mixed resolutions. Test added: `tests/test_dataset_loader_ignores_mismatched_dim.py`.
 sd‑turbo sizing tips (Nov 21, 2025)
-- Best speed/quality: 640×640, steps=6, CFG=0.0 (as the app already enforces for *-turbo). Observed ~3.1 s per image on 640×640 here.
+- Best speed/quality (balanced): 640×640, steps=6, CFG=0.0 — still recommended for snappy iteration.
 - Fast default: 512×512, steps=6, CFG=0.0 — snappy UI and stable training dim (d=16,384).
 - Low‑VRAM (≈7–8 GB): 384–448 square; keep steps≤10 to avoid stalls; still CFG=0.0.
 - Larger than 640 (e.g., 704/768) increases latency and VRAM; use only if the box has headroom.

@@ -21,8 +21,8 @@ SMALL_VRAM_MAX_STEPS = 12
 
 @dataclass(frozen=True)
 class Config:
-    DEFAULT_WIDTH: int = 640
-    DEFAULT_HEIGHT: int = 640
+    DEFAULT_WIDTH: int = 1024
+    DEFAULT_HEIGHT: int = 1024
     DEFAULT_STEPS: int = 6
     DEFAULT_GUIDANCE: float = 3.5
 
