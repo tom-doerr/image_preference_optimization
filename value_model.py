@@ -78,7 +78,7 @@ def fit_value_model(
     # Ridge fits are always synchronous now; ignore any async toggles.
     _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
 
-    # Optional XGB cache refresh
+    # Optional XGB/Logistic refresh
     # choice already set above
     if choice == "XGBoost":
         try:
@@ -147,6 +147,31 @@ def fit_value_model(
                     _log(f"[xgb] skip: cache up-to-date rows={n}")
             else:
                 _log(f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}")
+        except Exception:
+            pass
+    elif choice == "Logistic":
+        # Minimal L2-regularized logistic regression (sync, numpy-only).
+        try:
+            n = int(X.shape[0])
+            d = int(X.shape[1]) if X.ndim == 2 else 0
+            if n <= 0 or d <= 0:
+                _log("[logit] skip: empty dataset")
+            else:
+                # Map labels {+1,-1} -> {1,0}
+                yy = np.asarray(y).astype(float)
+                y01 = (yy > 0).astype(float)
+                W = np.asarray(session_state.get(Keys.LOGIT_W) or np.zeros(d), dtype=float)
+                # Fixed small steps for stability on tests; sync-only
+                steps = 120
+                lr = 0.1
+                for _ in range(steps):
+                    z = X @ W
+                    # sigmoid
+                    p = 1.0 / (1.0 + np.exp(-z))
+                    g = (X.T @ (p - y01)) / float(n) + float(lam) * W
+                    W -= lr * g
+                session_state[Keys.LOGIT_W] = W
+                _log(f"[logit] fit rows={n} d={d} lam={lam} ||w||={float(np.linalg.norm(W)):.3f}")
         except Exception:
             pass
 

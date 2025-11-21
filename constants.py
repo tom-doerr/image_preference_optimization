@@ -65,6 +65,8 @@ class Keys:
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
     XGB_CV_FOLDS = "xgb_cv_folds"
+    # Logistic weights cache (simple numpy vector)
+    LOGIT_W = "logit_w"
     # Compatibility keys (sync-only training still defines these for tests)
     XGB_TRAIN_STATUS = "xgb_train_status"
     XGB_TRAIN_ASYNC = "xgb_train_async"  # compat: tests may set this flag

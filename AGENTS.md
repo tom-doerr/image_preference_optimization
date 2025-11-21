@@ -19,6 +19,12 @@ Update (Nov 21, 2025 – XGBoost stability + simplification):
 - After a sync fit, we must set a small cache in session state (e.g., `xgb_cache={'model': mdl, 'n': rows}`) so scorers become available immediately on the next render.
 - Logging: file logging via `helpers.enable_file_logging()` writes to `ipo.debug.log`. Noncritical logs are gated by `LOG_VERBOSITY` (0/1/2).
 
+New (Nov 21, 2025 – Logistic option):
+- Added a minimal Logistic value model (numpy-only, L2‑regularized, sync‑only) as an alternative to Ridge/XGB.
+- UI: Value model dropdown now lists XGBoost, Logistic, Ridge. Logistic trains only when clicking “Train Logistic now (sync)”.
+- Scoring: captions/step‑scores use `[Logit]` probabilities via `sigmoid(w⋅x)`. Status is `logit_untrained` until weights exist.
+- Tests: `tests/test_logistic_value_model.py` covers unavailable → fit → usable scorer on a tiny dataset.
+
 What we learned today:
 - Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
 - Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.

@@ -382,6 +382,11 @@ Questions for you
 3) Are we okay to hardcode the model to sd‑turbo everywhere (remove any remaining selectors/image‑server paths) to reduce UI/code paths further?
 4) Do you want us to collapse all sidebar helpers into a single `ui_sidebar.py` now, or wait until after a green baseline?
 
+Update (Logistic option)
+- We added a minimal Logistic value model (L2, numpy-only, sync-only). It appears in the Value model dropdown and trains only when you click “Train Logistic now (sync)”.
+- It uses the same dataset as Ridge/XGB (feature diffs relative to the prompt anchor). Requires a few rows; no class-balance requirement (but more diverse data helps).
+- If you prefer, we can remove it again or keep it hidden behind a flag; let us know.
+
 What we plan to do next (pending your pick)
 - If you pick 217a: purge XGBoost codepaths/tests and simplify captions to Ridge-only.
 - If you pick 217c: keep XGB sync-only and set the cache immediately after training; add a focused test that captions flip to [XGB] after a sync fit.

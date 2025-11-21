@@ -624,8 +624,8 @@ def render_sidebar_tail(
         else:
             Xd, yd = _get_ds(prompt, st.session_state)
         # Auto-fit removed: do not call ensure_fitted on reruns/import.
-        # XGBoost trains only when the user clicks the explicit sync button.
-        # One‑click synchronous XGBoost fit button
+        # Trainers run only when the user clicks the explicit sync button.
+        # One‑click synchronous fit buttons per value model
         try:
             if str(vm_choice) == "XGBoost":
                 if getattr(st.sidebar, "button", lambda *a, **k: False)(
@@ -658,6 +658,26 @@ def render_sidebar_tail(
                         except Exception:
                             pass
                 # 196b: Cancel button removed in sync-only training
+            elif str(vm_choice) == "Logistic":
+                if getattr(st.sidebar, "button", lambda *a, **k: False)(
+                    "Train Logistic now (sync)"
+                ):
+                    from value_model import fit_value_model as _fit_vm
+                    Xs, Ys = (Xm, ym) if (
+                        Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
+                    ) else (Xd, yd)
+                    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
+                        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+                        _fit_vm("Logistic", lstate, Xs, Ys, lam_now, st.session_state)
+                        try:
+                            getattr(st, "toast", lambda *a, **k: None)("Logistic training: sync fit complete")
+                        except Exception:
+                            pass
+                    else:
+                        try:
+                            print("[logit] train skipped by UI guard: need >=2 rows")
+                        except Exception:
+                            pass
         except Exception:
             pass
         # Inline train results panel (merged from ui_sidebar_train)
@@ -1001,7 +1021,7 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
                 selected_gen_mode = None
         except Exception:
             selected_gen_mode = None
-    _vm_opts = ["XGBoost", "Ridge"]
+    _vm_opts = ["XGBoost", "Logistic", "Ridge"]
     vm_choice = str(st.session_state.get(Keys.VM_CHOICE, "XGBoost"))
     if callable(_sb_sel):
         try:

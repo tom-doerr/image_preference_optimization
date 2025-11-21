@@ -130,6 +130,28 @@ def get_value_scorer(
         s, status = _build_xgb_scorer(choice, lstate, prompt, session_state)
         return (s if status == "ok" else None), ("XGB" if status == "ok" else status)
 
+    if choice == "Logistic":
+        try:
+            from constants import Keys as _K
+            w = session_state.get(_K.LOGIT_W)
+            if w is None:
+                return None, "logit_untrained"
+            w = np.asarray(w, dtype=float)
+            if w.size == 0 or float(np.linalg.norm(w)) == 0.0:
+                return None, "logit_untrained"
+
+            def _logit(fvec: np.ndarray) -> float:
+                z = float(np.dot(w, np.asarray(fvec, dtype=float)))
+                return float(1.0 / (1.0 + np.exp(-z)))
+
+            try:
+                print(f"[logit] scorer ready ||w||={float(np.linalg.norm(w)):.3f}")
+            except Exception:
+                pass
+            return _logit, "Logit"
+        except Exception:
+            return None, "logit_error"
+
     # Ridge (default)
     s, status = _build_ridge_scorer(lstate)
     return (s if status == "ok" else None), ("Ridge" if status == "ok" else status)
