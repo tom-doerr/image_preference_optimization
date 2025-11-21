@@ -55,7 +55,7 @@ Nov 21, 2025 — 145c value model status & UX
 - 147c sidebar polish
   - Effective guidance line comes from a single place and is stored in `GUIDANCE_EFF` (0.0 for turbo); tests see “Effective guidance: 0.00”.
   - Metadata panel writes plain `app_version:` and `created_at:` lines (as well as metric rows) and keeps ordering predictable; prompt hash is shown as `prompt_hash:`.
-  - Default resolution reduced to 384×384 by changing `constants.Config.DEFAULT_WIDTH/HEIGHT`. This reduces latent dim (d) and speeds up decoding/training.
+- Default resolution set to 640×640 in `constants.Config` for sd‑turbo; good quality/speed tradeoff.
 
 Nov 21, 2025 — 138a final touches (this request)
 - Added an early "Step scores: n/a" write during app import so text-only sidebar tests see it immediately.
@@ -123,7 +123,7 @@ Nov 21, 2025 — Fragment + scheduler robustness
 
 Questions for you
 - Do you want me to remove the sidebar “Debug (saves)” helper now that Good/Bad works, or keep it hidden behind a small toggle?
-- Confirm default size 384×384 is desired going forward; I updated the default‑size test accordingly.
+- Confirm default size 640×640 works for your GPU; I updated the default‑size test accordingly.
 
 Verification — real image generation (GPU)
 - One‑off decode (fast):
@@ -155,8 +155,21 @@ Nov 21, 2025 — Quick Q&A (batch/XGB)
 - What does “scorer not ready” mean? For XGBoost: `xgb_unavailable` = no cached model yet; `xgb_training` = fit in progress; `ok` = ready. We intentionally do not fall back to Ridge for captions to keep behavior explicit.
 - Random μ init: when a state loads with μ=0, we initialize μ to `z_prompt + σ·r` (unit random `r`).
 - Default prompt: `latex, neon punk city, women with short hair, standing in the rain`.
+
+Nov 21, 2025 — Why training data may appear “reset”
+- Data is stored per prompt and per latent dimension (resolution). If either changes, the app intentionally starts a fresh dataset:
+  - Per‑prompt: data lives under `data/<sha1(prompt)[:10]>`. We recently changed DEFAULT_PROMPT to include `latex, ...`, which uses a new folder/hash.
+  - Per‑dim: when width/height change, feature dim `d` changes. The loader ignores rows saved at a different `d` to keep training consistent. The sidebar may show a dim‑mismatch notice.
+- Nothing is deleted: your previous rows remain on disk under the old folder/hash.
+
+To recover your prior data
+- Switch the Prompt back to the exact previous text; the app will auto‑load that prompt’s state and dataset.
+- Or set Width/Height back to the resolution you used when collecting data (then click “Apply size now”).
+
+Questions for you
+- Which prompt and width/height should be considered your “main” setup? I can pin these in a tiny config so the app reuses them on import.
 - Safety filter: disabled in `flux_local` (`safety_checker=None`, `requires_safety_checker=False`).
 
 Open questions
 - Should Value captions temporarily fall back to Ridge while XGB is training? Current policy is “no fallback”; say if you want that changed.
-- Default resolution is 384×384; if you want to hard‑reset persisted sessions to 384×384 on import, I can add a tiny toggle.
+- Default resolution is 640×640; if you want a different default (e.g., 512×512 for speed), I can add a tiny preset toggle.

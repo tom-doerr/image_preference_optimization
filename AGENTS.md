@@ -1255,7 +1255,7 @@ Sidebar polish (Nov 21, 2025 — 147c):
 - Kept labels stable where tests assert exact strings (e.g., `Dataset rows`, `Rows (disk)`, `prompt_hash:`).
 
 Default resolution (Nov 21, 2025):
-- Reduced default width/height from 448×448 → 384×384 (constants.Config). This lowers the latent dim from 12,544 → 9,216 and speeds up first render/training.
+- Default width/height is now 640×640 (constants.Config). Good balance for sd‑turbo with ~3.1 s/tile here; stick to multiples of 64.
 
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
@@ -1310,7 +1310,7 @@ Mini patch notes (Nov 21, 2025):
 - Batch Good/Bad keys stabilized (prefix + batch_nonce + index); fragments disabled for tiles to avoid missed clicks.
 - Sidebar rows counter updates immediately after saves; we also trigger st.rerun when available.
 - persistence.export_state_bytes now imports dumps_state lazily to play nice with test stubs.
-- Default resolution lowered to 384×384; updated default-size test accordingly.
+- Default resolution set to 640×640; updated default-size test accordingly.
 
 Follow‑up (Nov 21, 2025, later):
 - Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
@@ -1324,3 +1324,10 @@ New learnings (Nov 21, 2025 — batch-only polish)
 - Random μ init: when μ is all zeros on load/apply, initialize around the prompt anchor: `μ ← z_prompt + σ·r`.
 - Safety checker: disabled in `flux_local` (`safety_checker=None`; set `requires_safety_checker=False`).
 - Persistence: dataset counters come from per-sample folders `data/<hash>/<row>/sample.npz` only; rows update immediately after Good/Bad via `st.rerun()`.
+- Per‑prompt and per‑dim datasets: Training data isolation is by design. Changing the prompt (now includes `latex, ...`) or changing resolution will make the sidebar look empty for the new scope; older rows remain on disk under the previous prompt hash and/or latent dimension.
+sd‑turbo sizing tips (Nov 21, 2025)
+- Best speed/quality: 640×640, steps=6, CFG=0.0 (as the app already enforces for *-turbo). Observed ~3.1 s per image on 640×640 here.
+- Fast default: 512×512, steps=6, CFG=0.0 — snappy UI and stable training dim (d=16,384).
+- Low‑VRAM (≈7–8 GB): 384–448 square; keep steps≤10 to avoid stalls; still CFG=0.0.
+- Larger than 640 (e.g., 704/768) increases latency and VRAM; use only if the box has headroom.
+- Keep dimensions multiples of 64; prefer squares unless you need a specific aspect (e.g., 512×704, 448×640).
