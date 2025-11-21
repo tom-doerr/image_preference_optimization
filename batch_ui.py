@@ -330,34 +330,31 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
             save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
         except Exception:
             save_dir = "data"
-        try:
-            import sys as _sys
-
-            line = f"[rows] live={rows_live} disk={rows_disk}\n"
-            _sys.stdout.write(line)
-            _sys.stdout.flush()
-        except Exception:
-            pass
         msg = f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
+        # Toast when available; also show a persistent sidebar success line
         try:
             getattr(st, "toast", lambda *a, **k: None)(msg)
-            try:
-                import time as _time
-
-                st.session_state[Keys.LAST_ACTION_TEXT] = msg
-                st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
-            except Exception:
-                pass
         except Exception:
             pass
-        # Persistent breadcrumb in the sidebar so the action is visible after reruns
         try:
-            st.sidebar.write(msg)
+            if hasattr(st.sidebar, "success"):
+                st.sidebar.success(msg)
+            else:
+                st.sidebar.write(msg)
         except Exception:
-            try:
-                st.sidebar.write(f"Saved sample #{row_idx}")
-            except Exception:
-                pass
+            pass
+        # Record last action for the sidebar panel
+        try:
+            import time as _time
+            st.session_state[Keys.LAST_ACTION_TEXT] = msg
+            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+        except Exception:
+            pass
+        # Increment interaction step for visibility
+        try:
+            setattr(lstate, "step", int(getattr(lstate, "step", 0)) + 1)
+        except Exception:
+            pass
         # Bump the live rows display immediately so the top metric updates even
         # before the fragment tick.
         try:
@@ -530,6 +527,13 @@ def _render_batch_tile_body(
                 getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
             except Exception:
                 pass
+            try:
+                if hasattr(st.sidebar, "success"):
+                    st.sidebar.success("Labeled Good (+1)")
+                else:
+                    st.sidebar.write("Labeled Good (+1)")
+            except Exception:
+                pass
             _log(
                 f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
             )
@@ -548,6 +552,13 @@ def _render_batch_tile_body(
             _curation_replace_at(i)
             try:
                 getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
+            except Exception:
+                pass
+            try:
+                if hasattr(st.sidebar, "success"):
+                    st.sidebar.success("Labeled Bad (-1)")
+                else:
+                    st.sidebar.write("Labeled Bad (-1)")
             except Exception:
                 pass
             _log(
