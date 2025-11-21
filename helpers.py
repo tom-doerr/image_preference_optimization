@@ -76,3 +76,36 @@ def get_log_verbosity(st: Any | None = None) -> int:
         return int(os.getenv("LOG_VERBOSITY", "0"))
     except Exception:
         return 0
+
+
+def enable_file_logging(path: str | None = None) -> str:
+    """Enable file logging for the shared 'ipo' logger.
+
+    - Path defaults to env IPO_LOG_FILE or 'ipo.debug.log'.
+    - Removes existing FileHandlers to avoid duplicates, then adds one.
+    - Respects IPO_LOG_LEVEL when present (INFO default).
+    Returns the path used.
+    """
+    import logging
+    import os as _os
+
+    log_path = path or _os.getenv("IPO_LOG_FILE") or "ipo.debug.log"
+    level_name = (_os.getenv("IPO_LOG_LEVEL") or "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    logger = logging.getLogger("ipo")
+    logger.setLevel(level)
+    # Drop existing file handlers to avoid duplicate writes
+    for h in list(logger.handlers):
+        try:
+            if hasattr(h, "baseFilename"):
+                logger.removeHandler(h)
+        except Exception:
+            pass
+    try:
+        fh = logging.FileHandler(log_path)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(fh)
+    except Exception:
+        pass
+    return log_path

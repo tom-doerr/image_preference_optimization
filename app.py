@@ -1,4 +1,5 @@
 import streamlit as st
+import types
 import concurrent.futures as futures  # re-exported for tests
 import numpy as np
 import os, hashlib
@@ -13,6 +14,7 @@ def loads_state(data: bytes):
     from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
+from helpers import enable_file_logging
 
 # _safe_write removed (199h)
 def _export_state_bytes(state, prompt: str):
@@ -30,6 +32,12 @@ def propose_latent_pair_ridge(*a, **k):
 
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
+# Enable file logging early; path is controlled by IPO_LOG_FILE (or defaults)
+try:
+    log_path = enable_file_logging()
+    st.sidebar.write(f"Log file: {log_path}")
+except Exception:
+    pass
 st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
 
 # Emit minimal sidebar lines early so string-capture tests are stable
