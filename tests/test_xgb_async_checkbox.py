@@ -10,16 +10,9 @@ class TestXgbAsyncCheckbox(unittest.TestCase):
         for m in ("ui_sidebar", "streamlit"):
             sys.modules.pop(m, None)
 
-    def test_checkbox_sets_xgb_async_flag(self):
+    def test_render_modes_without_async_toggle(self):
         st = stub_basic()
-
-        # Make the specific checkbox return False to disable async
-        def _checkbox(label, *a, **k):
-            if label == "Train XGBoost asynchronously":
-                return False
-            return k.get("value", False)
-
-        st.sidebar.checkbox = staticmethod(_checkbox)  # type: ignore[attr-defined]
+        # No special checkbox; simplified UI has no async toggle
         st.session_state.prompt = "p"
         st.session_state.lstate = types.SimpleNamespace(d=4)
 
@@ -31,11 +24,10 @@ class TestXgbAsyncCheckbox(unittest.TestCase):
 
         import ui_sidebar
         vm_choice, selected_gen_mode, batch_size, _ = ui_sidebar.render_modes_and_value_model(st)
-
-        self.assertIn("xgb_train_async", st.session_state)
-        self.assertFalse(bool(st.session_state["xgb_train_async"]))
+        # Ensure it renders and does not create the async key
+        self.assertIn(vm_choice, ("XGBoost", "Ridge"))
+        self.assertNotIn("xgb_train_async", st.session_state)
 
 
 if __name__ == "__main__":
     unittest.main()
-

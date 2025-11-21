@@ -425,33 +425,7 @@ def render_sidebar_tail(
                             getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
                         except Exception:
                             pass
-                # Cancel current async XGB fit (if any)
-                if getattr(st.sidebar, "button", lambda *a, **k: False)(
-                    "Cancel current XGB fit"
-                ):
-                    try:
-                        fut = st.session_state.get(Keys.XGB_FIT_FUTURE)
-                        if fut is not None:
-                            # Best-effort cancel
-                            try:
-                                if hasattr(fut, "cancel"):
-                                    fut.cancel()
-                            except Exception:
-                                pass
-                            # Drop handle and set status
-                            st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
-                        rows_now = int(getattr(Xd, 'shape', (0,))[0]) if Xd is not None else 0
-                        st.session_state[Keys.XGB_TRAIN_STATUS] = {
-                            "state": "cancelled",
-                            "rows": rows_now,
-                            "lam": float(st.session_state.get(Keys.REG_LAMBDA, 1.0)),
-                        }
-                        try:
-                            getattr(st, "toast", lambda *a, **k: None)("Cancelled XGB fit")
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
+                # 196b: Cancel button removed in sync-only training
         except Exception:
             pass
         # Inline train results panel (merged from ui_sidebar_train)
@@ -831,17 +805,7 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
             pass
     except Exception:
         pass
-    # XGBoost async training toggle
-    try:
-        xgb_async = bool(
-            getattr(st.sidebar, "checkbox", lambda *a, **k: True)(
-                "Train XGBoost asynchronously",
-                value=bool(st.session_state.get(Keys.XGB_TRAIN_ASYNC, True)),
-            )
-        )
-        st.session_state[Keys.XGB_TRAIN_ASYNC] = xgb_async
-    except Exception:
-        pass
+    # 196a: Async XGB path removed — no toggle in simplified UI
     try:
         st.session_state[Keys.BATCH_SIZE] = int(batch_size)
     except Exception:

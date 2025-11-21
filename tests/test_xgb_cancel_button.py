@@ -21,12 +21,13 @@ class TestXgbCancelButton(unittest.TestCase):
         for m in ("ui_sidebar", "streamlit", "value_model", "persistence", "flux_local", "persistence_ui"):
             sys.modules.pop(m, None)
 
-    def test_cancel_button_clears_future_and_sets_status(self):
+    def test_cancel_button_removed_sync_only(self):
         st = stub_basic()
-        # Make the cancel button return True
+        # Instrument button calls to assert the label is not requested
+        seen_labels = []
         def _button(label, *a, **k):
-            return label == "Cancel current XGB fit"
-
+            seen_labels.append(label)
+            return False
         st.sidebar.button = staticmethod(_button)
         st.session_state.prompt = "p"
         lstate = types.SimpleNamespace(d=4)
@@ -71,12 +72,11 @@ class TestXgbCancelButton(unittest.TestCase):
             rerun_cb=lambda *a, **k: None,
         )
 
-        # Future cleared and status set to cancelled
-        self.assertIsNone(st.session_state.get("xgb_fit_future"))
-        self.assertIn("xgb_train_status", st.session_state)
-        self.assertEqual(st.session_state["xgb_train_status"].get("state"), "cancelled")
+        # No cancel button should be rendered in sync-only mode
+        self.assertNotIn("Cancel current XGB fit", seen_labels)
+        # State remains unchanged
+        self.assertIsInstance(st.session_state.get("xgb_fit_future"), DummyFuture)
 
 
 if __name__ == "__main__":
     unittest.main()
-
