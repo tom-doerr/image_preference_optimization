@@ -1542,3 +1542,7 @@ Next options (223) — maintainability
 - 223c. Normalize scorer usage in UI to `get_value_scorer` everywhere (keep the shim for tests only).
 
 Recommendation: 223b first, then 223c.
+
+Done (Nov 21, 2025, later):
+- Unified UI scorer usage: `ui.py` now uses `value_scorer.get_value_scorer` (no legacy shim branching).
+- Single‑emitter sidebar: app.py routes early sidebar lines through `ui_sidebar._emit_train_results`; removed duplicate direct writes.
