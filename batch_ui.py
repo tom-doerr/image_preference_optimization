@@ -851,12 +851,11 @@ def _render_batch_ui() -> None:
                     btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
                     gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                     bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+                    nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
-        nonce = int(st.session_state.get("cur_batch_nonce", 0))
-
-        def _btn_key(prefix: str, idx: int) -> str:
-            # Stable key across reruns: prefix + batch nonce + index
-            return f"{prefix}_{nonce}_{idx}"
+                    def _btn_key(prefix: str, idx: int) -> str:
+                        # Stable key across reruns: prefix + batch nonce + index
+                        return f"{prefix}_{nonce}_{idx}"
 
                     def _good_clicked() -> bool:
                         if gcol is not None:

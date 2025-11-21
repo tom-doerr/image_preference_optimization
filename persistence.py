@@ -8,7 +8,6 @@ import os
 import shutil
 import numpy as np
 from constants import APP_VERSION
-from latent_opt import dumps_state
 
 
 def state_path_for_prompt(prompt: str) -> str:
@@ -329,6 +328,10 @@ def dataset_stats_for_prompt(prompt: str) -> dict:
 
 
 def export_state_bytes(state, prompt: str) -> bytes:
+    # Import lazily so tests that stub latent_opt with minimal surface
+    # (without dumps_state) can still import persistence.
+    from latent_opt import dumps_state  # local import
+
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:
         items = {k: data[k] for k in data.files}

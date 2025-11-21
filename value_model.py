@@ -355,12 +355,18 @@ def fit_value_model(
                 except Exception:
                     max_depth = 3
                 if cache.get("model") is None or last_n != n:
-                    # Honor async toggle for XGB fits; when session_state is a plain
-                    # dict (unit tests), default to synchronous so logs and model
-                    # are available immediately.
-                    do_async_xgb = bool(
-                        getattr(session_state, Keys.XGB_TRAIN_ASYNC, True)
-                    )
+                    # Honor async toggle; when the session_state lacks an explicit
+                    # flag (common in unit tests that pass a plain dict), default to
+                    # synchronous so logs ("[xgb] train start") are captured.
+                    if isinstance(session_state, dict):
+                        do_async_xgb = bool(session_state.get(Keys.XGB_TRAIN_ASYNC, False))
+                    else:
+                        try:
+                            do_async_xgb = bool(
+                                getattr(session_state, Keys.XGB_TRAIN_ASYNC)
+                            )
+                        except Exception:
+                            do_async_xgb = True
                     if do_async_xgb:
                         try:
                             from background import get_executor  # lazy import
