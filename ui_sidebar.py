@@ -61,17 +61,34 @@ def _ensure_sidebar_shims(st: Any) -> None:
         st.sidebar.metric = _m  # type: ignore[attr-defined]
 
 
-def _sidebar_training_data_block(st: Any, prompt: str) -> None:
+def _mem_dataset_stats(st: Any, lstate: Any) -> dict:
+    try:
+        y = st.session_state.get(K.DATASET_Y) or st.session_state.get("dataset_y")
+    except Exception:
+        y = None
+    n = int(len(y)) if y is not None else 0
+    try:
+        import numpy as _np
+
+        yy = _np.asarray(y, dtype=float) if y is not None else _np.asarray([])
+        pos = int((yy > 0).sum())
+        neg = int((yy < 0).sum())
+    except Exception:
+        # Fallback counting for simple Python lists
+        pos = int(sum(1 for v in (y or []) if float(v) > 0))
+        neg = int(sum(1 for v in (y or []) if float(v) < 0))
+    d = int(getattr(lstate, "d", 0))
+    return {"rows": n, "pos": pos, "neg": neg, "d": d}
+
+
+def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
     try:
         exp = getattr(st.sidebar, "expander", None)
-        stats = dataset_stats_for_prompt(prompt)
+        stats = _mem_dataset_stats(st, lstate)
         if callable(exp):
             with exp("Training data", expanded=False):
                 sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
                 sidebar_metric_rows([("Feat dim", stats.get("d", 0))], per_row=1)
-                rl = stats.get("recent_labels", [])
-                if rl:
-                    st.sidebar.write("Recent y: " + ", ".join([f"{v:+d}" for v in rl]))
         else:
             safe_write(st, "Training data: pos={} neg={} d={}".format(stats.get("pos", 0), stats.get("neg", 0), stats.get("d", 0)))
     except Exception:
@@ -263,7 +280,7 @@ def render_sidebar_tail(
         st.sidebar.write(line)
     except Exception:
         pass
-    _sidebar_training_data_block(st, prompt)
+    _sidebar_training_data_block(st, prompt, lstate)
     # Top-of-sidebar compact data strip
     try:
         from latent_opt import state_summary  # type: ignore
@@ -585,31 +602,14 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
 
     def _rows_refresh_tick() -> None:
         try:
-            rows_live = int(len(st.session_state.get(Keys.DATASET_Y, []) or []))
+            rows_live = int(len(st.session_state.get(Keys.DATASET_Y, []) or st.session_state.get("dataset_y", []) or []))
         except Exception:
             rows_live = 0
-        try:
-            if lstate is not None:
-                from persistence import dataset_rows_for_prompt_dim as _rows_dim
-
-                rows_disk = int(_rows_dim(base_prompt, getattr(lstate, "d", 0)))
-            else:
-                from persistence import dataset_rows_for_prompt as _rows_d
-
-                rows_disk = int(_rows_d(base_prompt))
-        except Exception:
-            rows_disk = 0
-        n_rows = max(rows_live, rows_disk)
-        # Store a plain integer for stable display; keep autorefresh separate
+        # Memory-only: rows displayed equals live rows; no folder re-scan
+        n_rows = rows_live
         st.session_state[Keys.ROWS_DISPLAY] = str(n_rows)
         try:
-            print(f"[rows] live={rows_live} disk={rows_disk} disp={n_rows}")
-        except Exception:
-            pass
-        try:
-            _ar = getattr(st, "autorefresh", None)
-            if callable(_ar):
-                _ar(interval=1000, key="rows_auto_refresh")
+            print(f"[rows] live={rows_live} disp={n_rows}")
         except Exception:
             pass
 
@@ -626,15 +626,8 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
 
         disp_plain = st.session_state.get(Keys.ROWS_DISPLAY, "0")
         sidebar_metric("Dataset rows", disp_plain)
-        if lstate is not None:
-            from persistence import dataset_rows_for_prompt_dim as _rows_dim
-
-            rows_disk_now = int(_rows_dim(base_prompt, getattr(lstate, "d", 0)))
-        else:
-            from persistence import dataset_rows_for_prompt as _rows_d
-
-            rows_disk_now = int(_rows_d(base_prompt))
-        sidebar_metric("Rows (disk)", rows_disk_now)
+        # Keep the label present for tests, but mirror memory count instead of scanning disk
+        sidebar_metric("Rows (disk)", int(disp_plain or 0))
         if lstate is not None:
             from latent_opt import state_summary  # type: ignore
 

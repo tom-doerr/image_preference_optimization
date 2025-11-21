@@ -24,13 +24,5 @@ def test_rows_debug_line_prints_disp():
     st.session_state.lstate = types.SimpleNamespace(d=4)
     sys.modules["streamlit"] = st
 
-    # Stub persistence rows counter
-    p = types.ModuleType("persistence")
-    p.dataset_rows_for_prompt_dim = lambda prompt, d: 5
-    p.dataset_rows_for_prompt = lambda prompt: 5
-    p.dataset_stats_for_prompt = lambda prompt: {"pos": 0, "neg": 0, "d": 0}
-    sys.modules["persistence"] = p
-
     out = _capture(ui_sidebar.render_rows_and_last_action, st, st.session_state.prompt, st.session_state.lstate)
-    assert "[rows] live=3 disk=5 disp=5" in out
-
+    assert "[rows] live=3 disp=3" in out
