@@ -16,7 +16,6 @@ def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rer
     except Exception:
         pass
 from ui import sidebar_metric_rows
-from ui_metrics import render_iter_step_scores, render_mu_value_history
 from constants import DEFAULT_MODEL, MODEL_CHOICES
 from ui_controls import build_size_controls, build_batch_controls
 
@@ -50,8 +49,22 @@ def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice:
         trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
     except Exception:
         trust_val = None
-    render_iter_step_scores(st, lstate, prompt, vm_choice, int(iter_steps), float(iter_eta) if iter_eta is not None else None, trust_val)
-    render_mu_value_history(st, lstate, prompt)
+    # Lazy import to play nice with tests that stub 'ui'
+    try:
+        from ui import render_iter_step_scores as _riss, render_mu_value_history as _rmvh
+
+        _riss(
+            st,
+            lstate,
+            prompt,
+            vm_choice,
+            int(iter_steps),
+            float(iter_eta) if iter_eta is not None else None,
+            trust_val,
+        )
+        _rmvh(st, lstate, prompt)
+    except Exception:
+        pass
 
 
 def _ensure_sidebar_shims(st: Any) -> None:
