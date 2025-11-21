@@ -33,8 +33,18 @@ try:
 except Exception:
     pass
 
-# Minimal log‑gating helper for this module only (no Streamlit import).
+try:
+    # Prefer shared helper for consistency
+    from helpers import get_log_verbosity as _get_lv  # type: ignore
+except Exception:  # pragma: no cover - fallback to env only
+    _get_lv = None  # type: ignore
+
 def _logv() -> int:
+    try:
+        if _get_lv is not None:
+            return int(_get_lv(None))
+    except Exception:
+        pass
     try:
         return int(os.getenv("LOG_VERBOSITY", "0"))
     except Exception:
