@@ -358,4 +358,6 @@ Questions for you:
 
 Notes:
 - Pushing to origin likely requires credentials in this environment. If you want me to push, please provide access (SSH key/https token) or run `git push` locally; I’ll prep the commits.
- - We removed the temporary async flag flip in the “Train XGBoost now (sync)” sidebar button; training is fully synchronous in value_model, so this is cleaner and avoids confusing states.
+- We removed the temporary async flag flip in the “Train XGBoost now (sync)” sidebar button; training is fully synchronous in value_model, so this is cleaner and avoids confusing states.
+- ensure_fitted was simplified: removed unreachable timing/future cleanup. It now just guards and calls the sync trainer.
+- UI step-scores moved to the unified `get_value_scorer` API; fewer imports and less branching.

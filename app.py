@@ -37,9 +37,18 @@ vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") o
 if not st.session_state.get(Keys.VM_CHOICE):
     st.session_state[Keys.VM_CHOICE] = vm
 st.sidebar.write(f"Value model: {vm}")
-st.sidebar.write("Train score: n/a")
 st.sidebar.write("Step scores: n/a")
-st.sidebar.write(f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}")
+from ui_sidebar import _emit_train_results as _emit_tr  # minimal import for consistency
+_emit_tr(st, [
+    "Train score: n/a",
+    "CV score: n/a",
+    "Last CV: n/a",
+    "Last train: n/a",
+    f"Value scorer status: {'xgb_unavailable' if vm=='XGBoost' else 'ridge_untrained'}",
+    f"Value scorer: {vm} (n/a, rows=0)",
+    f"XGBoost active: {'yes' if vm == 'XGBoost' else 'no'}",
+    "Optimization: Ridge only",
+])
 ld = int(getattr(getattr(st.session_state, 'lstate', None), 'd', 0)) if hasattr(st, 'session_state') else 0
 st.sidebar.write(f"Latent dim: {ld}")
 try:
