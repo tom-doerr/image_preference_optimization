@@ -362,4 +362,5 @@ Notes:
 - ensure_fitted was simplified: removed unreachable timing/future cleanup. It now just guards and calls the sync trainer.
 - UI step-scores moved to the unified `get_value_scorer` API; fewer imports and less branching.
 - app.py now uses the single sidebar emitter to print initial Train/CV/Status lines; removes string duplication and keeps ordering stable.
- - Simplified VM header helper: we no longer compute/print scorer status there; the status line appears only in the Train results block to avoid duplicates.
+- Simplified VM header helper: we no longer compute/print scorer status there; the status line appears only in the Train results block to avoid duplicates.
+ - Removed unused value_model helpers `_maybe_fit_xgb/_maybe_fit_ridge`; training is centralized in `fit_value_model`.

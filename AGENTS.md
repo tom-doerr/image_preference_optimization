@@ -1536,6 +1536,7 @@ Done (Nov 21, 2025, late):
 - Sidebar “Train XGBoost now (sync)” no longer flips async flags or pops futures; it just calls fit_value_model (sync-only backend).
 - Dropped dead async cleanup in value_model.ensure_fitted (t0/fit_future paths); function is a minimal sync shim now.
 - UI moved to unified scorer API `get_value_scorer` in compute_step_scores; the legacy shim remains only for tests.
+- Removed unused helpers `_maybe_fit_xgb/_maybe_fit_ridge` from value_model; training is centralized in `fit_value_model`.
 Next options (223) — maintainability
 - 223a. Prune leftover async mentions from ui_sidebar and legacy doc sections (no behavior change).
 - 223b. Single emitter guarantee: keep all VM/status/Train-results lines flowing through `_emit_train_results`; remove any stray writes outside it.
