@@ -13,7 +13,6 @@ def loads_state(data: bytes):
     from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
-## image_to_z wrapper removed (unused)
 # Minimal local helpers (avoid tests.helpers shadowing)
 def safe_set(ns, key, value):
     try:
@@ -36,13 +35,13 @@ def z_from_prompt(*a, **k):
 def propose_latent_pair_ridge(*a, **k):
     from latent_logic import propose_latent_pair_ridge as _f; return _f(*a, **k)  # type: ignore
 
-# Optional debug accessor not required here (used via flux_local in tests)
+ 
 
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
 
-# Emit minimal sidebar lines early so string-capture tests are stable (199h inline)
+# Emit minimal sidebar lines early so string-capture tests are stable
 vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
 if not st.session_state.get(Keys.VM_CHOICE):
     st.session_state[Keys.VM_CHOICE] = vm
@@ -59,13 +58,12 @@ except Exception:
     pass
 
 
-## image_to_z wrapper removed (199h)
 
 
 # Back-compat for tests: keep names on app module
-## _state_path_for_prompt removed (199h); inline call to persistence.state_path_for_prompt
+ 
 
-## prompt_first_bootstrap removed (199h); inline minimal placeholders below
+ 
 
 def _apply_state(*args) -> None:  # re-exported for tests
     # Flexible arity for test/back-compat: _apply_state(new_state) or _apply_state(st, new_state)
@@ -125,13 +123,12 @@ def _apply_state(*args) -> None:  # re-exported for tests
     except Exception:
         pass
 
-# Prompt-aware persistence
+ 
 if "prompt" not in st.session_state:
     st.session_state.prompt = DEFAULT_PROMPT
 if "xgb_train_async" not in st.session_state:
     safe_set(st.session_state, "xgb_train_async", True)
-# Also default Ridge to async to avoid UI stalls during fits.
-# 199a: Ridge async is removed; no need to set a toggle
+ 
 
 _sb_txt = getattr(st.sidebar, "text_input", st.text_input)
 base_prompt = _sb_txt("Prompt", value=st.session_state.prompt)
@@ -148,7 +145,7 @@ if not isinstance(sp, str) or not sp:
         h = hashlib.sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
         st.session_state.state_path = f"latent_state_{h}.npz"
 
-#
+ 
 if "lstate" not in st.session_state or prompt_changed:
     if os.path.exists(st.session_state.state_path):
         try:
@@ -210,13 +207,13 @@ z_a, z_b = st.session_state.lz_pair
 vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, async_queue_mode = build_controls(
     st, lstate, base_prompt
 )
-# Ensure a fresh batch exists for tests/import-time helpers (no decode here)
+ 
 try:
     if not getattr(st.session_state, "cur_batch", None):
         _batch_ui._curation_init_batch()
 except Exception:
     pass
-# Apply resize if requested by user
+ 
 if hasattr(st.session_state, "apply_size_clicked") and st.session_state.apply_size_clicked:
     st.session_state.apply_size_clicked = False
 
@@ -283,7 +280,7 @@ def generate_pair():
 def _render_batch_ui() -> None: return _batch_ui._render_batch_ui()
 
 
-# Minimal app-level shims for batch tests (delegate to batch_ui)
+ 
 def _curation_init_batch() -> None:
     try:
         _batch_ui._curation_init_batch()
@@ -359,7 +356,7 @@ def _curation_train_and_next() -> None:
         return None
 
 
-#
+ 
 
 def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
     _batch_ui.run_batch_mode()
