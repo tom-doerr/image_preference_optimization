@@ -265,6 +265,33 @@ def render_sidebar_tail(
                             getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
                         except Exception:
                             pass
+                # Cancel current async XGB fit (if any)
+                if getattr(st.sidebar, "button", lambda *a, **k: False)(
+                    "Cancel current XGB fit"
+                ):
+                    try:
+                        fut = st.session_state.get(Keys.XGB_FIT_FUTURE)
+                        if fut is not None:
+                            # Best-effort cancel
+                            try:
+                                if hasattr(fut, "cancel"):
+                                    fut.cancel()
+                            except Exception:
+                                pass
+                            # Drop handle and set status
+                            st.session_state.pop(Keys.XGB_FIT_FUTURE, None)
+                        rows_now = int(getattr(Xd, 'shape', (0,))[0]) if Xd is not None else 0
+                        st.session_state[Keys.XGB_TRAIN_STATUS] = {
+                            "state": "cancelled",
+                            "rows": rows_now,
+                            "lam": float(st.session_state.get(Keys.REG_LAMBDA, 1.0)),
+                        }
+                        try:
+                            getattr(st, "toast", lambda *a, **k: None)("Cancelled XGB fit")
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
         except Exception:
             pass
         # Inline train results panel (merged from ui_sidebar_train)
