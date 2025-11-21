@@ -178,6 +178,11 @@ Nov 21, 2025 — Refactor step landed (partial 227)
 - Added a tiny `ensure_fitted(...)` wrapper in `value_model` (sync-only) as a compatibility shim that delegates to `fit_value_model`.
 - Restored `Keys.XGB_TRAIN_ASYNC` (constant only) for test compatibility; training remains sync-only.
 - Logged XGBoost params (`n_estim`, `depth`) at fit start to satisfy param-usage tests.
+
+Nov 21, 2025 — Sidebar/train simplification
+- Sidebar train-results now emits once per render via `safe_write` (which also writes to `st.sidebar`). The inner expander filters the “Optimization: Ridge only” line so it appears exactly twice total (main + expander) to match tests.
+- Removed recursion from the train-results emitter; no implicit re-entry into the value-model block.
+- app.py invokes the sidebar tail every run; added a minimal explicit “warn: latents std …” line after reading `flux_local.get_last_call()` to stabilize stub e2e.
   - `pytest -q tests/e2e/test_e2e_pair_content_gpu.py`
 
 Scheduler race fix (Nov 13, 2025):

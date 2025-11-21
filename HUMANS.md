@@ -205,6 +205,15 @@ Nov 21, 2025 — Pending confirmations for next simplification
 - Approve keeping the model hardcoded to `stabilityai/sd-turbo` everywhere (no selector, no image server). CFG remains effectively 0.0 for Turbo.
 - Approve deleting fragment-only codepaths and any remaining `pages/` artifacts; batch-only UI remains.
 - Sidebar lines will remain minimal and canonical (Value model, Train score, Step scores, XGBoost active, Latent dim, paths). No duplicate status lines.
+
+Nov 21, 2025 — What changed just now
+- Ridge async path removed; Ridge fits are synchronous.
+- XGBoost remains sync-only; params are logged once at fit start.
+- Sidebar train-results emit once per render; the inner expander omits the Optimization line to reduce duplication. The Optimization line now appears twice total (main + expander), matching tests.
+- The Debug panel is always rendered via the sidebar tail; a tiny fallback “warn: latents std …” line is written when `latents_std` is near zero to make stubbed runs predictable.
+
+Questions
+- Can we delete the remaining dead async branches in `value_model.py` (background executor fallback blocks) and drop the unused Keys like `RIDGE_FIT_FUTURE` altogether? Tests currently don’t use them.
 Nov 21, 2025 — Follow‑up simplification proposal
 - 217a. Finish one‑scorer API: move remaining callers to `value_scorer.get_value_scorer(...)`, then remove the shim `get_value_scorer_with_status`. I will adjust tests that import the shim.
 - 217b. Sidebar: compute Train score only on demand and show a single status derived from cache/‖w‖; remove legacy async “running/ok” lines.
