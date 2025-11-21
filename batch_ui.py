@@ -608,7 +608,8 @@ def _curation_train_and_next() -> None:
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
         try:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
-            vm_train = str(st.session_state.get(Keys.VM_CHOICE))
+            # Only train Ridge automatically; XGB trains via explicit button
+            vm_train = "Ridge"
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:
@@ -659,7 +660,7 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e-3))
-            vm_train = str(st.session_state.get(Keys.VM_CHOICE))
+            vm_train = "Ridge"
             try:
                 getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
             except Exception:

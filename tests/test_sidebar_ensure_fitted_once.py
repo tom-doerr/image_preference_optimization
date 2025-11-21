@@ -97,7 +97,8 @@ class TestSidebarEnsureFittedOnce(unittest.TestCase):
             rerun_cb=lambda *a, **k: None,
         )
 
-        self.assertEqual(called["ensure"], 1)
+        # Auto-fit is removed from the sidebar flow; ensure_fitted is not called.
+        self.assertEqual(called["ensure"], 0)
 
 
 if __name__ == "__main__":

@@ -272,9 +272,8 @@ def render_sidebar_tail(
             Xd, yd = Xm, ym
         else:
             Xd, yd = _get_ds(prompt, st.session_state)
-        if _ensure is not None and Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 0:
-            lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-            _ensure(vm_choice, lstate, Xd, yd, lam_now, st.session_state)
+        # Auto-fit removed: do not call ensure_fitted on reruns/import.
+        # XGBoost trains only when the user clicks the explicit sync button.
         # One‑click synchronous XGBoost fit button
         try:
             if str(vm_choice) == "XGBoost":
