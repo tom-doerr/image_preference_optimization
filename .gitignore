@@ -211,3 +211,6 @@ backups/
 data/
 dataset_*.npz
 latent_state_*.npz
+# Legacy aggregated datasets and backups (199e)
+dataset_*.npz
+backups/
