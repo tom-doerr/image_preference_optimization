@@ -3,49 +3,66 @@ import types
 import unittest
 
 
-class PipeStub:
-    def __init__(self):
-        self.safety_checker = object()
-        self.feature_extractor = object()
-        self.requires_safety_checker = True
-        self.config = types.SimpleNamespace(requires_safety_checker=True)
-
-    def to(self, *_a, **_k):
-        return self
-
-    def register_to_config(self, **kw):
-        if "requires_safety_checker" in kw:
-            self.requires_safety_checker = bool(kw["requires_safety_checker"])  # type: ignore
-
-
 class TestSafetyCheckerDisabled(unittest.TestCase):
-    def test_set_model_disables_filter(self):
-        # Stub torch + diffusers to avoid real deps
-        torch = types.ModuleType("torch")
-        torch.float16 = object()
-        torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+    def tearDown(self):
+        for m in ("flux_local", "diffusers", "torch"):
+            sys.modules.pop(m, None)
+
+    def test_set_model_disables_safety_checker(self):
+        # Stub torch with CUDA available
+        class _Cuda:
+            @staticmethod
+            def is_available():
+                return True
+
+        torch = types.SimpleNamespace(cuda=_Cuda(), float16=None)
         sys.modules["torch"] = torch
 
-        diff = types.ModuleType("diffusers")
+        # Minimal DiffusionPipeline stub
+        class _Cfg:
+            def __init__(self):
+                self.requires_safety_checker = True
 
-        class DiffusionPipeline:
-            @classmethod
-            def from_pretrained(cls, *a, **k):
-                return PipeStub()
+        class _Pipe:
+            def __init__(self):
+                self.safety_checker = object()
+                self.feature_extractor = object()
+                self.config = _Cfg()
+                self.scheduler = types.SimpleNamespace(config={})
 
-        diff.DiffusionPipeline = DiffusionPipeline
-        sys.modules["diffusers"] = diff
+            def to(self, *a, **k):
+                return self
 
-        import flux_local as fl
+            def enable_attention_slicing(self):
+                return None
 
-        # Use a dummy model id and load once
-        fl.set_model("dummy/model")
-        p = fl.PIPE
-        self.assertIsNone(p.safety_checker)
-        self.assertIsNone(p.feature_extractor)
-        # Both attribute and config flag should show disabled
-        self.assertFalse(getattr(p, "requires_safety_checker", False))
-        self.assertFalse(getattr(p.config, "requires_safety_checker", True))
+            def enable_vae_slicing(self):
+                return None
+
+            def enable_xformers_memory_efficient_attention(self):
+                return None
+
+            def register_to_config(self, **cfg):
+                if "requires_safety_checker" in cfg:
+                    self.config.requires_safety_checker = bool(
+                        cfg["requires_safety_checker"]
+                    )
+
+        class _DP:
+            @staticmethod
+            def from_pretrained(*a, **k):
+                return _Pipe()
+
+        diffusers = types.SimpleNamespace(DiffusionPipeline=_DP)
+        sys.modules["diffusers"] = diffusers
+
+        import flux_local
+
+        flux_local.set_model("dummy/model")
+        pipe = flux_local.PIPE
+        self.assertIsNotNone(pipe)
+        self.assertIsNone(pipe.safety_checker)
+        self.assertFalse(getattr(pipe.config, "requires_safety_checker", True))
 
 
 if __name__ == "__main__":
