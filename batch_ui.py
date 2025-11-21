@@ -704,8 +704,12 @@ def _render_batch_ui() -> None:
         fut_running = bool(
             fut is not None and not getattr(fut, "done", lambda: False)()
         )
+        # For Ridge, allow showing a score even when untrained (it will be 0.0).
         if scorer_status != "ok":
-            scorer = None
+            if str(vm_choice) == "Ridge":
+                pass
+            else:
+                scorer = None
         z_p = z_from_prompt(lstate, prompt)
     except Exception:
         scorer = None
