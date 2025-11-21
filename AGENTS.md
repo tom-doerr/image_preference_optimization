@@ -1315,3 +1315,4 @@ Mini patch notes (Nov 21, 2025):
 Follow‑up (Nov 21, 2025, later):
 - Tile fragments support: images render inside fragments while Good/Bad buttons render outside; clicks remain reliable with fragments ON. A tiny per‑tile cache stores z/img for button handlers.
 - Button keys simplified to prefix+index (e.g., `good_0`): stable across reruns and independent of batch nonces.
+- Tests added (Nov 21, 2025, later): scheduler prepare under lock; sidebar canonical order check; rows counter increments with fragments ON; button keys stable with fragments; ensure_fitted status+timestamp; safety‑checker disabled; persistence.append_sample wrapper.

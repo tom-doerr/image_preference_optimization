@@ -136,3 +136,11 @@ In‑app checks
 - Sidebar: leave “Use image server” OFF; optionally turn “Use fragments” ON — images render in fragments, buttons outside.
 - Batch: should show 4 tiles with Good/Bad buttons; clicking saves a row and increments counters immediately; toast should appear.
 - Debug log: tail `ipo.debug.log` to see `[pipe] call`, `init_sigma`, and per‑tile decode timings.
+- New tests added (Nov 21, 2025):
+  - Scheduler prepare under lock to avoid LCM "set_timesteps" races.
+  - Sidebar canonical order of train block strings is enforced.
+  - Rows counter increments with fragments ON (Good click path).
+  - Button keys stable with fragments (good_i/bad_i across reruns).
+  - ensure_fitted records status + timestamp for XGBoost and Ridge.
+  - Safety checker remains disabled in set_model.
+  - persistence.append_sample wrapper tested for NPZ+image writes.
