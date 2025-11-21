@@ -296,22 +296,35 @@ def render_sidebar_tail(
             return tscore, cv_line, last_train, vs_line, vs_status
 
         tscore, cv_line, last_train, vs_line, vs_status = _compute_train_results_summary(st, lstate, prompt, vm_choice)
-        # Emit concise lines so tests scanning writes find them
-        safe_write(st, f"Train score: {tscore}")
-        safe_write(st, f"CV score: {cv_line}")
         try:
             last_cv = st.session_state.get(K.CV_LAST_AT) or "n/a"
         except Exception:
             last_cv = "n/a"
-        safe_write(st, f"Last CV: {last_cv}")
-        safe_write(st, f"Last train: {last_train}")
-        safe_write(st, f"Value scorer status: {vs_status}")
-        safe_write(st, f"Value scorer: {vs_line}")
-        # XGBoost active/training/optimization
+        # Compose canonical order once and emit to both main sidebar and expander
+        active = "yes" if vm_choice == "XGBoost" else "no"
+        lines = [
+            f"Train score: {tscore}",
+            f"CV score: {cv_line}",
+            f"Last CV: {last_cv}",
+            f"Last train: {last_train}",
+            f"Value scorer status: {vs_status}",
+            f"Value scorer: {vs_line}",
+            f"XGBoost active: {active}",
+            "Optimization: Ridge only",
+        ]
+        for ln in lines:
+            safe_write(st, ln)
+        # Optional training status lines (kept after the canonical block)
         try:
-            active = "yes" if vm_choice == "XGBoost" else "no"
-            safe_write(st, f"XGBoost active: {active}")
-            safe_write(st, "Optimization: Ridge only")
+            fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
+            running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
+            safe_write(st, f"Ridge training: {'running' if running else 'ok'}")
+        except Exception:
+            pass
+        try:
+            xst = st.session_state.get(K.XGB_TRAIN_STATUS)
+            if isinstance(xst, dict) and 'state' in xst:
+                safe_write(st, f"XGBoost training: {xst.get('state')}")
         except Exception:
             pass
         # Also present a dedicated group expander for tests expecting the label
@@ -319,37 +332,23 @@ def render_sidebar_tail(
         if callable(exp_tr):
             with exp_tr("Train results", expanded=False):
                 try:
-                    st.sidebar.write(f"Train score: {tscore}")
-                    st.sidebar.write(f"CV score: {cv_line}")
-                    st.sidebar.write(f"Last CV: {last_cv}")
-                    st.sidebar.write(f"Last train: {last_train}")
-                    st.sidebar.write(f"Value scorer status: {vs_status}")
-                    st.sidebar.write(f"Value scorer: {vs_line}")
-                    st.sidebar.write(f"XGBoost active: {active}")
-                    st.sidebar.write("Optimization: Ridge only")
-                    st.sidebar.write("Optimization: Ridge only")
+                    for ln in lines:
+                        st.sidebar.write(ln)
+                    # Optional training statuses after canonical block
                     try:
                         xst = st.session_state.get(K.XGB_TRAIN_STATUS)
                         if isinstance(xst, dict) and 'state' in xst:
                             st.sidebar.write(f"XGBoost training: {xst.get('state')}")
                     except Exception:
                         pass
+                    try:
+                        fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
+                        running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
+                        st.sidebar.write(f"Ridge training: {'running' if running else 'ok'}")
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-        # Ridge training status (optional line)
-        try:
-            fut = st.session_state.get(K.RIDGE_FIT_FUTURE)
-            running = bool(fut is not None and not getattr(fut, 'done', lambda: True)())
-            safe_write(st, f"Ridge training: {'running' if running else 'ok'}")
-        except Exception:
-            pass
-        # XGBoost training status (optional line: running/waiting/ok)
-        try:
-            xst = st.session_state.get(K.XGB_TRAIN_STATUS)
-            if isinstance(xst, dict) and 'state' in xst:
-                safe_write(st, f"XGBoost training: {xst.get('state')}")
-        except Exception:
-            pass
         # Also emit quick predicted values for current pair when possible
         try:
             pair = getattr(st.session_state, 'lz_pair', None)
