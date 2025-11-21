@@ -70,7 +70,7 @@ _emit_minimal_sidebar_lines()
 try:
     from constants import DEFAULT_MODEL as _DEF_MODEL; set_model(_DEF_MODEL)
 except Exception: pass
-## toast helper removed — modules call st.toast directly where needed
+# modules call st.toast directly where needed
 
 
 def image_to_z(img: Image.Image, lstate) -> np.ndarray: return _image_to_z(img, lstate)
@@ -289,9 +289,6 @@ def generate_pair():
     except Exception:
         pass
 
-## queue removed; compatibility no-op
-
-
 def _render_batch_ui() -> None: return _batch_ui._render_batch_ui()
 
 
@@ -377,33 +374,18 @@ def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_m
     _batch_ui.run_batch_mode()
 
 
-## import moved to top
-# Run selected mode (Batch only; Async queue removed)
-try:
-    async_queue_mode
-except NameError:  # minimal guard for test stubs/import order
-    async_queue_mode = False
-try: print("[mode] dispatch async_queue_mode=False (queue removed)")
+try: async_queue_mode
+except NameError: async_queue_mode = False
+try: print("[mode] dispatch async_queue_mode=False (queue removed)"); run_app(st, vm_choice, selected_gen_mode, False)
 except Exception: pass
-try:
-    run_app(st, vm_choice, selected_gen_mode, False)
-except Exception:
-    pass
-try:
+try: 
     if not getattr(st.session_state, "cur_batch", None): _curation_init_batch()
 except Exception: pass
 
 st.write(f"Interactions: {lstate.step}")
-if st.button("Reset", type="secondary"):
-    _apply_state(st, init_latent_state(width=int(width), height=int(height)))
-    save_state(st.session_state.lstate, st.session_state.state_path)
-    if callable(st_rerun): st_rerun()
+if st.button("Reset", type="secondary"): _apply_state(st, init_latent_state(width=int(width), height=int(height))); save_state(st.session_state.lstate, st.session_state.state_path); (st_rerun() if callable(st_rerun) else None)
 
 st.caption(f"Persistence: {st.session_state.state_path}{' (loaded)' if os.path.exists(st.session_state.state_path) else ''}")
-# Footer: recent prompt states (hash + truncated text)
 recent = st.session_state.get(Keys.RECENT_PROMPTS, [])
 if recent:
-    items = [f"{hashlib.sha1(p.encode('utf-8')).hexdigest()[:10]} • {p[:30]}" for p in recent[:3]]
-    st.caption("Recent states: " + ", ".join(items))
-
-##
+    items = [f"{hashlib.sha1(p.encode('utf-8')).hexdigest()[:10]} • {p[:30]}" for p in recent[:3]]; st.caption("Recent states: " + ", ".join(items))

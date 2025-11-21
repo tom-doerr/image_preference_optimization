@@ -391,7 +391,10 @@ def _render_batch_tile_body(
     z_p,
 ) -> None:
     import streamlit as st
-    from latent_logic import z_to_latents
+    try:
+        from latent_logic import z_to_latents
+    except Exception:
+        from latent_opt import z_to_latents  # tests may stub here
     from flux_local import generate_flux_image_latents
     import time as _time
 
@@ -499,11 +502,20 @@ def _render_batch_tile_body(
 
         def _btn_key(prefix: str, idx: int) -> str:
             try:
+                rnd = int(st.session_state.get("render_nonce", 0))
+            except Exception:
+                rnd = 0
+            try:
                 seq = int(st.session_state.get("btn_seq", 0)) + 1
             except Exception:
                 seq = 1
             st.session_state["btn_seq"] = seq
-            return f"{prefix}_{render_nonce}_{nonce}_{idx}_{seq}"
+            try:
+                import time as _t
+                ts = int((_t.time() * 1e6) % 1e9)
+            except Exception:
+                ts = 0
+            return f"{prefix}_{rnd}_{nonce}_{idx}_{seq}_{ts}"
 
         def _good_clicked() -> bool:
             if gcol is not None:
@@ -658,7 +670,11 @@ def _refit_from_dataset_keep_batch() -> None:
 
 def _render_batch_ui() -> None:
     import streamlit as st
-    from latent_logic import z_to_latents, z_from_prompt
+    try:
+        from latent_logic import z_to_latents, z_from_prompt
+    except Exception:
+        from latent_opt import z_to_latents
+        from latent_logic import z_from_prompt
     from flux_local import generate_flux_image_latents
     import time as _time
 
@@ -675,6 +691,11 @@ def _render_batch_ui() -> None:
         pass
 
     (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
+    # Bump a small render nonce so button keys remain unique under fragments
+    try:
+        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
+    except Exception:
+        pass
     # Reset per-render button sequence to keep keys unique yet bounded
     # Keep button keys stable across reruns so clicks are captured
     lstate, prompt = _lstate_and_prompt()
@@ -1049,7 +1070,12 @@ def _render_batch_ui() -> None:
                 gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
                 bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
                 def _btn_key(prefix: str, idx: int) -> str:
-                    return f"{prefix}_{idx}"
+                    # Keep keys stable under fragments/reruns: rely on batch nonce + index only
+                    try:
+                        nonce = int(st.session_state.get("cur_batch_nonce", 0))
+                    except Exception:
+                        nonce = 0
+                    return f"{prefix}_{nonce}_{idx}"
 
                 def _good_clicked() -> bool:
                     if gcol is not None:

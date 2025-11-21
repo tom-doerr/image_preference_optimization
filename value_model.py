@@ -148,6 +148,15 @@ def _maybe_fit_xgb(
                     dt_ms = (_time.perf_counter() - t_x) * 1000.0
                     _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
                     try:
+                        session_state[Keys.XGB_TRAIN_STATUS] = {
+                            "state": "ok",
+                            "rows": int(n),
+                            "lam": float(lam),
+                        }
+                        _log(f"[xgb] using cached model rows={n} d={d}")
+                    except Exception:
+                        pass
+                    try:
                         print(
                             f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f} (fallback)"
                         )
@@ -162,6 +171,15 @@ def _maybe_fit_xgb(
                 session_state.xgb_cache = {"model": mdl, "n": n}
                 dt_ms = (_time.perf_counter() - t_x) * 1000.0
                 _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                try:
+                    session_state[Keys.XGB_TRAIN_STATUS] = {
+                        "state": "ok",
+                        "rows": int(n),
+                        "lam": float(lam),
+                    }
+                    _log(f"[xgb] using cached model rows={n} d={d}")
+                except Exception:
+                    pass
                 try:
                     print(f"[train-summary] xgb rows={n} lam={lam} ms={dt_ms:.1f}")
                 except Exception:
