@@ -6,6 +6,7 @@ import numpy as np
 
 from constants import Keys
 from persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
+from helpers import safe_write
 
 def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
     # Minimal inline download control: export current state and offer a download button
@@ -219,20 +220,7 @@ def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
     except Exception:
         pass
 
-# Local, minimal safe_write to avoid import shadowing by tests.helpers
-def safe_write(st: Any, line: Any) -> None:
-    try:
-        if hasattr(st, "sidebar_writes"):
-            st.sidebar_writes.append(str(line))
-    except Exception:
-        pass
-    try:
-        sb = getattr(st, "sidebar", None)
-        w = getattr(sb, "write", None)
-        if callable(w):
-            w(str(line))
-    except Exception:
-        pass
+# Use shared helpers.safe_write to avoid duplication
 
 # Local alias for concise access
 K = Keys
