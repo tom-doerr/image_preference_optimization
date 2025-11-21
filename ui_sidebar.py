@@ -765,14 +765,15 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
     for test sinks that capture sidebar text.
     """
     try:
-        if not sidebar_only:
+        if sidebar_only:
+            for ln in lines:
+                try:
+                    st.sidebar.write(ln)
+                except Exception:
+                    pass
+        else:
             for ln in lines:
                 safe_write(st, ln)
-        for ln in lines:
-            try:
-                st.sidebar.write(ln)
-            except Exception:
-                pass
     except Exception:
         pass
     # Images status (ready/empty)
