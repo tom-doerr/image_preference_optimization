@@ -765,26 +765,6 @@ def render_model_decode_settings(st: Any, lstate: Any):
     except Exception:
         pass
     try:
-        use_srv = bool(
-            getattr(st.sidebar, "checkbox", lambda *a, **k: False)(
-                "Use image server",
-                value=bool(st.session_state.get(Keys.USE_IMAGE_SERVER, False)),
-            )
-        )
-        st.session_state[Keys.USE_IMAGE_SERVER] = use_srv
-        srv_url = getattr(st.sidebar, "text_input", lambda *a, **k: "")("Image server URL", value=str(st.session_state.get(Keys.IMAGE_SERVER_URL, "")))
-        st.session_state[Keys.IMAGE_SERVER_URL] = srv_url
-        try:
-            import flux_local as _fl
-
-            _uis = getattr(_fl, "use_image_server", None)
-            if callable(_uis):
-                _uis(use_srv, srv_url)
-        except Exception:
-            pass
-    except Exception:
-        pass
-    try:
         width, height, steps, guidance, apply_clicked = build_size_controls(st, lstate)
     except Exception:
         width = getattr(lstate, "width", 512)
@@ -792,14 +772,8 @@ def render_model_decode_settings(st: Any, lstate: Any):
         steps = 6
         guidance = 0.0
         apply_clicked = False
-    _model_sel = getattr(st.sidebar, "selectbox", None)
-    if callable(_model_sel):
-        try:
-            selected_model = _model_sel("Model", MODEL_CHOICES, index=0)
-        except Exception:
-            selected_model = DEFAULT_MODEL
-    else:
-        selected_model = DEFAULT_MODEL
+    # 195e: Hardcode model to sd-turbo; remove selector and image-server UI.
+    selected_model = DEFAULT_MODEL
     try:
         from helpers import safe_set
 

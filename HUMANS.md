@@ -207,3 +207,4 @@ What to keep in mind next:
 
 
 [195a] XGB async removed: now always sync. Adjusted tests and ensured stale futures are cleared; XGB_TRAIN_STATUS becomes 'ok' on completion. Completed at 2025-11-21T17:59:12+00:00.
+[195e] Hardcoded model to sd-turbo; removed model selector and image server UI. Effective guidance remains at 0.00 for turbo. 2025-11-21T18:08:29Z

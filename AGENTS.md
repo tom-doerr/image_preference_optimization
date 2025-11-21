@@ -1378,6 +1378,10 @@ New learnings (Nov 21, 2025 – rows counters simplification):
 - Avoid helpers shadowing: ui_sidebar/app include tiny local safe_write/safe_set/safe_sidebar_num to avoid tests.helpers collisions.
 - app prefers latent_state imports (init/save/load) over latent_opt to dodge stubs.
 
+Hardcoded model (Nov 21, 2025 – 195e):
+- Removed model selector and image server UI; the app decodes with `stabilityai/sd-turbo` only.
+- Still prints “Effective guidance: 0.00” for turbo models; tests assert this line.
+
 195c (Nov 21, 2025): Remove legacy dataset NPZ + backups
 - Persistence is folder-only: samples live under data/<hash>/<row>/sample.npz; training and counters read only from these.
 - Deleted backup rotation: no backups/minutely|hourly|daily are written when appending a row.
