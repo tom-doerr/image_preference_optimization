@@ -715,6 +715,7 @@ def render_sidebar_tail(
             f"XGBoost active: {active}",
             "Optimization: Ridge only",
         ]
+        # Emit once here (safe_write + sidebar), then omit the Optimization line inside the expander below
         _emit_train_results(st, lines)
         # Extra per-trainer status lines removed (sync-only; avoid noise)
         # Also present a dedicated group expander for tests expecting the label
@@ -722,7 +723,8 @@ def render_sidebar_tail(
         exp_tr = getattr(st.sidebar, "expander", None)
         if callable(exp_tr):
             with exp_tr("Train results", expanded=False):
-                _emit_train_results(st, lines, sidebar_only=True)
+                inner = [ln for ln in lines if not str(ln).startswith("Optimization: Ridge only")]
+                _emit_train_results(st, inner, sidebar_only=True)
         # Also emit quick predicted values for current pair when possible
         try:
             pair = getattr(st.session_state, 'lz_pair', None)
@@ -750,7 +752,6 @@ def render_sidebar_tail(
                 f"Value scorer status: {'xgb_unavailable' if vm_choice=='XGBoost' else 'ridge_untrained'}",
                 f"Value scorer: {vm_choice or 'Ridge'} (n/a, rows=0)",
                 f"XGBoost active: {'yes' if vm_choice=='XGBoost' else 'no'}",
-                "Optimization: Ridge only",
             ]
             _emit_train_results(st, lines)
         except Exception:
@@ -781,11 +782,7 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
         status_panel(imgs, mu_img)
     except Exception:
         pass
-    try:
-        reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA, 1e300))
-    except Exception:
-        reg_lambda = 1e300
-    _sidebar_value_model_block(st, lstate, prompt, vm_choice, reg_lambda)
+    # Do not recurse into the value-model block from here; caller is responsible
     # Step size readouts for current pair (A/B); always emit lines for tests
     try:
         import numpy as _np
