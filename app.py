@@ -290,26 +290,47 @@ render_sidebar_tail_module(
 
 
 def generate_pair():
-    from pair_ui import generate_pair as _gen
-    from constants import Config, Keys as _K
+    # Minimal inlined pair generation (199g): decode current lz_pair via latents
+    from constants import Keys as _K
     try:
-        _gen()
-        imgs = st.session_state.get(_K.IMAGES)
-        if not imgs or imgs[0] is None or imgs[1] is None:
-            try:
-                from flux_local import generate_flux_image  # type: ignore
-
-                if callable(generate_flux_image):
-                    img = generate_flux_image(
-                        base_prompt,
-                        width=st.session_state.lstate.width,
-                        height=st.session_state.lstate.height,
-                        steps=Config.DEFAULT_STEPS,
-                        guidance=Config.DEFAULT_GUIDANCE,
-                    )
-                    st.session_state[_K.IMAGES] = (img, img)
-            except Exception:
-                pass
+        from latent_opt import z_to_latents
+    except Exception:
+        from latent_logic import z_to_latents  # type: ignore
+    try:
+        from flux_local import generate_flux_image_latents
+    except Exception:
+        return
+    try:
+        lstate = st.session_state.lstate
+        if st.session_state.get("lz_pair") is None:
+            # Initialize a symmetric pair around the prompt anchor
+            from latent_logic import z_from_prompt
+            import numpy as _np
+            z_p = z_from_prompt(lstate, base_prompt)
+            r = lstate.rng.standard_normal(lstate.d)
+            r = r / (float(_np.linalg.norm(r)) + 1e-12)
+            delta = float(lstate.sigma) * 0.5 * r
+            st.session_state.lz_pair = (z_p + delta, z_p - delta)
+        z_a, z_b = st.session_state.lz_pair
+        la = z_to_latents(lstate, z_a)
+        lb = z_to_latents(lstate, z_b)
+        img_a = generate_flux_image_latents(
+            base_prompt,
+            latents=la,
+            width=lstate.width,
+            height=lstate.height,
+            steps=int(getattr(st.session_state, "steps", 6) or 6),
+            guidance=float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0),
+        )
+        img_b = generate_flux_image_latents(
+            base_prompt,
+            latents=lb,
+            width=lstate.width,
+            height=lstate.height,
+            steps=int(getattr(st.session_state, "steps", 6) or 6),
+            guidance=float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0),
+        )
+        st.session_state[_K.IMAGES] = (img_a, img_b)
     except Exception:
         pass
 
