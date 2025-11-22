@@ -5,7 +5,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_with_writes
-from persistence import state_path_for_prompt
+from ipo.core.persistence import state_path_for_prompt
 from latent_opt import init_latent_state, save_state
 
 

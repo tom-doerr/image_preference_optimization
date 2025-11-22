@@ -30,7 +30,7 @@ class TestXgbCli(unittest.TestCase):
     def test_trains_and_saves_model(self):
         prompt = "cli prompt test"
         # Seed folder dataset via append
-        from persistence import append_dataset_row
+        from ipo.core.persistence import append_dataset_row
 
         append_dataset_row(prompt, np.array([[1.0, 0.0]]), +1.0)
         append_dataset_row(prompt, np.array([[0.0, 1.0]]), -1.0)

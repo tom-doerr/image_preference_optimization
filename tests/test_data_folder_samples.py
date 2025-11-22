@@ -5,7 +5,7 @@ import numpy as np
 
 class TestDataFolderSamples(unittest.TestCase):
     def test_append_creates_per_sample_folder(self):
-        from persistence import append_dataset_row, get_dataset_for_prompt_or_session
+        from ipo.core.persistence import append_dataset_row, get_dataset_for_prompt_or_session
 
         prompt = "data folder samples test"
         # Ensure clean dataset file and data folder

@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from persistence import append_dataset_row, dataset_rows_for_prompt
+from ipo.core.persistence import append_dataset_row, dataset_rows_for_prompt
 
 
 class TestAppendDatasetRow(unittest.TestCase):

@@ -5,7 +5,7 @@ import numpy as np
 
 class TestPersistenceGetDatasetHelper(unittest.TestCase):
     def test_uses_only_persisted_file(self):
-        from persistence import get_dataset_for_prompt_or_session, append_dataset_row
+        from ipo.core.persistence import get_dataset_for_prompt_or_session, append_dataset_row
         import hashlib
 
         prompt = "persist helper test unique"

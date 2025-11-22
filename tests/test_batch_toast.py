@@ -56,7 +56,7 @@ class TestBatchToast(unittest.TestCase):
         out = "\n".join(writes)
         # Accept either toast fallback text or dataset rows increment
         if "Saved label +1" not in out:
-            from persistence import dataset_rows_for_prompt
+            from ipo.core.persistence import dataset_rows_for_prompt
 
             assert dataset_rows_for_prompt(prompt) >= 1
 

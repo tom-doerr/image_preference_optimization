@@ -3,7 +3,7 @@ import types
 import unittest
 import numpy as np
 from tests.helpers.st_streamlit import stub_basic
-from persistence import dataset_rows_for_prompt
+from ipo.core.persistence import dataset_rows_for_prompt
 
 
 class _ImmediateFuture:

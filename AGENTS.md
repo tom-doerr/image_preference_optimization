@@ -108,6 +108,27 @@ New learnings (Nov 12, 2025):
 - Direct latent optimization enables greedy improvement on a fixed prompt with minimal code; we use an NES-like mean update + ridge ranking over pairwise diffs.
 - For e2e in CI without network/UI, stub `streamlit` and mock generation. Avoid production fallbacks; keep mocks in tests only.
 
+Notes (Nov 22, 2025 — XGB simplification and gotchas):
+- XGBoost “unavailable” most often means no cached model for the current prompt+dim, not that the package is missing. Typical causes seen in logs:
+  - New prompt → new dataset folder (hash) with 0 rows yet.
+  - Dim mismatch: saved rows at old resolution (e.g., d=9216) are filtered when current latents use d=25600.
+  - Single‑class data: XGB needs at least one +1 and one −1 label.
+  - Sync‑only training: we no longer auto‑fit on reruns; you must click “Train XGBoost now (sync)”.
+- Simplify contract to reduce bugs and LOC:
+  - Single scorer at a time. Use XGB only when `session_state.xgb_cache` exists; else Ridge if ‖w‖>0; else `n/a`.
+  - One dataset source in memory; write rows to disk on save, but don’t rescan folders for counters on rerun.
+- Explicit XGB fit button writes `session_state.xgb_cache = {"model": mdl, "n": rows}` and prints `[xgb] using cached model rows=N`.
+  - Sidebar always prints: prompt hash, latent dim, dataset path, rows, and `XGBoost model rows: N (status: ok/running/unavailable)`.
+  - Logs gated by `LOG_VERBOSITY` (0 default) to keep CI quiet; bump to 1 for `[scorer] …` lines.
+  - Do not train automatically on reruns; no background futures.
+
+Keep in mind:
+- Changing prompt or resolution intentionally resets the effective dataset; this is by design and reduces cross‑contamination.
+- Tests should drive the contract: captions `n/a → [XGB] …` only after a sync fit; Ridge captions only when explicitly selected and ‖w‖>0.
+
+Docs (Nov 22, 2025):
+- Added DEV.md outlining the new package layout and import style (use `ipo.ui.*`, `ipo.core.*`, `ipo.infra.*`; `flux_local` remains a test‑friendly proxy).
+
 New learnings (Nov 18, 2025 - UI cleanup):
 - Removed the separate “Pair proposer” dropdown. The proposer is now derived from the Value model selection to reduce duplicate controls:
   - Legacy non‑ridge value models were removed; earlier references have been purged.
@@ -471,7 +492,7 @@ Recommendation: 78a — improves developer ergonomics immediately with minimal c
 Consolidation (Nov 15–17, 2025):
 - Centralized first‑round prompt seeding in `app._apply_state` and removed the later duplicate hook; keeps initial‑pair logic in one place.
 - Extracted CUDA/latents normalization helpers in `flux_local.py` and vector metrics in `metrics.py` to reduce duplication and complexity.
-- Moved presenter helpers to `ui.py` (`sidebar_metric`, `sidebar_metric_rows`, `render_pair_sidebar`) and refactored the per‑pair sidebar panel to use them.
+ - Moved presenter helpers to `ipo.ui.ui` (`sidebar_metric`, `sidebar_metric_rows`, `render_pair_sidebar`) and refactored the per‑pair sidebar panel to use them.
 - Centralized proposer configuration in `proposer.py` (`ProposerOpts`, `propose_next_pair`); `latent_logic.py` keeps only math primitives.
 - Adjusted smoke stubs to include `generate_flux_image` after adding the prompt‑only generator.
 - Test stubs consolidated: added `tests/helpers/st_streamlit.py` with `stub_basic`, `stub_with_writes`, and `stub_click_button`. Updated a few tests to use these helpers, reducing repeated stub code blocks.
@@ -548,7 +569,7 @@ New learnings (Nov 18, 2025):
  - Added a minimal debug/logging path: `flux_local` records the last call (model id, size, latents mean/std) and writes to `ipo.debug.log`. A sidebar “Debug” checkbox shows these metrics plus a size-alignment note (state vs slider) to diagnose black frames quickly.
 
 Keep in mind:
-- Tests rely on simple Streamlit stubs; avoid deep Streamlit APIs. Prefer small helpers in `ui.py`.
+- Tests rely on simple Streamlit stubs; avoid deep Streamlit APIs. Prefer small helpers in `ipo.ui.ui`.
 - When adjusting defaults (steps/size), update tests alongside. Resist adding fallbacks; add tests instead.
 
 Next options (116):
@@ -630,7 +651,7 @@ Refactor (Nov 20, 2025, later):
 - Extracted the “Mode & value model” section (including batch/queue controls) to `ui_sidebar_modes.render_modes_and_value_model`. `app.py` now calls this helper.
 - Extracted “Model & decode settings” to `ui_sidebar_extra.render_model_decode_settings` and replaced the inline block in `app.py`.
 - Sidebar writer now emits both write() and metric() for CV lines to satisfy different stubs; we’ll add a minimal writer shim if tests replace the entire sidebar object.
-- Consolidation: removed unused `ui_sidebar.py` and the duplicate import in `app.py`; kept a single sidebar construction path via helpers in `app.py` + `ui.py`. Radon improved and the sidebar code is easier to follow.
+- Consolidation: removed unused `ui_sidebar.py` and the duplicate import in `app.py`; kept a single sidebar construction path via helpers in `app.py` + `ipo.ui.ui`. Radon improved and the sidebar code is easier to follow.
 - Consolidation (queue/batch + dataset):
   - Reused `_sample_around_prompt` across Batch and Queue to avoid duplicated RNG math.
   - Moved dataset dimension mismatch handling into `persistence.get_dataset_for_prompt_or_session`; callers no longer repeat the guard. Sidebar notices still work via `Keys.DATASET_DIM_MISMATCH`.
@@ -859,7 +880,7 @@ Module map (Nov 18, 2025):
 - `proposer.py`: proposer functions + `build_proposer_opts`.
 - `constants.py`: all UI defaults + scoring constants.
 - `background.py`: single-thread executor + async→sync decode fallback.
-- `ui.py`: sidebar panels and metric helpers.
+- `ipo.ui.ui`: sidebar panels and metric helpers.
 
 Make targets:
 - `make test` runs the full suite; `make test-fast` runs unit slices; `make mypy` checks typed modules.
@@ -1038,7 +1059,7 @@ Architecture notes (Nov 20, 2025, further):
 - Training orchestration: `value_model.train_and_record()` is now the single entry for UI‑triggered fits (cooldown + status). Keep UI toasts minimal; avoid duplicating status logic elsewhere.
 - Concurrency: Ridge async writes to `lstate.w` from a background thread when enabled. Streamlit is mostly single‑threaded, but this is still a shared‑state write; add a tiny lock or swap‑assign pattern if we observe races.
 - Logging: `value_model` now logs via the shared `ipo` logger and still prints for tests. Converge other modules (batch_ui/queue_ui/app) to the same logger over time.
-- Module size: app.py remains large. We already split helpers (`ui_controls.py`, `ui_metrics.py`, `persistence_ui.py`); consider a small `ui_sidebar.py` if we touch the sidebar again.
+ - Module size: app.py remains large. We already split helpers (`ui_metrics.py`, `persistence_ui.py`); ui controls live in `ipo.ui.ui_sidebar`.
 - Decode backend: `flux_local` is the single gateway with a global PIPE and `PIPE_LOCK` — keep all decode paths going through it. If the image server grows, introduce a tiny decode interface without adding fallbacks.
 
 Architecture notes (Nov 20, 2025, latest):
@@ -1467,7 +1488,7 @@ Next Simplifications (Nov 21, 2025, 199)
 - 199a. Remove Ridge async entirely and delete `background.py`.
   - Effect: ridge fits always sync; fewer code paths; simpler logs.
   - LOC win: ~200–250. Tests: update async‑ridge expectations.
-- 199b. Delete `ui_metrics.py` shim and inline calls into `ui.py` (single source).
+- 199b. Delete `ui_metrics.py` shim and inline calls into `ipo.ui.ui` (single source).
   - Effect: fewer indirections/imports; easier stubbing.
   - LOC win: ~30–60. Tests: update imports where needed.
 - 199c. Retire `ensure_fitted`/`train_and_record`; make UI call `fit_value_model` explicitly only on user actions.
@@ -1526,7 +1547,7 @@ Today (Nov 21, 2025)
 - Log gating (216d): flux_local’s noisy `[pipe]`/`[perf]` prints are now gated by `LOG_VERBOSITY` (0/1/2). Default is 0 (quiet). Enable with `export LOG_VERBOSITY=1` (info) or `=2` (verbose). Behavior unchanged.
  - 216e: Collapsed UI helpers into `ui_sidebar`:
    - Moved `sidebar_metric`, `sidebar_metric_rows`, `status_panel`, `render_iter_step_scores`, `render_mu_value_history`, and batch/pair control builders into `ui_sidebar.py`.
- - `ui_controls.py` now provides thin wrappers delegating to `ui_sidebar` (keeps existing tests stable while reducing duplication).
+ - `ipo.ui.ui_controls` removed; helpers folded into `ipo.ui.ui_sidebar` to avoid hops.
  - `ui_sidebar` no longer imports from `ui`/`ui_controls` for these helpers.
 - Batch scorer prep now uses the unified API: `batch_ui._prepare_xgb_scorer` calls `value_scorer.get_value_scorer` and normalizes to `(scorer, 'ok'|status)`. This removes the legacy status shim in the hot path.
 - ui_sidebar uses the shared `helpers.safe_write`; removed a duplicated local variant.
@@ -1540,7 +1561,7 @@ Next Simplifications (Nov 21, 2025, 213)
 - 213b. Remove CV auto-lines: keep an on-demand button only; drop cached CV lines on import to simplify strings/order.
 - 213c. Purge async Keys entirely: delete `XGB_TRAIN_ASYNC/XGB_FIT_FUTURE/RIDGE_*` from `constants.py`, strip checks in `value_model` and tests.
 - 213d. Trim logs in `flux_local`: gate `[pipe]`/`[perf]` with `LOG_VERBOSITY` (keep errors). Reduce noisy scheduler prints in tests.
-- 213e. Collapse `ui.py` helper rows into `ui_sidebar` where used; remove unused UI writers (keeps a single sidebar surface).
+- 213e. Collapse `ipo.ui.ui` helper rows into `ui_sidebar` where used; remove unused UI writers (keeps a single sidebar surface).
 - 213f. Hardcode model: drop any residual model lists/defaults; enforce `stabilityai/sd-turbo` only to avoid selector/const churn.
 - 213g. Remove Distance model if not needed: Ridge/XGB only; update 2 tests that assert `[Distance]` captions.
 
@@ -1556,7 +1577,7 @@ Rationale: these are surgical, low‑risk deletions that reduce indirection and 
 Next Simplifications (Nov 21, 2025, 226)
 - 226a. Remove the scorer status shim entirely: delete `get_value_scorer_with_status` and update remaining tests to `get_value_scorer`. Add two tiny unit tests for Ridge zero‑w and XGB cached‑model. Small, clear API.
 - 226b. Simplify `value_model` XGB/Ridge paths to sync‑only: remove dead async branches and future/status writes; keep `xgb_cache` and `LAST_TRAIN_{AT,MS}` only. Optional: retain `Keys.XGB_TRAIN_STATUS` as a dumb mirror for a transition period.
-- 226c. Finish thinning `ui.py`: keep it as a facade that re‑exports `ui_sidebar` helpers; once tests stop importing it, retire the file.
+- 226c. Finish thinning `ipo.ui.ui`: keep it as a facade that re‑exports `ui_sidebar` helpers; once tests stop importing it, retire the file.
 - 226d. Prune any tests that assume async behavior (futures/status transitions) after 226b lands; replace with explicit click‑to‑fit tests.
 Simplify wave (Nov 21, 2025, 218)
 - 218a. Remove dead async stubs left inside value_model (delete the do_async_xgb branch entirely). Pure sync code.
@@ -1582,7 +1603,7 @@ Next options (223) — maintainability
 Recommendation: 223b first, then 223c.
 
 Done (Nov 21, 2025, later):
-- Unified UI scorer usage: `ui.py` now uses `value_scorer.get_value_scorer` (no legacy shim branching).
+- Unified UI scorer usage: `ipo.ui.ui` now uses `value_scorer.get_value_scorer` (no legacy shim branching).
 - Single‑emitter sidebar: app.py routes early sidebar lines through `ui_sidebar._emit_train_results`; removed duplicate direct writes.
 - Trimmed sidebar helper: `_vm_header_and_status()` now returns only the VM label and cache (status is emitted solely in Train results).
 
@@ -1611,3 +1632,11 @@ Update (Nov 22, 2025 — code trim)
 - Split flux_local helpers into ipo.infra.flux_utils (to_cuda_fp16, normalize_to_init_sigma, eff_guidance, default model id, log-gated print). generate_* now respect test stubs for _run_pipe.
 - Deleted an unused nested function in _run_pipe; no behavior change.
 - Renamed helpers → ipo.infra.util and updated imports; kept logging/file setup minimal.
+Update (Nov 22, 2025 — wrappers sweep)
+- Removed remaining top‑level wrappers and updated imports:
+  - ui_sidebar.py → use ipo.ui.ui_sidebar everywhere (tests updated).
+  - ui_controls.py → previously removed; tests now use ipo.ui.ui_sidebar.* builders.
+  - helpers.py → renamed to ipo.infra.util (all imports flipped).
+  - persistence.py → removed; imports now point to ipo.core.persistence.
+  - proposer.py → removed; tiny API moved into latent_opt.
+- Ran a full suite to surface import issues; remaining failures are behavioral/strings (not import errors). We’ll align sidebar strings separately.

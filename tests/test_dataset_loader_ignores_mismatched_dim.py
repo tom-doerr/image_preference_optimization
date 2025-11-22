@@ -18,7 +18,7 @@ class LS:
 
 class TestDatasetLoaderIgnoresMismatchedDim(unittest.TestCase):
     def test_loader_returns_only_matching_rows(self):
-        from persistence import append_dataset_row, get_dataset_for_prompt_or_session, data_root_for_prompt
+        from ipo.core.persistence import append_dataset_row, get_dataset_for_prompt_or_session, data_root_for_prompt
 
         prompt = "dim filter test unique"
         # Clean folder
@@ -44,4 +44,3 @@ class TestDatasetLoaderIgnoresMismatchedDim(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

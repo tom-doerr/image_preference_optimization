@@ -50,7 +50,7 @@ def train_xgb_for_prompt(
 
     Returns saved model path when save_model is True, else None.
     """
-    from persistence import get_dataset_for_prompt_or_session
+    from ipo.core.persistence import get_dataset_for_prompt_or_session
 
     X, y = get_dataset_for_prompt_or_session(prompt, type("SS", (), {})())
     if X is None or y is None or X.shape[0] == 0:

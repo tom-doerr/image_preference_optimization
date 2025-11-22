@@ -9,7 +9,7 @@ def _worker(root: str, prompt: str, n: int) -> None:
     os.environ["IPO_DATA_ROOT"] = root
     import numpy as np
     import importlib
-    import persistence as p
+    from ipo.core import persistence as p
 
     importlib.reload(p)
     for k in range(n):
@@ -24,7 +24,7 @@ class TestDatasetFileLock(unittest.TestCase):
         try:
             os.environ["IPO_DATA_ROOT"] = root
             import importlib
-            import persistence as p
+            from ipo.core import persistence as p
 
             importlib.reload(p)
             # Clean any existing
@@ -55,4 +55,3 @@ class TestDatasetFileLock(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

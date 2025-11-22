@@ -71,10 +71,10 @@ class DatasetRowsIncrementOnLabelTest(unittest.TestCase):
         sys.modules["latent_opt"] = lo
 
         # Import persistence after IPO_DATA_ROOT is set
-        import persistence  # noqa: F401
+        import ipo.core.persistence as persistence  # noqa: F401
 
         import batch_ui
-        from persistence import dataset_rows_for_prompt_dim
+        from ipo.core.persistence import dataset_rows_for_prompt_dim
         from constants import Keys
 
         batch_ui._curation_add(1, np.ones(4))

@@ -40,10 +40,9 @@ class TestGoodClickSavesRow(unittest.TestCase):
         import app as app2  # noqa: F401
 
         # Assert dataset rows on disk is at least 1 for this prompt
-        from persistence import dataset_rows_for_prompt
+        from ipo.core.persistence import dataset_rows_for_prompt
         self.assertGreaterEqual(dataset_rows_for_prompt(prompt), 1)
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -38,7 +38,7 @@ class TestToastOnSave(unittest.TestCase):
         batch_ui._curation_add(1, z, img=None)
 
         # No toast required; assert sample was persisted
-        from persistence import dataset_rows_for_prompt
+        from ipo.core.persistence import dataset_rows_for_prompt
         self.assertGreaterEqual(dataset_rows_for_prompt(st.session_state.prompt), 1)
 
         # Cleanup created files

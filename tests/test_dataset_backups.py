@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import unittest
-from persistence import append_dataset_row
+from ipo.core.persistence import append_dataset_row
 
 
 class TestDatasetBackups(unittest.TestCase):

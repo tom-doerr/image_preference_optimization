@@ -3,7 +3,7 @@ import hashlib
 import numpy as np
 import unittest
 
-from persistence import state_path_for_prompt, export_state_bytes, read_metadata
+from ipo.core.persistence import state_path_for_prompt, export_state_bytes, read_metadata
 from latent_opt import init_latent_state, save_state
 
 
