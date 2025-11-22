@@ -7,7 +7,7 @@ import sys
 from typing import Optional
 
 import numpy as np
-from persistence import get_dataset_for_prompt_or_session
+from ipo.core.persistence import get_dataset_for_prompt_or_session
 
 
 def _prompt_hash(prompt: str) -> str:

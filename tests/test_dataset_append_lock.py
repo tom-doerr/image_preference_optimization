@@ -6,7 +6,7 @@ import numpy as np
 
 class TestDatasetAppendLock(unittest.TestCase):
     def test_concurrent_appends_produce_unique_rows(self):
-        import persistence as p
+        from ipo.core import persistence as p
 
         prompt = "append-lock-test"
         root = p.data_root_for_prompt(prompt)
@@ -44,4 +44,3 @@ class TestDatasetAppendLock(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

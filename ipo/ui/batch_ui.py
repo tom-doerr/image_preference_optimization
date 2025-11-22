@@ -298,7 +298,7 @@ def _curation_replace_at(idx: int) -> None:
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
-    import persistence as p
+    from ipo.core import persistence as p
     from constants import Keys
     from latent_logic import z_from_prompt
 
@@ -561,7 +561,7 @@ def _render_batch_tile_body(
 
 def _curation_train_and_next() -> None:
     import streamlit as st
-    from persistence import get_dataset_for_prompt_or_session
+    from ipo.core.persistence import get_dataset_for_prompt_or_session
     lstate, prompt = _lstate_and_prompt()
     # Respect toggle: skip training when disabled
     if not bool(st.session_state.get("train_on_new_data", True)):
@@ -603,7 +603,7 @@ def _curation_train_and_next() -> None:
 
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
-    from persistence import get_dataset_for_prompt_or_session
+    from ipo.core.persistence import get_dataset_for_prompt_or_session
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return

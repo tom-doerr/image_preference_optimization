@@ -15,7 +15,7 @@ class DatasetDimMismatchResetTest(unittest.TestCase):
             if cwd not in _sys.path:
                 _sys.path.insert(0, cwd)
             try:
-                from persistence import (
+                from ipo.core.persistence import (
                     dataset_rows_for_prompt,
                     append_dataset_row,
                     dataset_rows_for_prompt_dim,

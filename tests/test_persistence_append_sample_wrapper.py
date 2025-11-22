@@ -14,7 +14,7 @@ class TestAppendSampleWrapper(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         os.environ["IPO_DATA_ROOT"] = tmp.name
-        import persistence
+        from ipo.core import persistence
 
         prompt = "append-sample-wrapper"
         f = np.zeros((1, 8), dtype=float)
@@ -34,4 +34,3 @@ class TestAppendSampleWrapper(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

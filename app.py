@@ -36,7 +36,7 @@ def loads_state(data: bytes):
     return _f(data)
 
 def _export_state_bytes(state, prompt: str):
-    from persistence import export_state_bytes
+    from ipo.core.persistence import export_state_bytes
     return export_state_bytes(state, prompt)
 
 init_page_and_logging()

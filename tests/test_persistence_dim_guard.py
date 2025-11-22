@@ -17,7 +17,7 @@ class LS:
 
 class TestPersistenceDimGuard(unittest.TestCase):
     def test_mismatch_sets_flag_and_returns_none(self):
-        from persistence import append_dataset_row, get_dataset_for_prompt_or_session
+        from ipo.core.persistence import append_dataset_row, get_dataset_for_prompt_or_session
 
         ss = SS()
         ss.lstate = LS(d=8)

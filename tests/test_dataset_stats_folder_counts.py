@@ -14,7 +14,7 @@ class TestDatasetStatsFolderCounts(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         os.environ["IPO_DATA_ROOT"] = tmp.name
-        import persistence
+        from ipo.core import persistence
 
         p = "stats-folder"
         d = 8
@@ -34,4 +34,3 @@ class TestDatasetStatsFolderCounts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

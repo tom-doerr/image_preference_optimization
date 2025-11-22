@@ -14,7 +14,7 @@ class SaveSampleImageTest(unittest.TestCase):
             shutil.rmtree("data")
 
     def test_save_sample_image_creates_png(self):
-        import persistence
+        from ipo.core import persistence
         from PIL import Image
 
         prompt = "image-save-test"

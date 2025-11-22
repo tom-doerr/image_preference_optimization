@@ -7,7 +7,7 @@ import unittest
 
 class TestFileLoggingSetup(unittest.TestCase):
     def tearDown(self):
-        for name in ("helpers", "ipo.infra.util"):
+        for name in ("helpers", "ipo.infra.util", "persistence", "ipo.core.persistence"):
             sys.modules.pop(name, None)
 
     def test_enable_file_logging_creates_and_writes(self):

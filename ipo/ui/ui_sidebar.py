@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 
 from constants import Keys
-from persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
+from ipo.core.persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
 from ipo.infra.util import safe_write
 
 def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
@@ -13,7 +13,7 @@ def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rer
     try:
         import streamlit as st  # use current stub in tests
         try:
-            from persistence import export_state_bytes  # defer to avoid stub import errors
+            from ipo.core.persistence import export_state_bytes  # defer to avoid stub import errors
 
             data = export_state_bytes(lstate, prompt)
         except Exception:
@@ -329,12 +329,12 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
             folder = os.path.join("data", h)
             st.sidebar.write(f"Dataset path: {folder}")
             # If a folder exists, show on‑disk row count, even if ignored later
-            from persistence import dataset_rows_for_prompt as _rows
+            from ipo.core.persistence import dataset_rows_for_prompt as _rows
             disk_rows = _rows(prompt)
             st.sidebar.write(f"Rows (disk): {int(disk_rows)}")
             # Dim mismatch hint
             try:
-                from persistence import get_dataset_for_prompt_or_session as _get_ds
+                from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
                 Xd, _ = _get_ds(prompt, st.session_state)
                 d_disk = int(getattr(Xd, 'shape', (0, 0))[1]) if Xd is not None else 0
             except Exception:
@@ -523,7 +523,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                         if Xm is not None and ym is not None and getattr(Xm, 'shape', (0,))[0] > 0:
                             Xd, yd = Xm, ym
                         else:
-                            from persistence import get_dataset_for_prompt_or_session as _get_ds
+                            from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
                             Xd, yd = _get_ds(prompt, st.session_state)
                         acc = None
                         if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 1:
@@ -573,7 +573,7 @@ def render_sidebar_tail(
     # Inline metadata panel (app_version, created_at, prompt_hash)
     try:
         import os, hashlib
-        from persistence import read_metadata
+        from ipo.core.persistence import read_metadata
         meta = None
         path = state_path
         if os.path.exists(path):
@@ -637,7 +637,7 @@ def render_sidebar_tail(
     # Train results panel (train score, CV, last train, XGB status)
     try:
         # Opportunistic auto-fit exactly once: use ensure_fitted so we don't resubmit on reruns
-        from persistence import get_dataset_for_prompt_or_session as _get_ds
+        from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
         try:
             from value_model import ensure_fitted as _ensure
         except Exception:
@@ -725,7 +725,7 @@ def render_sidebar_tail(
             pass
         # Inline train results panel (merged from ui_sidebar_train)
         def _compute_train_results_summary(st, lstate, base_prompt: str, vm_choice: str):
-            from persistence import get_dataset_for_prompt_or_session as _get_ds
+            from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
             Xd, yd = _get_ds(base_prompt, st.session_state)
             Xm = getattr(lstate, 'X', None)
             ym = getattr(lstate, 'y', None)
@@ -1007,7 +1007,7 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
         dbg = getattr(st.sidebar, "checkbox", lambda *a, **k: False)("Debug (saves)", value=False)
         if dbg and getattr(st.sidebar, "button", lambda *a, **k: False)("Append +1 (debug)"):
             import numpy as _np
-            from persistence import append_dataset_row
+            from ipo.core.persistence import append_dataset_row
             d_now = int(getattr(lstate, 'd', 0)) if lstate is not None else 0
             if d_now > 0:
                 z = _np.zeros((1, d_now), dtype=float)

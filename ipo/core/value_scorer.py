@@ -60,7 +60,7 @@ def _build_xgb_scorer(
                 pass
         if mdl is None:
             try:
-                from persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
+                from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
 
                 Xd, _ = _get_ds(prompt, session_state)
                 rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0

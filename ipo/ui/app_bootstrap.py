@@ -3,7 +3,7 @@ import os
 import types
 import streamlit as st
 from constants import DEFAULT_PROMPT, Keys
-from ipo.infra.util import enable_file_logging
+from ipo.infra.util import enable_file_logging, safe_write
 
 
 def init_page_and_logging() -> None:
@@ -19,8 +19,8 @@ def emit_early_sidebar() -> None:
     vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
     if not st.session_state.get(Keys.VM_CHOICE):
         st.session_state[Keys.VM_CHOICE] = vm
-    st.sidebar.write(f"Value model: {vm}")
-    st.sidebar.write("Step scores: n/a")
+    safe_write(st, f"Value model: {vm}")
+    safe_write(st, "Step scores: n/a")
     # Ensure iterative params exist early so tests can observe them on import
     try:
         if Keys.ITER_ETA not in st.session_state:
@@ -53,9 +53,9 @@ def emit_early_sidebar() -> None:
         f"XGBoost active: {active_early}",
         "Optimization: Ridge only",
     ):
-        st.sidebar.write(ln)
+        safe_write(st, ln)
     ld = int(getattr(getattr(st.session_state, "lstate", None), "d", 0)) if hasattr(st, "session_state") else 0
-    st.sidebar.write(f"Latent dim: {ld}")
+    safe_write(st, f"Latent dim: {ld}")
     try:
         from flux_local import set_model
 
@@ -74,7 +74,7 @@ def ensure_prompt_and_state() -> str:
     sp = st.session_state.get("state_path")
     if not isinstance(sp, str) or not sp:
         try:
-            from persistence import state_path_for_prompt as _spp
+            from ipo.core.persistence import state_path_for_prompt as _spp
 
             st.session_state.state_path = _spp(st.session_state.prompt)
         except Exception:

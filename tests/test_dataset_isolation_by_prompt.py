@@ -3,7 +3,7 @@ import sys
 import types
 import unittest
 from tests.helpers.st_streamlit import stub_basic
-from persistence import dataset_rows_for_prompt, data_root_for_prompt
+from ipo.core.persistence import dataset_rows_for_prompt, data_root_for_prompt
 
 
 class TestDatasetIsolation(unittest.TestCase):

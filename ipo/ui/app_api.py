@@ -6,7 +6,7 @@ import batch_ui as _batch_ui
 
 
 def _export_state_bytes(state, prompt: str):
-    from persistence import export_state_bytes as _rpc
+    from ipo.core.persistence import export_state_bytes as _rpc
 
     return _rpc(state, prompt)
 
