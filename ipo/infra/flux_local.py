@@ -1,5 +1,4 @@
 import os
-import math
 import threading
 import logging
 from typing import Optional
@@ -33,46 +32,18 @@ try:
 except Exception:
     pass
 
-try:
-    # Prefer shared helper for consistency
-    from ipo.infra.util import get_log_verbosity as _get_lv  # type: ignore
-except Exception:  # pragma: no cover - fallback to env only
-    _get_lv = None  # type: ignore
-
-def _logv() -> int:
-    try:
-        if _get_lv is not None:
-            return int(_get_lv(None))
-    except Exception:
-        pass
-    try:
-        return int(os.getenv("LOG_VERBOSITY", "0"))
-    except Exception:
-        return 0
-
-def _p(msg: str, lvl: int = 1) -> None:
-    # Print only when LOG_VERBOSITY >= lvl (1=info, 2=verbose)
-    if _logv() >= int(lvl):
-        try:
-            print(msg)
-        except Exception:
-            pass
+from .flux_utils import (
+    get_default_model_id as _get_model_id,
+    p as _p,
+    to_cuda_fp16 as _to_cuda_fp16,
+    normalize_to_init_sigma as _normalize_to_init_sigma,
+    eff_guidance as _eff_g,
+)
 
 
 def get_last_call() -> dict:
     return dict(LAST_CALL)
 
-
-def _get_model_id() -> str:
-    """Read default model id from env for implicit loads.
-
-    The app usually calls set_model(...), but tests rely on this path.
-    """
-    mid = os.getenv("FLUX_LOCAL_MODEL")
-    if not mid:
-        _p("[pipe] FLUX_LOCAL_MODEL not set; defaulting to 'stabilityai/sd-turbo'", 1)
-        return "stabilityai/sd-turbo"
-    return mid
 
 
 def _free_pipe() -> None:
@@ -205,62 +176,7 @@ def _ensure_pipe(model_id: Optional[str] = None):
     return PIPE
 
 
-def _to_cuda_fp16(latents):
-    """Return a torch fp16 CUDA tensor for the given latents (np/torch)."""
-    import torch  # type: ignore
-
-    TensorType = getattr(torch, "Tensor", None)
-    if TensorType is not None and isinstance(latents, TensorType):
-        return latents.to(device="cuda", dtype=torch.float16)
-    return torch.tensor(latents, dtype=torch.float16, device="cuda")
-
-
-def _normalize_to_init_sigma(pipe, latents, steps: Optional[int] = None):
-    """Scale latents so std ≈ scheduler.init_noise_sigma for current steps.
-
-    We explicitly set timesteps when provided to align with the pipeline's
-    schedule, which has proven to avoid degenerate (near-black) outputs on
-    some schedulers.
-    """
-    init_sigma = 1.0
-    try:
-        sched = getattr(pipe, "scheduler", None)
-        if sched is not None:
-            if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
-                try:
-                    sched.set_timesteps(int(steps))
-                except Exception:
-                    pass
-            s = getattr(sched, "init_noise_sigma", None)
-            if s is None:
-                sigmas = getattr(sched, "sigmas", None)
-                if sigmas is not None and hasattr(sigmas, "max"):
-                    s = float(sigmas.max().item())
-            init_sigma = float(s) if s is not None else 1.0
-    except Exception:
-        pass
-    # Support numpy-backed test stubs that attach `.arr`
-    try:
-        std = float(latents.std().item()) if latents.numel() else 1.0
-    except Exception:
-        try:
-            import numpy as _np  # type: ignore
-
-            arr = getattr(latents, "arr", None)
-            std = float(_np.asarray(arr).std()) if arr is not None else 1.0
-        except Exception:
-            std = 1.0
-    if not math.isfinite(std) or std == 0.0:
-        std = 1.0
-    # Arithmetic for stub tensors: mutate in place if possible
-    try:
-        return (latents / std) * init_sigma
-    except Exception:
-        arr = getattr(latents, "arr", None)
-        if arr is not None:
-            latents.arr = (arr / std) * init_sigma
-            return latents
-        return latents
+# helpers moved to flux_utils
 
 
 def _run_pipe(**kwargs):
@@ -459,9 +375,7 @@ def generate_flux_image(
     guidance: float = 3.5,
 ):
     def _eff_guidance(mid: str, g: float) -> float:
-        if isinstance(mid, str) and "turbo" in mid:
-            return 0.0
-        return g
+        return _eff_g(mid, g)
     # Remote image server path removed: always use local pipeline
     """Generate one image with a local FLUX model via Diffusers.
 
@@ -491,9 +405,12 @@ def generate_flux_image(
             "guidance": float(guidance_eff),
         }
     )
+    # Allow tests that stub flux_local._run_pipe to intercept
+    import sys as _sys
+    _run = getattr(_sys.modules.get("flux_local"), "_run_pipe", _run_pipe)
     pe, ne = _get_prompt_embeds(prompt, guidance_eff)
     if pe is not None:
-        return _run_pipe(
+        return _run(
             prompt_embeds=pe,
             negative_prompt_embeds=ne,
             num_inference_steps=int(steps),
@@ -503,7 +420,7 @@ def generate_flux_image(
             generator=gen,
         )
     else:
-        return _run_pipe(
+        return _run(
             prompt=prompt,
             num_inference_steps=int(steps),
             guidance_scale=float(guidance_eff),
@@ -523,9 +440,7 @@ def generate_flux_image_latents(
     guidance: float = 3.5,
 ):
     def _eff_guidance(mid: str, g: float) -> float:
-        if isinstance(mid, str) and "turbo" in mid:
-            return 0.0
-        return g
+        return _eff_g(mid, g)
     if steps is None:
         steps = 20
     # Remote image server path removed: always use local pipeline
@@ -593,9 +508,11 @@ def generate_flux_image_latents(
     except Exception:
         pass
     guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+    import sys as _sys
+    _run = getattr(_sys.modules.get("flux_local"), "_run_pipe", _run_pipe)
     pe, ne = _get_prompt_embeds(prompt, guidance_eff)
     if pe is not None:
-        return _run_pipe(
+        return _run(
             prompt_embeds=pe,
             negative_prompt_embeds=ne,
             num_inference_steps=int(steps),
@@ -605,7 +522,7 @@ def generate_flux_image_latents(
             latents=latents,
         )
     else:
-        return _run_pipe(
+        return _run(
             prompt=prompt,
             num_inference_steps=int(steps),
             guidance_scale=float(guidance_eff),
