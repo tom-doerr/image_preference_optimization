@@ -32,6 +32,10 @@ CLI prints (Nov 22, 2025):
   - `[train-summary] xgb rows=N d=D acc=…% …` (when an XGB model exists)
 - Tests: `tests/test_train_cli_prints.py` verifies Ridge/Logit summaries print.
 
+Eta input (Nov 22, 2025):
+- Sidebar numeric for “Iterative step (eta)” now defaults to 1e‑5 and allows 12 decimal places (step=1e‑12, format=%.12f). No min bound is set.
+- Test: `tests/test_iter_eta_tiny.py` confirms 1e‑12 persists in session_state.
+
 What we learned today:
 - Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
 - Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.

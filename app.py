@@ -213,7 +213,7 @@ def build_controls(st, lstate, base_prompt):  # noqa: E402
         pass
     eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.00001)
     iter_eta_num = safe_sidebar_num(
-        st, "Iterative step (eta)", value=eta_default, step=0.000001, format="%.8f"
+        st, "Iterative step (eta)", value=eta_default, step=0.000000000001, format="%.12f"
     ) or eta_default
     try:
         st.session_state[_K.ITER_ETA] = float(iter_eta_num)

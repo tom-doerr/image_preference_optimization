@@ -390,6 +390,9 @@ Update (Logistic option)
 CLI visibility (Nov 22, 2025)
 - Training now prints short summaries to the console after each sync fit (Ridge always; Logistic and XGB when applicable). Look for lines starting with `[train-summary]` showing rows, dim, accuracy, and basic class counts.
 
+Eta input note
+- The sidebar “Iterative step (eta)” has no lower bound and accepts very small values. It now shows 12 decimal places (default 1e‑5; you can type 1e‑12 or smaller if desired).
+
 What we plan to do next (pending your pick)
 - If you pick 217a: purge XGBoost codepaths/tests and simplify captions to Ridge-only.
 - If you pick 217c: keep XGB sync-only and set the cache immediately after training; add a focused test that captions flip to [XGB] after a sync fit.
