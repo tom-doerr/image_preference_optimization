@@ -7,7 +7,7 @@ import unittest
 
 class TestFileLoggingSetup(unittest.TestCase):
     def tearDown(self):
-        for name in ("helpers",):
+        for name in ("helpers", "ipo.infra.util"):
             sys.modules.pop(name, None)
 
     def test_enable_file_logging_creates_and_writes(self):
@@ -16,7 +16,7 @@ class TestFileLoggingSetup(unittest.TestCase):
         os.close(fd)
         try:
             os.environ["IPO_LOG_FILE"] = path
-            from helpers import enable_file_logging
+            from ipo.infra.util import enable_file_logging
 
             used = enable_file_logging()
             self.assertEqual(used, path)
@@ -37,4 +37,3 @@ class TestFileLoggingSetup(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -29,7 +29,7 @@ except Exception:
 def _log(msg: str, level: str = "info") -> None:
     # Gate noncritical logs behind LOG_VERBOSITY (0/1/2). Default 0 is quiet.
     try:
-        from helpers import get_log_verbosity  # local import to avoid cycles
+        from ipo.infra.util import get_log_verbosity  # local import to avoid cycles
 
         lv = int(get_log_verbosity(__import__("streamlit")))
     except Exception:

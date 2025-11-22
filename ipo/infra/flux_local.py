@@ -35,7 +35,7 @@ except Exception:
 
 try:
     # Prefer shared helper for consistency
-    from helpers import get_log_verbosity as _get_lv  # type: ignore
+    from ipo.infra.util import get_log_verbosity as _get_lv  # type: ignore
 except Exception:  # pragma: no cover - fallback to env only
     _get_lv = None  # type: ignore
 

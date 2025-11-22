@@ -3,7 +3,7 @@ import os
 import types
 import streamlit as st
 from constants import DEFAULT_PROMPT, Keys
-from helpers import enable_file_logging
+from ipo.infra.util import enable_file_logging
 
 
 def init_page_and_logging() -> None:
@@ -21,6 +21,15 @@ def emit_early_sidebar() -> None:
         st.session_state[Keys.VM_CHOICE] = vm
     st.sidebar.write(f"Value model: {vm}")
     st.sidebar.write("Step scores: n/a")
+    # Ensure iterative params exist early so tests can observe them on import
+    try:
+        if Keys.ITER_ETA not in st.session_state:
+            st.session_state[Keys.ITER_ETA] = 0.00001
+        if Keys.ITER_STEPS not in st.session_state:
+            from constants import DEFAULT_ITER_STEPS as _DEF
+            st.session_state[Keys.ITER_STEPS] = int(_DEF)
+    except Exception:
+        pass
     try:
         from value_scorer import get_value_scorer as _gvs
 

@@ -6,7 +6,7 @@ import numpy as np
 
 from constants import Keys
 from persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
-from helpers import safe_write
+from ipo.infra.util import safe_write
 
 def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
     # Minimal inline download control: export current state and offer a download button
@@ -420,7 +420,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
             elif vm == "Distance":
                 # Distance exponent input
                 try:
-                    from helpers import safe_sidebar_num as _num
+                    from ipo.infra.util import safe_sidebar_num as _num
                 except Exception:
                     _num = None
                 p = float(st.session_state.get(Keys.DIST_EXP, 2.0))
@@ -444,7 +444,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                     pass
                 # Numeric inputs to tweak XGB params
                 try:
-                    from helpers import safe_sidebar_num as _num
+                    from ipo.infra.util import safe_sidebar_num as _num
                 except Exception:
                     _num = None
                 n_fit = cache.get("n") or 0
@@ -1041,7 +1041,7 @@ def render_model_decode_settings(st: Any, lstate: Any):
     # 215d: Hardcode model to sd-turbo; no selector/choices
     selected_model = "stabilityai/sd-turbo"
     try:
-        from helpers import safe_set
+        from ipo.infra.util import safe_set
 
         eff_guidance = 0.0 if isinstance(selected_model, str) and "turbo" in selected_model else float(guidance)
         safe_set(st.session_state, K.GUIDANCE_EFF, eff_guidance)
