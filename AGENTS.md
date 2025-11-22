@@ -128,6 +128,7 @@ Keep in mind:
 
 Docs (Nov 22, 2025):
 - Added DEV.md outlining the new package layout and import style (use `ipo.ui.*`, `ipo.core.*`, `ipo.infra.*`; `flux_local` remains a test‑friendly proxy).
+ - Added guard test `tests/test_guard_no_top_level_ui_shims.py` to ensure no root‑level `ui_*.py` shims are reintroduced and that `ipo/ui/ui.py` stays a thin facade re‑exporting from `ipo.ui.ui_sidebar`.
 
 New learnings (Nov 18, 2025 - UI cleanup):
 - Removed the separate “Pair proposer” dropdown. The proposer is now derived from the Value model selection to reduce duplicate controls:
