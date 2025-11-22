@@ -214,6 +214,53 @@ def fit_value_model(
     except Exception:
         pass
 
+    # Print compact train summaries to CLI
+    try:
+        n = int(X.shape[0])
+        d = int(X.shape[1]) if X.ndim == 2 else 0
+        yy = np.asarray(y).astype(float)
+        pos = int((yy > 0).sum())
+        neg = int((yy < 0).sum())
+        # Ridge summary (always fitted)
+        try:
+            wv = getattr(lstate, "w", None)
+            if wv is not None and n > 0:
+                yhat = (np.dot(X, wv) >= 0.0)
+                acc = float((yhat == (yy > 0)).mean())
+                _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")
+        except Exception:
+            pass
+        # Logistic summary
+        try:
+            from constants import Keys as _K
+
+            W = session_state.get(_K.LOGIT_W)
+            if W is not None and n > 0:
+                z = np.dot(X, np.asarray(W, dtype=float))
+                p = 1.0 / (1.0 + np.exp(-z))
+                yhat = (p >= 0.5)
+                acc = float((yhat == (yy > 0)).mean())
+                steps = int(session_state.get(_K.LOGIT_STEPS) or 0)
+                lam_eff = float(session_state.get(_K.LOGIT_L2) or lam)
+                _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")
+        except Exception:
+            pass
+        # XGB summary
+        try:
+            cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
+            mdl = cache.get("model")
+            if mdl is not None and n > 0:
+                from xgb_value import score_xgb_proba  # type: ignore
+
+                p = np.asarray([score_xgb_proba(mdl, x) for x in X], dtype=float)
+                yhat = (p >= 0.5)
+                acc = float((yhat == (yy > 0)).mean())
+                _log(f"[train-summary] xgb rows={n} d={d} acc={acc*100:.0f}% pos={pos} neg={neg}")
+        except Exception:
+            pass
+    except Exception:
+        pass
+
 
 def ensure_fitted(
     vm_choice: str,

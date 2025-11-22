@@ -25,6 +25,13 @@ New (Nov 21, 2025 – Logistic option):
 - Scoring: captions/step‑scores use `[Logit]` probabilities via `sigmoid(w⋅x)`. Status is `logit_untrained` until weights exist.
 - Tests: `tests/test_logistic_value_model.py` covers unavailable → fit → usable scorer on a tiny dataset.
 
+CLI prints (Nov 22, 2025):
+- After every sync fit we now print concise train summaries to stdout:
+  - `[train-summary] ridge rows=N d=D lam=… acc=…% pos=P neg=Q`
+  - `[train-summary] logit rows=N d=D steps=S lam=… acc=…% …` (when Logistic is fitted)
+  - `[train-summary] xgb rows=N d=D acc=…% …` (when an XGB model exists)
+- Tests: `tests/test_train_cli_prints.py` verifies Ridge/Logit summaries print.
+
 What we learned today:
 - Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
 - Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.
