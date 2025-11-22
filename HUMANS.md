@@ -397,3 +397,20 @@ What we plan to do next (pending your pick)
 - If you pick 217a: purge XGBoost codepaths/tests and simplify captions to Ridge-only.
 - If you pick 217c: keep XGB sync-only and set the cache immediately after training; add a focused test that captions flip to [XGB] after a sync fit.
 - Regardless: keep early sidebar lines (prompt hash, latent dim, dataset path, status) always visible and keep logging minimal by default.
+Nov 22, 2025 — Notes for humans
+
+Questions observed
+- “Why are XGBoost values not showing?”
+  - Because no XGBoost model is cached yet. We removed auto‑fit on reruns to simplify. Until you click “Train XGBoost now (sync)”, captions will use Ridge (if ‖w‖>0) or show n/a.
+- “Why did rows show 0 on disk?”
+  - We now treat memory as the single source of truth for counters and only write to disk on label. The sidebar line “Rows (disk)” reflects a cold scan and may lag; the in‑memory counters (top “Dataset rows”) are authoritative for the current session.
+- “Why do page reruns seem to interrupt training?”
+  - We removed async fits to avoid rerun races. Training is only sync on button click, so reruns don’t change its outcome.
+
+Open items / my questions for you
+- Do you want to keep XGBoost at all, or should we cut to Ridge‑only for a green baseline, then re‑add XGB once the slim sync path is fully covered by tests?
+- Is it OK if we hide fragments entirely (always non‑fragment path)? It reduces button/key complexity.
+
+Mini glossary
+- xgb_unavailable: no cached XGBoost model for this prompt/dimension.
+- scorer not ready: neither XGB cache nor non‑zero Ridge weights exist yet.

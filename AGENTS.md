@@ -1600,3 +1600,9 @@ Next options (235) — simplify further
 Recommendation: 235a → 235b (highest payoff with minimal risk), then 235c.
 New learnings (Nov 21, 2025 – XGB clarity)
 - The sidebar line “XGBoost active: yes/no” was derived from the VM choice, which confused users when no model was cached. We now set it to “yes” only when the XGB scorer status is ok. This keeps the UI honest: look at “Value scorer status:” for the real state.
+Update (Nov 22, 2025 — late)
+- Simplified app bootstrap: `app.py` now delegates to `app_api`/`app_bootstrap` cleanly; fixed prior indentation/import issues.
+- Batch buttons render outside fragments to avoid swallowed clicks; visuals can still cache per-tile.
+- XGBoost bugs: root causes were cache not set on reruns, rows filtered by dim/prompt mismatch, and fits triggered implicitly. We keep XGB sync-only and set `session_state.xgb_cache` immediately on a sync fit. Until then, captions show `[Ridge]` when `‖w‖>0`, otherwise `n/a`.
+- One scorer at a time, one dataset source (memory; write-through on label), minimal logging default.
+- Next: remove remaining async/auto-fit mentions from tests/docs; keep a single “Train XGBoost now (sync)” action.
