@@ -125,7 +125,15 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
 def _prepare_xgb_scorer(lstate: Any, prompt: str):
     """Return (scorer, status) for XGB from cache (no auto-fit)."""
     try:
-        from value_scorer import get_value_scorer
+        # Prefer unified scorer; provide a tiny compat shim when tests stub only the old API.
+        try:
+            from value_scorer import get_value_scorer as _gvs
+        except Exception:
+            from value_scorer import get_value_scorer_with_status as _gvs_ws  # type: ignore
+
+            def _gvs(vm_choice, lstate, prompt, session_state):  # type: ignore
+                s, status = _gvs_ws(vm_choice, lstate, prompt, session_state)
+                return (s, ("ok" if callable(s) else status))
 
         scorer, tag_or_status = get_value_scorer(
             "XGBoost", lstate, prompt, __import__("streamlit").session_state
@@ -418,9 +426,14 @@ def _render_batch_tile_body(
             # Append model tag for clarity
             try:
                 vmn = str(getattr(st.session_state, "vm_choice", ""))
-                tag = (
-                    "Distance" if vmn == "Distance" else ("XGB" if vmn == "XGBoost" else "Ridge")
-                )
+                if vmn == "Distance":
+                    tag = "Distance"
+                elif vmn == "XGBoost":
+                    tag = "XGB"
+                elif vmn == "Logistic":
+                    tag = "Logit"
+                else:
+                    tag = "Ridge"
                 v_text = f"{v_text} [{tag}]"
             except Exception:
                 pass
@@ -437,6 +450,20 @@ def _render_batch_tile_body(
                     pass
         except Exception:
             v_text = "Value: n/a"
+    # Minimal direct-logit path: if Logistic selected and weights present, compute
+    if v_text == "Value: n/a":
+        try:
+            from constants import Keys as _K
+            w = st.session_state.get(_K.LOGIT_W)
+            if w is not None and z_p is not None:
+                import numpy as _np
+                wv = _np.asarray(w, dtype=float)
+                fvec = z_i - z_p
+                zlog = float(_np.dot(wv, fvec))
+                p = float(1.0 / (1.0 + _np.exp(-zlog)))
+                v_text = f"Value: {p:.3f} [Logit]"
+        except Exception:
+            pass
     cap_txt = f"Item {i} • {v_text}"
     st.image(img_i, caption=cap_txt, width="stretch")
 
@@ -688,14 +715,21 @@ def _render_batch_ui() -> None:
         scorer_status = "n/a"
         # Explicit Distance model takes precedence
         if vm_choice == "Distance":
-            scorer, tag = get_value_scorer("Distance", lstate, prompt, st.session_state)
+            scorer, tag = _gvs("Distance", lstate, prompt, st.session_state)
             scorer_tag = tag if scorer is not None else None
         else:
-            if cache.get("model") is not None:
-                scorer, tag = get_value_scorer("XGBoost", lstate, prompt, st.session_state)
-                scorer_tag = tag if scorer is not None else None
+            # Prefer Logistic when selected
+            if vm_choice == "Logistic":
+                s_log, tag_log = _gvs("Logistic", lstate, prompt, st.session_state)
+                if s_log is not None:
+                    scorer, scorer_tag = s_log, tag_log
+            # Else prefer XGB when cached
+            if scorer is None and cache.get("model") is not None:
+                s_xgb, tag_xgb = _gvs("XGBoost", lstate, prompt, st.session_state)
+                if s_xgb is not None:
+                    scorer, scorer_tag = s_xgb, tag_xgb
+            # Finally fall back to Ridge when ||w||>0
             if scorer is None:
-                # Fallback to Ridge only when ||w||>0
                 try:
                     import numpy as _np
                     w = getattr(lstate, "w", None)
@@ -703,7 +737,7 @@ def _render_batch_ui() -> None:
                 except Exception:
                     w_norm = 0.0
                 if w_norm > 0.0:
-                    s2, tag2 = get_value_scorer("Ridge", lstate, prompt, st.session_state)
+                    s2, tag2 = _gvs("Ridge", lstate, prompt, st.session_state)
                     if s2 is not None and tag2 == "Ridge":
                         scorer, scorer_tag = s2, tag2
         # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
@@ -769,6 +803,19 @@ def _render_batch_ui() -> None:
                         v_text = f"{v_text} [{scorer_tag}]"
                     except Exception:
                         v_text = "Value: n/a"
+                if v_text == "Value: n/a":
+                    try:
+                        from constants import Keys as _K
+                        w = st.session_state.get(_K.LOGIT_W)
+                        if w is not None and z_p is not None:
+                            import numpy as _np
+                            wv = _np.asarray(w, dtype=float)
+                            fvec = z_i - z_p
+                            zlog = float(_np.dot(wv, fvec))
+                            p = float(1.0 / (1.0 + _np.exp(-zlog)))
+                            v_text = f"Value: {p:.3f} [Logit]"
+                    except Exception:
+                        pass
                 cap_txt = f"Item {i} • {v_text}"
                 st.image(img_i, caption=cap_txt, width="stretch")
 
@@ -992,12 +1039,32 @@ def _render_batch_ui() -> None:
                         v_text = f"Value: {v:.3f}"
                         try:
                             vmn = str(getattr(st.session_state, "vm_choice", ""))
-                            tag = "Distance" if vmn == "Distance" else ("XGB" if vmn == "XGBoost" else "Ridge")
+                            if vmn == "Distance":
+                                tag = "Distance"
+                            elif vmn == "XGBoost":
+                                tag = "XGB"
+                            elif vmn == "Logistic":
+                                tag = "Logit"
+                            else:
+                                tag = "Ridge"
                             v_text = f"{v_text} [{tag}]"
                         except Exception:
                             pass
                     except Exception:
                         v_text = "Value: n/a"
+                if v_text == "Value: n/a":
+                    try:
+                        from constants import Keys as _K
+                        w = st.session_state.get(_K.LOGIT_W)
+                        if w is not None and z_p is not None:
+                            import numpy as _np
+                            wv = _np.asarray(w, dtype=float)
+                            fvec = zi - z_p
+                            zlog = float(_np.dot(wv, fvec))
+                            p = float(1.0 / (1.0 + _np.exp(-zlog)))
+                            v_text = f"Value: {p:.3f} [Logit]"
+                    except Exception:
+                        pass
                 cap_txt = f"Item {i} • {v_text}"
                 st.image(img_local, caption=cap_txt, width="stretch")
 
