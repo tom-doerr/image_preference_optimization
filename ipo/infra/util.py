@@ -95,11 +95,15 @@ def enable_file_logging(path: str | None = None) -> str:
 
     logger = logging.getLogger("ipo")
     logger.setLevel(level)
-    # Drop existing file handlers to avoid duplicate writes
+    # Drop existing file handlers to avoid duplicate writes and close them
     for h in list(logger.handlers):
         try:
             if hasattr(h, "baseFilename"):
                 logger.removeHandler(h)
+                try:
+                    h.close()
+                except Exception:
+                    pass
         except Exception:
             pass
     try:
