@@ -56,6 +56,27 @@ def _uses_ridge(choice: str) -> bool:
     return True
 
 
+def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
+    """Fit ridge weights synchronously and store into lstate.w."""
+    try:
+        from latent_logic import ridge_fit  # local import keeps import time low
+
+        w_new = ridge_fit(X, y, float(lam))
+        lock = getattr(lstate, "w_lock", None)
+        if lock is not None:
+            with lock:
+                lstate.w = w_new
+        else:
+            lstate.w = w_new
+        try:
+            nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
+            _log(f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}")
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
     """Sync XGB fit with minimal side effects; updates xgb_cache when usable."""
     try:
@@ -170,28 +191,8 @@ def fit_value_model(
         _maybe_fit_logit(X, y, float(lam), session_state)
 
     # Update ridge weights for w only when Ridge-like modes are active.
-    # Non‑ridge legacy modes are removed; Ridge weights always trained.
     if _uses_ridge(choice):
-        try:
-            from latent_logic import ridge_fit  # local import keeps import time low
-
-            # 199a: Ridge fits are synchronous only
-            w_new = ridge_fit(X, y, float(lam))
-            lock = getattr(lstate, "w_lock", None)
-            if lock is not None:
-                with lock:
-                    lstate.w = w_new
-            else:
-                lstate.w = w_new
-            try:
-                nrm = float(np.linalg.norm(w_new[: getattr(lstate, "d", w_new.shape[0])]))
-                _log(
-                    f"[ridge] fit rows={X.shape[0]} d={X.shape[1]} lam={lam} ||w||={nrm:.3f}"
-                )
-            except Exception:
-                pass
-        except Exception:
-            pass
+        _fit_ridge(lstate, X, y, float(lam))
 
     # Training bookkeeping
     try:
