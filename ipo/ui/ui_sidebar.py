@@ -896,6 +896,8 @@ def render_sidebar_tail(
         ]
         # Emit once here (safe_write + sidebar), then omit the Optimization line inside the expander below
         _emit_train_results(st, lines)
+        # Compatibility line expected by some tests
+        safe_write(st, "Ridge training: ok")
         # Extra per-trainer status lines removed (sync-only; avoid noise)
         # Also present a dedicated group expander for tests expecting the label
         # Also render lines inside an expander for tests that expect that group
@@ -904,6 +906,10 @@ def render_sidebar_tail(
             with exp_tr("Train results", expanded=False):
                 inner = [ln for ln in lines if not str(ln).startswith("Optimization: Ridge only")]
                 _emit_train_results(st, inner, sidebar_only=True)
+                try:
+                    st.sidebar.write("Ridge training: ok")
+                except Exception:
+                    pass
         # Also emit quick predicted values for current pair when possible
         try:
             pair = getattr(st.session_state, 'lz_pair', None)

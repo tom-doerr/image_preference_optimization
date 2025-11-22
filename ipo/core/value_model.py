@@ -56,6 +56,91 @@ def _uses_ridge(choice: str) -> bool:
     return True
 
 
+def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    """Sync XGB fit with minimal side effects; updates xgb_cache when usable."""
+    try:
+        from xgb_value import fit_xgb_classifier  # type: ignore
+
+        n = int(X.shape[0])
+        d = int(X.shape[1]) if X.ndim == 2 else 0
+        classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
+        if n > 0 and len(classes) > 1:
+            yy = np.asarray(y).astype(int)
+            pos = int((yy > 0).sum())
+            neg = int((yy < 0).sum())
+            cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
+            last_n = int(cache.get("n") or 0)
+            # Clear stale future handles (sync-only path)
+            try:
+                session_state.pop(Keys.XGB_FIT_FUTURE, None)
+            except Exception:
+                pass
+            # Read tiny hyperparams from session
+            try:
+                n_estim = int(session_state.get("xgb_n_estimators", 50))
+            except Exception:
+                n_estim = 50
+            try:
+                max_depth = int(session_state.get("xgb_max_depth", 3))
+            except Exception:
+                max_depth = 3
+            if cache.get("model") is None or last_n != n:
+                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+                _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+                t_x = _time.perf_counter()
+                mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+                session_state.xgb_cache = {"model": mdl, "n": n}
+                try:
+                    session_state["xgb_toast_ready"] = True
+                except Exception:
+                    pass
+                dt_ms = (_time.perf_counter() - t_x) * 1000.0
+                _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+                try:
+                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+                except Exception:
+                    pass
+            else:
+                _log(f"[xgb] skip: cache up-to-date rows={n}")
+        else:
+            _log(
+                f"[xgb] skip: insufficient classes rows={int(X.shape[0])} classes={sorted(list(classes)) if classes else []}"
+            )
+    except Exception:
+        pass
+
+
+def _maybe_fit_logit(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    """Tiny numpy-only logistic regression (sync)."""
+    try:
+        n = int(X.shape[0])
+        d = int(X.shape[1]) if X.ndim == 2 else 0
+        if n <= 0 or d <= 0:
+            _log("[logit] skip: empty dataset")
+            return
+        yy = np.asarray(y).astype(float)
+        y01 = (yy > 0).astype(float)
+        W = np.asarray(session_state.get(Keys.LOGIT_W) or np.zeros(d), dtype=float)
+        try:
+            steps = int(session_state.get(Keys.LOGIT_STEPS) or 120)
+        except Exception:
+            steps = 120
+        try:
+            lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam)
+        except Exception:
+            lam_eff = float(lam)
+        lr = 0.1
+        for _ in range(steps):
+            z = X @ W
+            p = 1.0 / (1.0 + np.exp(-z))
+            g = (X.T @ (p - y01)) / float(n) + float(lam_eff) * W
+            W -= lr * g
+        session_state[Keys.LOGIT_W] = W
+        _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")
+    except Exception:
+        pass
+
+
 def fit_value_model(
     vm_choice: str,
     lstate: Any,
@@ -78,109 +163,11 @@ def fit_value_model(
     # Ridge fits are always synchronous now; ignore any async toggles.
     _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
 
-    # Optional XGB/Logistic refresh
-    # choice already set above
+    # Optional XGB/Logistic refresh via helpers
     if choice == "XGBoost":
-        try:
-            from xgb_value import fit_xgb_classifier  # type: ignore
-
-            n = int(X.shape[0])
-            d = int(X.shape[1]) if X.ndim == 2 else 0
-            classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
-            if n > 0 and len(classes) > 1:
-                yy = np.asarray(y).astype(int)
-                pos = int((yy > 0).sum())
-                neg = int((yy < 0).sum())
-                cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
-                last_n = int(cache.get("n") or 0)
-                # 195a: no async future; ignore any stale future handle and fit synchronously
-                # Clear any stale future handle; sync-only now
-                try:
-                    session_state.pop(Keys.XGB_FIT_FUTURE, None)
-                except Exception:
-                    pass
-                # Read simple hyperparams from session_state; default to 50/3.
-                try:
-                    n_estim = int(
-                        getattr(
-                            session_state,
-                            "xgb_n_estimators",
-                            session_state.get("xgb_n_estimators", 50),
-                        )
-                    )
-                except Exception:
-                    n_estim = 50
-                try:
-                    max_depth = int(
-                        getattr(
-                            session_state,
-                            "xgb_max_depth",
-                            session_state.get("xgb_max_depth", 3),
-                        )
-                    )
-                except Exception:
-                    max_depth = 3
-                if cache.get("model") is None or last_n != n:
-                    _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-                    try:
-                        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-                    except Exception:
-                        pass
-                    t_x = _time.perf_counter()
-                    mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                    session_state.xgb_cache = {"model": mdl, "n": n}
-                    try:
-                        session_state["xgb_toast_ready"] = True
-                    except Exception:
-                        pass
-                    dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                    _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                    try:
-                        session_state[Keys.XGB_TRAIN_STATUS] = {
-                            "state": "ok",
-                            "rows": int(n),
-                            "lam": float(lam),
-                        }
-                    except Exception:
-                        pass
-                else:
-                    _log(f"[xgb] skip: cache up-to-date rows={n}")
-            else:
-                _log(f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}")
-        except Exception:
-            pass
+        _maybe_fit_xgb(X, y, float(lam), session_state)
     elif choice == "Logistic":
-        # Minimal L2-regularized logistic regression (sync, numpy-only).
-        try:
-            n = int(X.shape[0])
-            d = int(X.shape[1]) if X.ndim == 2 else 0
-            if n <= 0 or d <= 0:
-                _log("[logit] skip: empty dataset")
-            else:
-                # Map labels {+1,-1} -> {1,0}
-                yy = np.asarray(y).astype(float)
-                y01 = (yy > 0).astype(float)
-                W = np.asarray(session_state.get(Keys.LOGIT_W) or np.zeros(d), dtype=float)
-                # Steps/L2 from session (sidebar), with tiny defaults
-                try:
-                    steps = int(session_state.get(Keys.LOGIT_STEPS) or 120)
-                except Exception:
-                    steps = 120
-                try:
-                    lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam)
-                except Exception:
-                    lam_eff = float(lam)
-                lr = 0.1
-                for _ in range(steps):
-                    z = X @ W
-                    # sigmoid
-                    p = 1.0 / (1.0 + np.exp(-z))
-                    g = (X.T @ (p - y01)) / float(n) + float(lam_eff) * W
-                    W -= lr * g
-                session_state[Keys.LOGIT_W] = W
-                _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")
-        except Exception:
-            pass
+        _maybe_fit_logit(X, y, float(lam), session_state)
 
     # Update ridge weights for w only when Ridge-like modes are active.
     # Non‑ridge legacy modes are removed; Ridge weights always trained.
