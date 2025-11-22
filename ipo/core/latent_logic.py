@@ -34,12 +34,31 @@ def ridge_fit(X: np.ndarray, y: np.ndarray, lam: float) -> np.ndarray:
 
 
 def _clamp_norm(y: np.ndarray, r: Optional[float]) -> np.ndarray:
-    if r is None:
+    """Clamp vector norm to r (no-op when r is falsy)."""
+    if r is None or r <= 0:
         return y
     n = float(np.linalg.norm(y))
-    if n <= r or n == 0.0:
-        return y
-    return y * (r / n)
+    return y if (n == 0.0 or n <= float(r)) else (y * (float(r) / n))
+
+
+def _unit(v: np.ndarray) -> np.ndarray:
+    n = float(np.linalg.norm(v))
+    return v if n == 0.0 else (v / n)
+
+
+def _dir_w(state: LatentState) -> np.ndarray:
+    """Unit direction from ridge weights or a random fallback."""
+    w = np.asarray(state.w[: state.d], dtype=float)
+    n = float(np.linalg.norm(w))
+    if n < 1e-12:
+        r = state.rng.standard_normal(state.d)
+        return _unit(r)
+    return w / n
+
+
+def _orth_component(v: np.ndarray, u: np.ndarray) -> np.ndarray:
+    """Return component of v orthogonal to unit u."""
+    return v - float(np.dot(v, u)) * u
 
 
 # Logistic/epsilon-greedy proposal removed; ridge-only path retained.
@@ -126,21 +145,18 @@ def propose_latent_pair_ridge(
     trust_r: Optional[float] = None,
 ):
     w = state.w[: state.d]
-    n = float(np.linalg.norm(w)) + 1e-12
-    d1 = w / n
+    d1 = _unit(w)
     idx_sorted = np.argsort(-np.abs(w))
     e = np.zeros_like(w)
     if len(idx_sorted) > 1:
         e[idx_sorted[1]] = 1.0
     else:
         e[0] = 1.0
-    d2 = e - float(np.dot(e, d1)) * d1
-    n2 = float(np.linalg.norm(d2))
-    if n2 < 1e-12:
+    d2 = _orth_component(e, d1)
+    if float(np.linalg.norm(d2)) < 1e-12:
         r = state.rng.standard_normal(state.d)
-        d2 = r - float(np.dot(r, d1)) * d1
-        n2 = float(np.linalg.norm(d2)) + 1e-12
-    d2 = d2 / n2
+        d2 = _orth_component(r, d1)
+    d2 = _unit(d2)
     z1 = state.mu + state.sigma * alpha * d1
     z2 = state.mu + state.sigma * beta * d2
     return _clamp_norm(z1, trust_r), _clamp_norm(z2, trust_r)
@@ -199,14 +215,7 @@ def propose_pair_prompt_anchor(
       so that ‖z − z_p‖ ≤ trust_r.
     """
     z_p = z_from_prompt(state, prompt)
-    w = state.w[: state.d]
-    n = float(np.linalg.norm(w))
-    if n < 1e-12:
-        d1 = state.rng.standard_normal(state.d)
-        n = float(np.linalg.norm(d1)) + 1e-12
-    else:
-        d1 = w
-    d1 = d1 / n
+    d1 = _dir_w(state)
     d_plus = state.sigma * alpha * d1
     d_minus = -state.sigma * beta * d1
     if trust_r is not None and trust_r > 0:
@@ -276,13 +285,9 @@ def propose_pair_prompt_anchor_iterative(
         delta_plus = delta
         delta_minus = -delta
 
-    def _cl(v):
-        if trust_r is None or trust_r <= 0:
-            return v
-        n = float(np.linalg.norm(v))
-        return v if (n <= trust_r or n == 0.0) else (v * (trust_r / n))
-
-    return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
+    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(
+        delta_minus, trust_r
+    )
 
 
 def propose_pair_prompt_anchor_linesearch(
@@ -301,14 +306,7 @@ def propose_pair_prompt_anchor_linesearch(
       pair (z_p+Δ, z_p−Δ) with optional orthogonal γ·d2.
     """
     z_p = z_from_prompt(state, prompt)
-    w = state.w[: state.d]
-    n = float(np.linalg.norm(w))
-    if n < 1e-12:
-        d1 = state.rng.standard_normal(state.d)
-        n = float(np.linalg.norm(d1)) + 1e-12
-    else:
-        d1 = w
-    d1 = d1 / n
+    d1 = _dir_w(state)
     S = float(trust_r) if (trust_r is not None and trust_r > 0) else float(state.sigma)
     cands = (
         mags
@@ -327,10 +325,8 @@ def propose_pair_prompt_anchor_linesearch(
     delta = m_best * d1
     if gamma and gamma != 0.0:
         r = state.rng.standard_normal(state.d)
-        r = r - float(np.dot(r, d1)) * d1
-        nr = float(np.linalg.norm(r))
-        d2 = (r / nr) if nr > 1e-12 else d1
-        d2 = d2 / (float(np.linalg.norm(d2)) + 1e-12)
+        d2 = _orth_component(r, d1)
+        d2 = _unit(d2) if float(np.linalg.norm(d2)) > 1e-12 else d1
         delta_plus = delta + float(gamma) * d2
         delta_minus = -delta - float(gamma) * d2
     else:
@@ -338,13 +334,9 @@ def propose_pair_prompt_anchor_linesearch(
         delta_minus = -delta
 
     # final trust clamp
-    def _cl(v):
-        if trust_r is None or trust_r <= 0:
-            return v
-        n = float(np.linalg.norm(v))
-        return v if (n <= trust_r or n == 0.0) else (v * (trust_r / n))
-
-    return z_p + _cl(delta_plus), z_p + _cl(delta_minus)
+    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(
+        delta_minus, trust_r
+    )
 
 
 # propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration
