@@ -45,7 +45,7 @@ class SmokeBootstrapApi(unittest.TestCase):
         fl.set_model = lambda *a, **k: None
         sys.modules["flux_local"] = fl
 
-        import app_bootstrap as ab
+        from ipo.ui import app_bootstrap as ab
 
         ab.init_page_and_logging()
         ab.emit_early_sidebar()
@@ -63,7 +63,7 @@ class SmokeBootstrapApi(unittest.TestCase):
         lo = types.ModuleType("latent_opt")
         lo.propose_next_pair = lambda state, prompt: (np.ones(2), -np.ones(2))
         sys.modules["latent_opt"] = lo
-        import app_api as api
+        from ipo.ui import app_api as api
 
         state = types.SimpleNamespace(d=2, mu=np.zeros(2), rng=np.random.default_rng(0), sigma=1.0)
         api._apply_state(state)
@@ -75,4 +75,3 @@ class SmokeBootstrapApi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

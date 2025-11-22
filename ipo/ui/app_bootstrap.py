@@ -80,19 +80,15 @@ def ensure_prompt_and_state() -> str:
 
         if os.path.exists(st.session_state.state_path):
             try:
-                from app_api import _apply_state
-
+                from .app_api import _apply_state
                 _apply_state(st, load_state(st.session_state.state_path))
             except Exception:
-                from app_api import _apply_state
-
+                from .app_api import _apply_state
                 _apply_state(st, init_latent_state())
         else:
-            from app_api import _apply_state
-
+            from .app_api import _apply_state
             _apply_state(st, init_latent_state())
         # Initialize placeholders without decoding at import time.
         if Keys.IMAGES not in st.session_state:
             st.session_state[Keys.IMAGES] = (None, None)
     return base_prompt
-

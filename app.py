@@ -8,7 +8,7 @@ from constants import DEFAULT_PROMPT, Keys
 from app_bootstrap import init_page_and_logging, emit_early_sidebar, ensure_prompt_and_state
 
 # App API shims (keep names stable for tests)
-from app_api import (
+from ipo.ui.app_api import (
     build_controls as _build_controls,
     generate_pair as _generate_pair,
     _apply_state as _apply_state,
@@ -20,7 +20,7 @@ from app_api import (
     _curation_train_and_next as _curation_train_and_next_impl,
     run_app as _run_app_impl,
 )
-from app_api import render_sidebar_tail as render_sidebar_tail_module
+from ipo.ui.app_api import render_sidebar_tail as render_sidebar_tail_module
 
 # State helpers (re-export minimal surface expected by tests)
 def init_latent_state(*a, **k):
