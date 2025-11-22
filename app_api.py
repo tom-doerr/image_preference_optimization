@@ -162,6 +162,38 @@ def generate_pair(base_prompt: str) -> None:
         pass
 
 
+def render_sidebar_tail(
+    st_mod,
+    lstate,
+    prompt: str,
+    state_path: str,
+    vm_choice: str,
+    iter_steps: int,
+    iter_eta: float | None,
+    selected_model: str,
+    apply_state_cb,
+    rerun_cb,
+) -> None:
+    """Proxy to ui_sidebar.render_sidebar_tail to avoid app.py direct imports."""
+    try:
+        from ui_sidebar import render_sidebar_tail as _rst
+
+        _rst(
+            st_mod,
+            lstate,
+            prompt,
+            state_path,
+            vm_choice,
+            iter_steps,
+            iter_eta,
+            selected_model,
+            apply_state_cb,
+            rerun_cb,
+        )
+    except Exception:
+        pass
+
+
 def _render_batch_ui() -> None:
     return _batch_ui._render_batch_ui()
 
@@ -231,4 +263,3 @@ def _curation_train_and_next() -> None:
 
 def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
     _batch_ui.run_batch_mode()
-

@@ -13,7 +13,7 @@ def dumps_state(state):
 def loads_state(data: bytes):
     from latent_state import loads_state as _f; return _f(data)
 from flux_local import set_model
-from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
+from app_api import render_sidebar_tail as render_sidebar_tail_module
 from helpers import enable_file_logging
 from app_bootstrap import init_page_and_logging, emit_early_sidebar, ensure_prompt_and_state
 from app_api import build_controls as _build_controls
