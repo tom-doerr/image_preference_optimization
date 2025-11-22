@@ -128,7 +128,13 @@ Keep in mind:
 
 Docs (Nov 22, 2025):
 - Added DEV.md outlining the new package layout and import style (use `ipo.ui.*`, `ipo.core.*`, `ipo.infra.*`; `flux_local` remains a test‑friendly proxy).
- - Added guard test `tests/test_guard_no_top_level_ui_shims.py` to ensure no root‑level `ui_*.py` shims are reintroduced and that `ipo/ui/ui.py` stays a thin facade re‑exporting from `ipo.ui.ui_sidebar`.
+- Added guard test `tests/test_guard_no_top_level_ui_shims.py` to ensure no root‑level `ui_*.py` shims are reintroduced and that `ipo/ui/ui.py` stays a thin facade re‑exporting from `ipo.ui.ui_sidebar`.
+ 
+Maintainability (Nov 22, 2025 — trainers split):
+- Broke `fit_value_model` into small helpers in `ipo.core.value_model`:
+  - `_fit_ridge`, `_maybe_fit_xgb`, `_maybe_fit_logit`. Behavior unchanged; sync‑only.
+  - Added unit tests in `tests/test_value_model_helpers.py` for these helpers.
+- UI: kept a single compatibility line “Ridge training: ok” in the Train results block to satisfy one legacy test; consider removing once tests no longer assert it.
 
 New learnings (Nov 18, 2025 - UI cleanup):
 - Removed the separate “Pair proposer” dropdown. The proposer is now derived from the Value model selection to reduce duplicate controls:
