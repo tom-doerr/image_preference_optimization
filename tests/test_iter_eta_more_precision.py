@@ -10,7 +10,7 @@ class Session(dict):
 
 class TestIterEtaMorePrecision(unittest.TestCase):
     def tearDown(self):
-        for m in ("app", "streamlit", "flux_local", "ui_controls"):
+        for m in ("app", "streamlit", "flux_local", "ipo.ui.ui_sidebar"):
             sys.modules.pop(m, None)
 
     def test_iter_eta_accepts_four_decimals(self):
@@ -64,7 +64,7 @@ class TestIterEtaMorePrecision(unittest.TestCase):
         self.assertAlmostEqual(float(st.session_state["iter_eta"]), 0.0004, places=6)
 
         # build_pair_controls should return the updated eta
-        from ui_controls import build_pair_controls
+        from ipo.ui.ui_sidebar import build_pair_controls
 
         _, _, _, _, _, _, eta = build_pair_controls(st, expanded=False)
         self.assertAlmostEqual(float(eta), 0.0004, places=6)

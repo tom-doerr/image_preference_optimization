@@ -19,7 +19,7 @@ class TestPairControlsHelp(unittest.TestCase):
         st.sidebar.expander = lambda *a, **k: Ctx()
         sys.modules["streamlit"] = st
         # Import just the control builder
-        from ui_controls import build_pair_controls
+        from ipo.ui.ui_sidebar import build_pair_controls
 
         build_pair_controls(st, expanded=True)
         text = "\n".join(writes)

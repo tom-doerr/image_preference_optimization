@@ -64,7 +64,7 @@ class TestSliderHelp(unittest.TestCase):
     def test_alpha_beta_have_tooltips(self):
         st, calls = stub_streamlit_capture_sliders()
         # Call build_pair_controls directly to capture slider labels/help.
-        from ui_controls import build_pair_controls
+        from ipo.ui.ui_sidebar import build_pair_controls
 
         build_pair_controls(st, expanded=False)
         labels = {c["label"]: c.get("help") for c in calls if c.get("label")}
@@ -118,7 +118,7 @@ class TestSliderHelp(unittest.TestCase):
         self.assertAlmostEqual(float(st.session_state["iter_eta"]), 0.3, places=6)
 
         # build_pair_controls should now see and return the updated eta value.
-        from ui_controls import build_pair_controls
+        from ipo.ui.ui_sidebar import build_pair_controls
 
         alpha, beta, trust_r, lr_mu_ui, gamma_orth, iter_steps, iter_eta = (
             build_pair_controls(st, expanded=False)

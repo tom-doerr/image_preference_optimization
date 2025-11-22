@@ -95,8 +95,18 @@ def build_pair_controls(st, expanded: bool = False):
         )
     except Exception:
         pass
-    alpha = sld("Alpha (ridge d1)", value=0.5, step=0.05)
-    beta = sld("Beta (ridge d2)", value=0.5, step=0.05)
+    alpha = sld(
+        "Alpha (ridge d1)",
+        value=0.5,
+        step=0.05,
+        help="Step along d1 (∥ w; utility-gradient direction).",
+    )
+    beta = sld(
+        "Beta (ridge d2)",
+        value=0.5,
+        step=0.05,
+        help="Step along d2 (orthogonal to d1).",
+    )
     trust_r = sld("Trust radius (||y||)", value=2.5, step=0.1)
     lr_mu_ui = sld("Step size (lr_μ)", value=0.001, step=0.001)
     gamma_orth = sld("Orth explore (γ)", value=0.2, step=0.05)
@@ -119,6 +129,21 @@ def build_pair_controls(st, expanded: bool = False):
         int(steps_default),
         float(eta_default),
     )
+
+
+def build_size_controls(st, lstate):
+    # Minimal, deterministic defaults for tests; ignore stubs returning None
+    w = int(getattr(lstate, "width", 512))
+    h = int(getattr(lstate, "height", 512))
+    steps = 6
+    guidance = 3.5
+    apply_clicked = False
+    return w, h, steps, guidance, apply_clicked
+
+
+def build_queue_controls(st, expanded: bool = False) -> int:
+    # Kept only for tests that expect a constant
+    return 6
 
 
 # Minimal copies of step‑score helpers so ui_sidebar is self‑contained

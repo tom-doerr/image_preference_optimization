@@ -4,7 +4,7 @@ import unittest
 
 class TestUIControlsFallbacks(unittest.TestCase):
     def test_size_controls_fallback_when_stubs_return_none(self):
-        import ui_controls as ui
+        from ipo.ui import ui_sidebar as ui
 
         # Minimal streamlit stub
         st = types.ModuleType("streamlit")
@@ -37,7 +37,7 @@ class TestUIControlsFallbacks(unittest.TestCase):
         self.assertFalse(apply_clicked)
 
     def test_batch_queue_controls_work_without_sidebar_slider(self):
-        import ui_controls as ui
+        from ipo.ui import ui_sidebar as ui
 
         st = (
             types.ModuleModule("streamlit")
