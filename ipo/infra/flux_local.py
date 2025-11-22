@@ -190,29 +190,6 @@ def _run_pipe(**kwargs):
     except Exception:
         steps = 20
 
-    def _prepare_scheduler():
-        try:
-            sched = getattr(PIPE, "scheduler", None)
-            if sched is None or not hasattr(sched, "set_timesteps"):
-                return
-            try:
-                sched.set_timesteps(int(steps), device="cuda")
-                _p(f"[pipe] set_timesteps steps={int(steps)} device=cuda", 2)
-            except TypeError:
-                sched.set_timesteps(int(steps))
-            if getattr(sched, "_step_index", None) is None:
-                try:
-                    sched._step_index = 0  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-            try:
-                if getattr(sched, "num_inference_steps", None) is None:
-                    sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
-            except Exception:
-                pass
-        except Exception:
-            pass
-
     import time as _time
 
     retries = 0

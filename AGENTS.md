@@ -1606,3 +1606,8 @@ Update (Nov 22, 2025 — late)
 - XGBoost bugs: root causes were cache not set on reruns, rows filtered by dim/prompt mismatch, and fits triggered implicitly. We keep XGB sync-only and set `session_state.xgb_cache` immediately on a sync fit. Until then, captions show `[Ridge]` when `‖w‖>0`, otherwise `n/a`.
 - One scorer at a time, one dataset source (memory; write-through on label), minimal logging default.
 - Next: remove remaining async/auto-fit mentions from tests/docs; keep a single “Train XGBoost now (sync)” action.
+Update (Nov 22, 2025 — code trim)
+- Removed proposer module; its tiny API (ProposerOpts/build_proposer_opts/propose_next_pair) now lives in latent_opt. Tests updated accordingly.
+- Split flux_local helpers into ipo.infra.flux_utils (to_cuda_fp16, normalize_to_init_sigma, eff_guidance, default model id, log-gated print). generate_* now respect test stubs for _run_pipe.
+- Deleted an unused nested function in _run_pipe; no behavior change.
+- Renamed helpers → ipo.infra.util and updated imports; kept logging/file setup minimal.
