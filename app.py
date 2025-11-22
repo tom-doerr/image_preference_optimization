@@ -18,6 +18,16 @@ from helpers import enable_file_logging
 from app_bootstrap import init_page_and_logging, emit_early_sidebar, ensure_prompt_and_state
 from app_api import build_controls as _build_controls
 from app_api import generate_pair as _generate_pair
+from app_api import _apply_state as _apply_state
+from app_api import (
+    _render_batch_ui as _render_batch_ui_impl,
+    _curation_init_batch as _curation_init_batch_impl,
+    _curation_new_batch as _curation_new_batch_impl,
+    _curation_replace_at as _curation_replace_at_impl,
+    _curation_add as _curation_add_impl,
+    _curation_train_and_next as _curation_train_and_next_impl,
+    run_app as _run_app_impl,
+)
 
 # _safe_write removed (199h)
 def _export_state_bytes(state, prompt: str):
@@ -39,70 +49,9 @@ st_rerun=getattr(st,"rerun",getattr(st,"experimental_rerun",None))
 emit_early_sidebar()
 
 
-
-
-# Back-compat for tests: keep names on app module
- 
-
- 
-
-def _apply_state(*args) -> None:  # re-exported for tests
-    # Flexible arity for test/back-compat: _apply_state(new_state) or _apply_state(st, new_state)
-    if len(args) == 1:
-        st_local, new_state = st, args[0]
-    elif len(args) == 2:
-        st_local, new_state = args  # type: ignore[misc]
-    else:
-        raise TypeError("_apply_state() expects 1 or 2 arguments")
-    from constants import Keys as _K
-
-    def _init_pair_for_state() -> None:
-        try:
-            from latent_opt import propose_next_pair; z1, z2 = propose_next_pair(new_state, st.session_state.prompt); st.session_state.lz_pair = (z1, z2); return
-        except Exception:
-            pass
-        try:
-            from latent_logic import propose_latent_pair_ridge; st.session_state.lz_pair = propose_latent_pair_ridge(new_state); return
-        except Exception:
-            pass
-        try:
-            import numpy as _np; d = int(getattr(new_state, "d", 0)); st.session_state.lz_pair = (_np.zeros(d, dtype=float), _np.zeros(d, dtype=float))
-        except Exception:
-            st.session_state.lz_pair = (None, None)
-
-    def _reset_derived_state() -> None:
-        import numpy as _np
-        st.session_state[_K.IMAGES] = (None, None); st.session_state[_K.MU_IMAGE] = None
-        if getattr(new_state, "mu", None) is None: setattr(new_state, "mu", _np.zeros(int(getattr(new_state, "d", 0)), dtype=float))
-        _mh = getattr(new_state, "mu_hist", None) or []
-        st.session_state.mu_history = [m.copy() for m in _mh] or [new_state.mu.copy()]
-        st.session_state.mu_best_idx = 0; st.session_state.prompt_image = None
-        for k in ("next_prefetch", "_bg_exec"): st.session_state.pop(k, None)
-
-    st_local.session_state.lstate = new_state
-    try:
-        use_rand = bool(getattr(st_local.session_state, _K.USE_RANDOM_ANCHOR, False))
-        setattr(new_state, "use_random_anchor", use_rand)
-        setattr(new_state, "random_anchor_z", None)
-    except Exception:
-        pass
-    _init_pair_for_state()
-    _reset_derived_state()
-    # Random μ init around the prompt anchor when μ is all zeros.
-    try:
-        import numpy as _np
-        from latent_logic import z_from_prompt as _zfp
-
-        if _np.allclose(new_state.mu, 0.0):
-            pr = st_local.session_state.get(Keys.PROMPT) or st_local.session_state.get("prompt") or DEFAULT_PROMPT
-            z_p = _zfp(new_state, pr)
-            r = new_state.rng.standard_normal(new_state.d).astype(float)
-            nr = float(_np.linalg.norm(r))
-            if nr > 0.0:
-                r = r / nr
-            new_state.mu = z_p + float(new_state.sigma) * r
-    except Exception:
-        pass
+"""
+Back-compat for tests: keep names on app module, delegated to app_api.
+"""
 
  
 if "prompt" not in st.session_state:
@@ -155,89 +104,27 @@ render_sidebar_tail_module(
 def generate_pair():
     return _generate_pair(base_prompt)
 
-def _render_batch_ui() -> None: return _batch_ui._render_batch_ui()
+def _render_batch_ui() -> None: return _render_batch_ui_impl()
 
 
  
-def _curation_init_batch() -> None:
-    try:
-        _batch_ui._curation_init_batch()
-    except Exception:
-        pass
-    # Ensure a minimal deterministic batch exists for stubs (no decode path)
-    try:
-        if not getattr(st.session_state, "cur_batch", None):
-            import numpy as _np
-            try:
-                from latent_logic import z_from_prompt as _zfp
-
-                z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
-            except Exception:
-                d = int(getattr(st.session_state.lstate, "d", 8))
-                z_p = _np.zeros(d, dtype=float)
-            n = int(getattr(st.session_state, "batch_size", 4))
-            rng = _np.random.default_rng(0)
-            zs = [z_p + 0.01 * rng.standard_normal(z_p.shape) for _ in range(n)]
-            st.session_state.cur_batch = zs
-            st.session_state.cur_labels = [None] * n
-    except Exception:
-        pass
+def _curation_init_batch() -> None: return _curation_init_batch_impl()
 
 
-def _curation_new_batch() -> None:
-    try:
-        _batch_ui._curation_new_batch()
-    except Exception:
-        pass
-    # Stub-friendly refresh if batch creation failed
-    try:
-        if not getattr(st.session_state, "cur_batch", None):
-            _curation_init_batch()
-    except Exception:
-        pass
+def _curation_new_batch() -> None: return _curation_new_batch_impl()
 
 
-def _curation_replace_at(idx: int) -> None:
-    try:
-        _batch_ui._curation_replace_at(idx)
-    except Exception:
-        pass
-    # Deterministic resample for stubs
-    try:
-        import numpy as _np
-        zs = getattr(st.session_state, "cur_batch", None)
-        if isinstance(zs, list) and len(zs) > 0:
-            try:
-                from latent_logic import z_from_prompt as _zfp
-
-                z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
-            except Exception:
-                d = int(getattr(st.session_state.lstate, "d", 8))
-                z_p = _np.zeros(d, dtype=float)
-            rng = _np.random.default_rng(idx + 1)
-            zs[idx % len(zs)] = z_p + 0.01 * rng.standard_normal(z_p.shape)
-            st.session_state.cur_batch = zs
-    except Exception:
-        pass
+def _curation_replace_at(idx: int) -> None: return _curation_replace_at_impl(idx)
 
 
-def _curation_add(label: int, z, img=None) -> None:
-    try:
-        return _batch_ui._curation_add(label, z, img)
-    except Exception:
-        return None
+def _curation_add(label: int, z, img=None) -> None: return _curation_add_impl(label, z, img)
 
-def _curation_train_and_next() -> None:
-    try:
-        return _batch_ui._curation_train_and_next()
-    except Exception:
-        return None
+def _curation_train_and_next() -> None: return _curation_train_and_next_impl()
 
 
  
 
-def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
-    _batch_ui.run_batch_mode()
+def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None: return _run_app_impl(_st, _vm_choice, _selected_gen_mode, _async_queue_mode)
 
 
 try: async_queue_mode
