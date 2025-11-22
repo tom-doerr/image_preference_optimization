@@ -15,6 +15,8 @@ def loads_state(data: bytes):
 from flux_local import set_model
 from ui_sidebar import render_sidebar_tail as render_sidebar_tail_module
 from helpers import enable_file_logging
+from app_api import build_controls as _build_controls
+from app_api import generate_pair as _generate_pair
 
 # _safe_write removed (199h)
 def _export_state_bytes(state, prompt: str):
@@ -184,93 +186,7 @@ if "lstate" not in st.session_state or prompt_changed:
         st.session_state[_K.IMAGES] = (None, None)
 
 def build_controls(st, lstate, base_prompt):  # noqa: E402
-    from constants import Keys as _K
-    from ui_sidebar import (
-        render_modes_and_value_model,
-        render_rows_and_last_action,
-        render_model_decode_settings,
-    )
-    # local numeric helper to avoid tests.helpers shadowing (one-liner)
-    safe_sidebar_num = lambda _st, label, *, value, step=None, format=None: (
-        (getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None)))(label, value=value, step=step, format=format)
-        if callable(getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None))) else value
-    )
-    # Mode/value + data strip
-    vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
-    render_rows_and_last_action(st, base_prompt, lstate)
-    # Model/decode settings
-    selected_model, width, height, steps, guidance, apply_clicked = render_model_decode_settings(st, lstate)
-    try:
-        st.session_state[_K.STEPS] = int(steps)
-        st.session_state[_K.GUIDANCE] = float(guidance)
-    except Exception:
-        pass
-    # Minimal advanced controls: Ridge λ and iterative params
-    reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1e300, step=0.1, format="%.6f") or 1e300
-    try:
-        st.session_state[_K.REG_LAMBDA] = float(reg_lambda)
-    except Exception:
-        pass
-    eta_default = float(st.session_state.get(_K.ITER_ETA) or 0.00001)
-    iter_eta_num = safe_sidebar_num(
-        st, "Iterative step (eta)", value=eta_default, step=0.000000000001, format="%.12f"
-    ) or eta_default
-    try:
-        st.session_state[_K.ITER_ETA] = float(iter_eta_num)
-    except Exception:
-        pass
-    iter_eta = float(st.session_state.get(_K.ITER_ETA) or eta_default)
-    from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
-    steps_default = int(st.session_state.get(_K.ITER_STEPS) or _DEF_STEPS); iter_steps_num = safe_sidebar_num(st, "Optimization steps (latent)", value=steps_default, step=1) or steps_default
-    try:
-        st.session_state[_K.ITER_STEPS] = int(iter_steps_num)
-    except Exception:
-        pass
-    iter_steps = int(st.session_state.get(_K.ITER_STEPS) or steps_default)
-    # Minimal sidebar tail (Debug + train results) to keep tests stable
-    try:
-        render_sidebar_tail_module(
-            st,
-            lstate,
-            st.session_state.prompt,
-            st.session_state.state_path,
-            vm_choice,
-            iter_steps,
-            iter_eta,
-            selected_model,
-            apply_state_cb=lambda *a, **k: None,
-            rerun_cb=lambda *a, **k: None,
-        )
-        # Tiny explicit warn line as a safety net for stubs that miss the panel
-        try:
-            from flux_local import get_last_call  # type: ignore
-            lc = get_last_call() or {}
-            stdv = lc.get("latents_std")
-            if stdv is not None and float(stdv) <= 1e-9:
-                st.sidebar.write(f"warn: latents std {float(stdv):.3g}")
-        except Exception:
-            pass
-    except Exception:
-        pass
-    # Best-of removed: no toggle, regular Good/Bad only
-    # Effective guidance for decode (Turbo forces 0.0 upstream)
-    try:
-        st.session_state[_K.GUIDANCE_EFF] = 0.0
-    except Exception:
-        pass
-    return (
-        vm_choice,
-        selected_gen_mode,
-        selected_model,
-        int(width),
-        int(height),
-        int(steps),
-        float(guidance),
-        float(reg_lambda),
-        int(iter_steps),
-        float(iter_eta),
-        False,
-    )
+    return _build_controls(st, lstate, base_prompt)
 
 lstate = st.session_state.lstate
 z_a, z_b = st.session_state.lz_pair
@@ -303,49 +219,7 @@ render_sidebar_tail_module(
 
 
 def generate_pair():
-    # Minimal inlined pair generation (199g): decode current lz_pair via latents
-    from constants import Keys as _K
-    try:
-        from latent_opt import z_to_latents
-    except Exception:
-        from latent_logic import z_to_latents  # type: ignore
-    try:
-        from flux_local import generate_flux_image_latents
-    except Exception:
-        return
-    try:
-        lstate = st.session_state.lstate
-        if st.session_state.get("lz_pair") is None:
-            # Initialize a symmetric pair around the prompt anchor
-            from latent_logic import z_from_prompt
-            import numpy as _np
-            z_p = z_from_prompt(lstate, base_prompt)
-            r = lstate.rng.standard_normal(lstate.d)
-            r = r / (float(_np.linalg.norm(r)) + 1e-12)
-            delta = float(lstate.sigma) * 0.5 * r
-            st.session_state.lz_pair = (z_p + delta, z_p - delta)
-        z_a, z_b = st.session_state.lz_pair
-        la = z_to_latents(lstate, z_a)
-        lb = z_to_latents(lstate, z_b)
-        img_a = generate_flux_image_latents(
-            base_prompt,
-            latents=la,
-            width=lstate.width,
-            height=lstate.height,
-            steps=int(getattr(st.session_state, "steps", 6) or 6),
-            guidance=float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0),
-        )
-        img_b = generate_flux_image_latents(
-            base_prompt,
-            latents=lb,
-            width=lstate.width,
-            height=lstate.height,
-            steps=int(getattr(st.session_state, "steps", 6) or 6),
-            guidance=float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0),
-        )
-        st.session_state[_K.IMAGES] = (img_a, img_b)
-    except Exception:
-        pass
+    return _generate_pair(base_prompt)
 
 def _render_batch_ui() -> None: return _batch_ui._render_batch_ui()
 
