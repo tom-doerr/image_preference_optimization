@@ -73,6 +73,40 @@ def status_panel(images: tuple, mu_image) -> None:
     sidebar_metric_rows([("Left", left_ready), ("Right", right_ready)], per_row=2)
 
 
+def env_panel(env: dict) -> None:
+    """Compact Environment panel (Python/torch/CUDA/Streamlit)."""
+    import streamlit as st
+    pairs = [("Python", f"{env.get('python')}")]
+    cuda = env.get("cuda", "unknown")
+    pairs.append(("torch/CUDA", f"{env.get('torch')} | {cuda}"))
+    if env.get("streamlit") and env["streamlit"] not in ("unknown", "not imported"):
+        pairs.append(("Streamlit", f"{env['streamlit']}") )
+    st.sidebar.subheader("Environment")
+    sidebar_metric_rows(pairs, per_row=2)
+
+
+def perf_panel(last_call: dict, last_train_ms) -> None:
+    """Minimal Performance panel: decode_s and train_ms when available."""
+    import streamlit as st
+    pairs = []
+    d = last_call.get("dur_s") if isinstance(last_call, dict) else None
+    if d is not None:
+        pairs.append(("decode_s", f"{float(d):.3f}"))
+    if last_train_ms is not None:
+        try:
+            pairs.append(("train_ms", f"{float(last_train_ms):.1f}"))
+        except Exception:
+            pass
+    if not pairs:
+        return
+    exp = getattr(st.sidebar, "expander", None)
+    if callable(exp):
+        with exp("Performance", expanded=False):
+            sidebar_metric_rows(pairs, per_row=2)
+    else:
+        sidebar_metric_rows(pairs, per_row=2)
+
+
 def build_batch_controls(st, expanded: bool = False) -> int:
     sld = getattr(st.sidebar, "slider", st.slider)
     try:
@@ -244,6 +278,62 @@ def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
             sb.line_chart(vals.tolist())
     except Exception:
         pass
+
+
+def render_pair_sidebar(
+    lstate,
+    prompt: str,
+    z_a,
+    z_b,
+    lr_mu_val: float,
+    value_scorer=None,
+) -> None:
+    """Compact vector/score info for the current pair.
+
+    Kept minimal for tests; uses pair_metrics and optional scorer.
+    """
+    import streamlit as st
+    import numpy as _np
+    try:
+        from metrics import pair_metrics as _pm
+    except Exception:
+        def _pm(w, za, zb):  # type: ignore
+            diff = zb - za
+            return {
+                "za_norm": float(_np.linalg.norm(za)),
+                "zb_norm": float(_np.linalg.norm(zb)),
+                "diff_norm": float(_np.linalg.norm(diff)),
+                "cos_w_diff": float("nan"),
+            }
+    w_raw = getattr(lstate, "w", None)
+    d = int(getattr(lstate, "d", 0))
+    w = (_np.asarray(w_raw[:d], dtype=float).copy() if w_raw is not None else _np.zeros(d, dtype=float))
+    m = _pm(w, _np.asarray(z_a, dtype=float), _np.asarray(z_b, dtype=float))
+    st.sidebar.subheader("Vector info (current pair)")
+    sidebar_metric_rows(
+        [("‖z_a‖", f"{float(m['za_norm']):.3f}"), ("‖z_b‖", f"{float(m['zb_norm']):.3f}")], per_row=2
+    )
+    sidebar_metric_rows([("‖z_b−z_a‖", f"{float(m['diff_norm']):.3f}")], per_row=1)
+    try:
+        from latent_opt import z_from_prompt as _zfp
+        z_p = _zfp(lstate, prompt)
+    except Exception:
+        z_p = _np.zeros_like(z_a)
+    if value_scorer is not None:
+        v_left = float(value_scorer(_np.asarray(z_a, dtype=float) - z_p))
+        v_right = float(value_scorer(_np.asarray(z_b, dtype=float) - z_p))
+    else:
+        v_left = float(_np.dot(w, (_np.asarray(z_a, dtype=float) - z_p)))
+        v_right = float(_np.dot(w, (_np.asarray(z_b, dtype=float) - z_p)))
+    sidebar_metric_rows([("V(left)", f"{v_left:.3f}"), ("V(right)", f"{v_right:.3f}")], per_row=2)
+    mu = getattr(lstate, "mu", _np.zeros_like(z_a))
+    sidebar_metric_rows(
+        [
+            ("step(A)", f"{lr_mu_val * float(_np.linalg.norm(_np.asarray(z_a, dtype=float) - mu)):.3f}"),
+            ("step(B)", f"{lr_mu_val * float(_np.linalg.norm(_np.asarray(z_b, dtype=float) - mu)):.3f}"),
+        ],
+        per_row=2,
+    )
 
 # Use shared helpers.safe_write to avoid duplication
 
