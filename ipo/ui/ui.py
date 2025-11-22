@@ -5,13 +5,13 @@ import numpy as _np
 
 def sidebar_metric(label: str, value) -> None:
     # Delegate to ui_sidebar to keep a single implementation
-    from ui_sidebar import sidebar_metric as _sm
+    from .ui_sidebar import sidebar_metric as _sm
 
     return _sm(label, value)
 
 
 def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
-    from ui_sidebar import sidebar_metric_rows as _smr
+    from .ui_sidebar import sidebar_metric_rows as _smr
 
     return _smr(pairs, per_row=per_row)
 
@@ -93,12 +93,12 @@ def env_panel(env: dict) -> None:
     if env.get("streamlit") and env["streamlit"] not in ("unknown", "not imported"):
         pairs.append(("Streamlit", f"{env['streamlit']}") )
     st.sidebar.subheader("Environment")
-    from ui_sidebar import sidebar_metric_rows as _smr
+    from .ui_sidebar import sidebar_metric_rows as _smr
     _smr(pairs, per_row=2)
 
 
 def status_panel(images: tuple, mu_image) -> None:
-    from ui_sidebar import status_panel as _sp
+    from .ui_sidebar import status_panel as _sp
 
     return _sp(images, mu_image)
 
@@ -117,7 +117,7 @@ def perf_panel(last_call: dict, last_train_ms) -> None:
             pass
     if not pairs:
         return
-    from ui_sidebar import sidebar_metric_rows as _smr
+    from .ui_sidebar import sidebar_metric_rows as _smr
     exp = getattr(st.sidebar, "expander", None)
     if callable(exp):
         with exp("Performance", expanded=False):

@@ -92,7 +92,7 @@ def test_ui_flow_sync_xgb_changes_captions():
     vs.get_value_scorer_with_status = _xgb_scorer_with_status
     sys.modules["value_scorer"] = vs
 
-    import ui_sidebar
+    import ipo.ui.ui_sidebar as ui_sidebar
 
     def _btn(label, *a, **k):
         return label == "Train XGBoost now (sync)"

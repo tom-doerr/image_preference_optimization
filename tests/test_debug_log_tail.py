@@ -77,7 +77,7 @@ class TestDebugLogTail(unittest.TestCase):
 
         st.session_state[Keys.SIDEBAR_COMPACT] = True
         st.session_state[Keys.REG_LAMBDA] = 1e-3
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
 
         ui_sidebar.render_sidebar_tail(
             st,

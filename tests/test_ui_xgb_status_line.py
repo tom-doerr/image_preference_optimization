@@ -56,7 +56,7 @@ class TestSidebarXGBStatus(unittest.TestCase):
         fl = types.ModuleType("flux_local")
         fl.set_model = lambda *a, **k: None
         sys.modules["flux_local"] = fl
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
 
         ui_sidebar.render_sidebar_tail(
             st,

@@ -74,7 +74,7 @@ class TestSidebarStringsOrder(unittest.TestCase):
         )
 
         # Drive ui_sidebar directly to avoid full app import complexity
-        import ui_sidebar as u
+        import ipo.ui.ui_sidebar as u
         # Minimal session state
         st.session_state.prompt = "order-check"
         st.session_state.state_path = "latent_state_test.npz"

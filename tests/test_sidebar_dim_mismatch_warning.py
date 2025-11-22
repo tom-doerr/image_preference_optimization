@@ -17,7 +17,7 @@ class SidebarDimMismatchWarningTest(unittest.TestCase):
         st.session_state.lstate = types.SimpleNamespace(d=25600)
         sys.modules["streamlit"] = st
 
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
 
         ui_sidebar.render_rows_and_last_action(st, st.session_state.prompt, st.session_state.lstate)
         out = "\n".join(writes)

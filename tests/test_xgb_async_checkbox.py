@@ -22,7 +22,7 @@ class TestXgbAsyncCheckbox(unittest.TestCase):
         fl.set_model = lambda *a, **k: None
         sys.modules["flux_local"] = fl
 
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
         vm_choice, selected_gen_mode, batch_size, _ = ui_sidebar.render_modes_and_value_model(st)
         # Ensure it renders and does not create the async key
         self.assertIn(vm_choice, ("XGBoost", "Ridge"))

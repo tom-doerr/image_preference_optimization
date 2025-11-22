@@ -57,7 +57,7 @@ def test_train_xgb_now_button_sets_cache():
     pui.render_persistence_controls = lambda *a, **k: None
     sys.modules["persistence_ui"] = pui
 
-    import ui_sidebar
+    import ipo.ui.ui_sidebar as ui_sidebar
 
     st.session_state[Keys.VM_CHOICE] = "XGBoost"
     ui_sidebar.render_sidebar_tail(

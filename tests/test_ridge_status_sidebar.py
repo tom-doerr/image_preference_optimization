@@ -43,7 +43,7 @@ class TestRidgeStatusSidebar(unittest.TestCase):
         class L:
             d = 4
 
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
 
         # Without a future, sidebar should show ok
         ui_sidebar.render_sidebar_tail(

@@ -80,7 +80,7 @@ def _apply_state(*args) -> None:
 
 
 def build_controls(st, lstate, base_prompt):
-    from ui_sidebar import (
+    from .ui_sidebar import (
         render_modes_and_value_model,
         render_rows_and_last_action,
         render_model_decode_settings,
@@ -176,7 +176,7 @@ def render_sidebar_tail(
 ) -> None:
     """Proxy to ui_sidebar.render_sidebar_tail to avoid app.py direct imports."""
     try:
-        from ui_sidebar import render_sidebar_tail as _rst
+        from .ui_sidebar import render_sidebar_tail as _rst
 
         _rst(
             st_mod,

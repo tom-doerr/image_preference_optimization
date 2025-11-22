@@ -82,7 +82,7 @@ class TestSidebarEnsureFittedOnce(unittest.TestCase):
 
         sys.modules["streamlit"] = st
 
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
 
         ui_sidebar.render_sidebar_tail(
             st,

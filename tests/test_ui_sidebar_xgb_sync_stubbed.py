@@ -64,7 +64,7 @@ class TestUiSidebarXgbSyncStubbed(unittest.TestCase):
             state_summary=lambda *_: {"pairs_logged": 0, "choices_logged": 0}
         )
 
-        import ui_sidebar as u
+        import ipo.ui.ui_sidebar as u
 
         u.render_sidebar_tail(
             st,

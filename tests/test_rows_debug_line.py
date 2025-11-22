@@ -16,7 +16,7 @@ def _capture(func, *a, **k):
 
 def test_rows_debug_line_prints_disp():
     from tests.helpers.st_streamlit import stub_basic
-    import ui_sidebar
+    import ipo.ui.ui_sidebar as ui_sidebar
 
     st = stub_basic()
     st.session_state.prompt = "rows-dbg"

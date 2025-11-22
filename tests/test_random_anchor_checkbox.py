@@ -24,7 +24,7 @@ class TestRandomAnchorCheckbox(unittest.TestCase):
         # Install stubs
         sys.modules["streamlit"] = st
         # Import UI and latent helpers
-        import ui_sidebar
+        import ipo.ui.ui_sidebar as ui_sidebar
         import latent_logic as ll
 
         # Act: render the Mode & value model block (emits the checkbox)
@@ -43,4 +43,3 @@ class TestRandomAnchorCheckbox(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

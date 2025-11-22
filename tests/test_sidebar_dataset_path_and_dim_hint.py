@@ -28,7 +28,7 @@ class TestSidebarDatasetHints(unittest.TestCase):
 
         sys.modules["flux_local"] = types.SimpleNamespace(set_model=lambda *a, **k: None)
 
-        import ui_sidebar as u
+        import ipo.ui.ui_sidebar as u
         u.render_sidebar_tail(
             st,
             st.session_state.lstate,
@@ -50,4 +50,3 @@ class TestSidebarDatasetHints(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

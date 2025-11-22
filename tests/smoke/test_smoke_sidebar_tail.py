@@ -4,7 +4,7 @@ import types
 import numpy as np
 
 from constants import Keys
-from ui_sidebar import render_sidebar_tail
+from ipo.ui.ui_sidebar import render_sidebar_tail
 from tests.helpers.st_streamlit import stub_with_writes
 
 
