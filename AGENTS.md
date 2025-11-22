@@ -624,7 +624,7 @@ New learnings (Nov 20, 2025):
 
 Refactor (Nov 20, 2025, later):
 - Extracted a consolidated sidebar tail into `ui_sidebar.py` (`render_sidebar_tail`).
-- Moved Upload mode UI into `upload_ui.py` and factored `image_to_z` into `img_latents.py` (re-exported wrapper in `app.py` for back-compat).
+- Upload/image-latents path removed; `img_latents.py` deleted since the helper was unused.
 - Kept all visible strings/labels stable to minimize test churn; `app.py` slimmer and easier to navigate.
 - Added a tiny smoke test `tests/smoke/test_smoke_sidebar_tail.py` to ensure the new sidebar tail renders under test stubs.
 - Extracted the “Mode & value model” section (including batch/queue controls) to `ui_sidebar_modes.render_modes_and_value_model`. `app.py` now calls this helper.
