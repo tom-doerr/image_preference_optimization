@@ -48,7 +48,7 @@ Next simplifications to consider (only if requested):
 - 217e. Collapse remaining sidebar helpers into a single `ui_sidebar` and keep captions simple.
 
 What was added:
-- `learning.py`: initial color-learner (kept for reference/tests).
+- Removed `learning.py` (unused initial color-learner) and its test.
 - `latent_opt.py`: direct latent optimizer (now optimizes the full latent tensor directly; no projection matrix). Ridge-based ranking/update; save/load helpers.
 - `app.py`: Streamlit UI using local FLUX (Diffusers on CUDA); optimizes latents directly; ridge proposals; auto-load/save state.
 - `flux_local.py`: minimal Diffusers client; CUDA-only; no API fallback; requires `FLUX_LOCAL_MODEL`.
