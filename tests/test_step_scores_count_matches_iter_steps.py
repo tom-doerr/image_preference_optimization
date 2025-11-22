@@ -22,7 +22,7 @@ class StepScoresCountTest(unittest.TestCase):
         )
         sys.modules["value_scorer"] = vs
 
-        import ui
+        from ipo.ui import ui
 
         lstate = types.SimpleNamespace(d=4, w=np.ones(4), sigma=1.0)
         scores = ui.compute_step_scores(

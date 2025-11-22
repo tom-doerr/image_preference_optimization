@@ -33,7 +33,7 @@ class StepScoresVisibleTest(unittest.TestCase):
         sys.modules["value_scorer"] = vs
 
         sys.modules["streamlit"] = st
-        import ui
+        from ipo.ui import ui
 
         lstate = types.SimpleNamespace(
             d=4, w=np.ones(4), sigma=1.0, mu=np.zeros(4)

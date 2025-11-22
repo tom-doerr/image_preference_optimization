@@ -12,7 +12,7 @@ def test_sidebar_shows_step_scores():
     ls = init_latent_state()  # defaults to 448x448 → reasonable d
     ls.w[0] = 1.0
     # Render step scores for 3 steps using Ridge scorer
-    import ui
+    from ipo.ui import ui
 
     ui.render_iter_step_scores(
         st, ls, prompt="p", vm_choice="Ridge", iter_steps=3, iter_eta=None, trust_r=None
