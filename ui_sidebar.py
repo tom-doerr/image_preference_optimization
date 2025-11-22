@@ -104,10 +104,10 @@ def build_pair_controls(st, expanded: bool = False):
     sess = getattr(st, "session_state", None)
     if sess is not None and hasattr(sess, "get"):
         steps_default = int((sess.get("iter_steps") or 1000))
-        eta_default = float((sess.get("iter_eta") or 0.001))
+        eta_default = float((sess.get("iter_eta") or 0.00001))
     else:
         steps_default = 1000
-        eta_default = 0.001
+        eta_default = 0.00001
     if ctx is not None:
         ctx.__exit__(None, None, None)
     return (
