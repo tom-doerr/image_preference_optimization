@@ -20,3 +20,8 @@ Q: Why don’t we auto‑fit on rerun anymore?
 
 Nov 22, 2025 — 229c follow‑up
 - You asked to remove top‑level shims (e.g., ui_sidebar.py, ui_controls.py). There are no top‑level files by those names now. The only copies live under `ipo/ui/` (`ipo/ui/ui_sidebar.py`, `ipo/ui/ui_controls.py`). Tests import those package paths, so no deletion was needed at the repo root.
+
+Nov 24, 2025 — XGB auto‑fit on selection
+- Implemented: when Value model = XGBoost, the app auto‑fits XGB synchronously during sidebar render if a usable dataset is present and cache is stale. It updates `session_state.xgb_cache = {model, n}` and logs `[xgb] train start …/train done …`. Ridge still fits on every call to keep `w` fresh.
+- Added focused test `tests/test_xgb_autofit_when_selected.py` that stubs heavy deps and asserts the cache is populated after render with an in‑memory dataset.
+- Question: keep auto‑fit “on render if stale” or restrict to “on selection change only”? Current behavior is the former, with a cache guard to avoid repeated training.
