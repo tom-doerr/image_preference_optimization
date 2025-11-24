@@ -548,6 +548,30 @@ def _update_rows_display(st, Keys) -> None:
         pass
 
 
+def _cooldown_recent(st) -> bool:
+    try:
+        from datetime import datetime, timezone
+        last_at = st.session_state.get(Keys.LAST_TRAIN_AT)  # type: ignore[name-defined]
+        min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+        if last_at and min_wait > 0.0:
+            try:
+                dt = datetime.fromisoformat(last_at)
+                return (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+            except Exception:
+                return False
+    except Exception:
+        return False
+    return False
+
+
+def _fit_ridge_once(lstate, X, y, lam_now, st) -> None:
+    try:
+        from ipo.core.value_model import fit_value_model as _fit_vm
+        _fit_vm("Ridge", lstate, X, y, float(lam_now), st.session_state)
+    except Exception:
+        pass
+
+
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
     from ipo.infra.constants import Keys
@@ -684,28 +708,12 @@ def _refit_from_dataset_keep_batch() -> None:
     try:
         if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
-            vm_train = "Ridge"
             try:
-                getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
+                getattr(st, "toast", lambda *a, **k: None)("Training Ridge…")
             except Exception:
                 pass
-            # Minimal cooldown then fit Ridge once
-            from datetime import datetime, timezone
-            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-            min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
-            recent = False
-            if last_at and min_wait > 0.0:
-                try:
-                    dt = datetime.fromisoformat(last_at)
-                    recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
-                except Exception:
-                    recent = False
-            if not recent:
-                try:
-                    from ipo.core.value_model import fit_value_model as _fit_vm
-                    _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
-                except Exception:
-                    pass
+            if not _cooldown_recent(st):
+                _fit_ridge_once(lstate, X, y, lam_now, st)
     except Exception:
         pass
 

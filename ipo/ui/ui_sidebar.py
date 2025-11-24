@@ -852,8 +852,7 @@ def _cv_on_demand(st: Any, lstate: Any, prompt: str, vm: str) -> None:
         return
 
 
-def _render_metadata_panel_inline(st: Any, lstate: Any, prompt: str, state_path: str) -> None:
-    """Emit compact metadata panel (app_version, created_at, prompt_hash)."""
+def _resolve_meta_pairs(prompt: str, state_path: str):
     try:
         import os, hashlib
         from ipo.core.persistence import read_metadata
@@ -867,23 +866,38 @@ def _render_metadata_panel_inline(st: Any, lstate: Any, prompt: str, state_path:
             if os.path.exists(alt):
                 path = alt
                 meta = read_metadata(path)
-        if meta and (meta.get("app_version") or meta.get("created_at")):
-            st.sidebar.subheader("State metadata")
-            pairs = []
-            if meta.get("app_version"):
-                pairs.append(("app_version", f"{meta['app_version']}"))
-            if meta.get("created_at"):
-                pairs.append(("created_at", f"{meta['created_at']}"))
-            ph = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
-            pairs.append(("prompt_hash", ph))
-            sidebar_metric_rows(pairs, per_row=2)
-            try:
-                for k, v in pairs:
-                    st.sidebar.write(f"{k}: {v}")
-            except Exception:
-                pass
+        if not meta or not (meta.get("app_version") or meta.get("created_at")):
+            return None
+        pairs = []
+        if meta.get("app_version"):
+            pairs.append(("app_version", f"{meta['app_version']}"))
+        if meta.get("created_at"):
+            pairs.append(("created_at", f"{meta['created_at']}"))
+        ph = hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]
+        pairs.append(("prompt_hash", ph))
+        return pairs
+    except Exception:
+        return None
+
+
+def _emit_meta_pairs(st: Any, pairs) -> None:
+    try:
+        st.sidebar.subheader("State metadata")
+        sidebar_metric_rows(pairs, per_row=2)
+        try:
+            for k, v in pairs:
+                st.sidebar.write(f"{k}: {v}")
+        except Exception:
+            pass
     except Exception:
         pass
+
+
+def _render_metadata_panel_inline(st: Any, lstate: Any, prompt: str, state_path: str) -> None:
+    """Emit compact metadata panel (app_version, created_at, prompt_hash)."""
+    pairs = _resolve_meta_pairs(prompt, state_path)
+    if pairs:
+        _emit_meta_pairs(st, pairs)
 
 
 def _emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
