@@ -1097,6 +1097,18 @@ def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
 def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, guidance_eff: float):
+    import time as _time
+    try:
+        from latent_logic import z_to_latents
+    except Exception:
+        from latent_opt import z_to_latents  # tests may stub here
+    try:
+        from flux_local import generate_flux_image_latents
+    except Exception:
+        # Allow tests that inject a stub module to satisfy this import
+        from sys import modules as _modules
+        generate_flux_image_latents = getattr(_modules.get("flux_local"), "generate_flux_image_latents")  # type: ignore
+
     t0 = _time.perf_counter()
     try:
         la = z_to_latents(lstate, z_i)
