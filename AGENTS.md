@@ -1758,3 +1758,7 @@ Batch curation (Nov 24, 2025 — _curation_add):
   - `_render_metadata_panel_inline` reduced to A by extracting `_resolve_meta_pairs` and `_emit_meta_pairs`; outputs unchanged.
   - `_pick_scorer` in `batch_ui` reduced to A by factoring `_try_distance/_try_logistic/_try_xgb_cached/_try_ridge_if_norm`; same scorer order/tags.
   - `_curation_train_and_next` reduced to B by reusing the shared cooldown/fit helpers.
+---
+Tests (Nov 24, 2025):
+- tests/test_ui_sidebar_emit_train_results.py: regression guard for missing lstate in session; ensures a line is written.
+- tests/test_batch_cooldown_recent.py: asserts cooldown True for recent timestamp and False for old.
