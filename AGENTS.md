@@ -1655,6 +1655,19 @@ Refactor (Nov 24, 2025 — ui_sidebar helpers)
 - Updated `render_sidebar_tail` to call these helpers; behavior unchanged beyond the earlier auto‑fit addition.
 - Tests: `tests/test_ui_sidebar_refactor_helpers.py` covers both helpers (memory preference and `ensure_fitted` call).
 
+Maintainability review (Nov 24, 2025)
+- Big files/hotspots: `ipo/ui/ui_sidebar.py` and `ipo/ui/batch_ui.py` drive most complexity. We extracted two helpers today; more small extractions can shrink `render_sidebar_tail` and isolate string/ordering logic.
+- Shims: root-level `value_model.py`, `xgb_value.py`, `constants.py`, `batch_ui.py` re-export package modules. They’re useful for back-compat but keep surface area wide. Plan: delete after updating remaining imports and keep a guard test that fails if new root-level UI shims reappear.
+- Logging: a few `[data]/[latent]/[xgb]/[pipe]` prints still bypass `LOG_VERBOSITY`; gate them uniformly for quieter CI.
+- Dataset source: default to memory-first everywhere (single helper), and call folder scan only on prompt switch or explicit refresh.
+- Tests: add one canonical-order test for Train results lines (single source of truth), and a guard that forbids reintroducing new top-level UI shims.
+
+Suggested next steps
+- 238a. Extract `compute_train_results_lines(st,lstate,prompt,vm_choice)` from `render_sidebar_tail` and unit-test the canonical order (fast LOC win).
+- 238b. Add a guard test to forbid new root-level UI shims; then remove `value_model.py`/`xgb_value.py`/`constants.py` shims when imports are clean.
+- 238c. Gate remaining verbose prints behind `LOG_VERBOSITY` (including `ipo.infra.flux_local`).
+- 238d. Consolidate dataset reads via `_get_dataset_for_display` across batch/UI paths to eliminate ad-hoc rescans.
+
 Update (Nov 24, 2025 — XGB auto‑fit on selection)
 - When the Value model is set to XGBoost, the sidebar now triggers a synchronous XGB fit automatically if a usable dataset is present and the cache is stale. Implementation: ui_sidebar.render_sidebar_tail → value_model.ensure_fitted → fit_value_model (sync‑only). It’s cache‑aware, so reruns do not retrain unless row count changes. Ridge remains always‑on for w.
 - Added a focused unit test tests/test_xgb_autofit_when_selected.py that stubs flux_local and xgboost to keep the test light and asserts session_state.xgb_cache is populated after render with XGBoost selected.

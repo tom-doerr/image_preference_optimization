@@ -25,3 +25,8 @@ Nov 24, 2025 — XGB auto‑fit on selection
 - Implemented: when Value model = XGBoost, the app auto‑fits XGB synchronously during sidebar render if a usable dataset is present and cache is stale. It updates `session_state.xgb_cache = {model, n}` and logs `[xgb] train start …/train done …`. Ridge still fits on every call to keep `w` fresh.
 - Added focused test `tests/test_xgb_autofit_when_selected.py` that stubs heavy deps and asserts the cache is populated after render with an in‑memory dataset.
 - Question: keep auto‑fit “on render if stale” or restrict to “on selection change only”? Current behavior is the former, with a cache guard to avoid repeated training.
+
+Nov 24, 2025 — Maintainability review questions
+- Do you want me to delete the root-level re-export shims (`value_model.py`, `xgb_value.py`, `constants.py`, `batch_ui.py`) once all imports are clean, and add a guard test to keep them from coming back?
+- Is it acceptable to extract one more helper `compute_train_results_lines(...)` so `render_sidebar_tail` just formats/prints? This will reduce LOC and make sidebar string tests steadier.
+- Should we gate all noncritical logs under `LOG_VERBOSITY` (0 by default) to keep CI quieter? We’ll still print critical errors.
