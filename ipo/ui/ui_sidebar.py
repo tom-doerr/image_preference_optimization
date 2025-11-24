@@ -850,7 +850,12 @@ def render_sidebar_tail(
                         yy = None if Ys is None else [int(v) for v in list(Ys)]
                         pos = 0 if yy is None else sum(1 for v in yy if v > 0)
                         neg = 0 if yy is None else sum(1 for v in yy if v < 0)
-                        print(f"[xgb] train button clicked rows={getattr(Xs,'shape',(0,))[0] if Xs is not None else 0} pos={pos} neg={neg}")
+                        try:
+                            from ipo.infra.util import get_log_verbosity as _gv
+                            if int(_gv(st)) >= 1:
+                                print(f"[xgb] train button clicked rows={getattr(Xs,'shape',(0,))[0] if Xs is not None else 0} pos={pos} neg={neg}")
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                     if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1 and pos > 0 and neg > 0:
@@ -863,7 +868,9 @@ def render_sidebar_tail(
                             pass
                     else:
                         try:
-                            print("[xgb] train skipped by UI guard: need >=2 rows and both classes present")
+                            from ipo.infra.util import get_log_verbosity as _gv
+                            if int(_gv(st)) >= 1:
+                                print("[xgb] train skipped by UI guard: need >=2 rows and both classes present")
                         except Exception:
                             pass
                 # 196b: Cancel button removed in sync-only training
@@ -902,7 +909,9 @@ def render_sidebar_tail(
                             pass
                     else:
                         try:
-                            print("[logit] train skipped by UI guard: need >=2 rows")
+                            from ipo.infra.util import get_log_verbosity as _gv
+                            if int(_gv(st)) >= 1:
+                                print("[logit] train skipped by UI guard: need >=2 rows")
                         except Exception:
                             pass
         except Exception:
@@ -1151,7 +1160,12 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
         n_rows = rows_live
         st.session_state[Keys.ROWS_DISPLAY] = str(n_rows)
         try:
-            print(f"[rows] live={rows_live} disp={n_rows}")
+            try:
+                from ipo.infra.util import get_log_verbosity as _gv
+                if int(_gv(st)) >= 1:
+                    print(f"[rows] live={rows_live} disp={n_rows}")
+            except Exception:
+                pass
         except Exception:
             pass
 

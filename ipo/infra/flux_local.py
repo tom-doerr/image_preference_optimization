@@ -35,6 +35,7 @@ except Exception:
 from .flux_utils import (
     get_default_model_id as _get_model_id,
     p as _p,
+    log_verbosity as _lv,
     to_cuda_fp16 as _to_cuda_fp16,
     normalize_to_init_sigma as _normalize_to_init_sigma,
     eff_guidance as _eff_g,
@@ -148,7 +149,8 @@ def _ensure_pipe(model_id: Optional[str] = None):
         except Exception:
             pass
         try:
-            LOGGER.info("safety checker disabled for model %s", mid)
+            if _lv() >= 1:
+                LOGGER.info("safety checker disabled for model %s", mid)
         except Exception:
             pass
     except Exception:
@@ -170,7 +172,8 @@ def _ensure_pipe(model_id: Optional[str] = None):
         pass
     try:
         LAST_CALL.update({"event": "load_model", "model_id": mid})
-        LOGGER.info("loaded model %s", mid)
+        if _lv() >= 1:
+            LOGGER.info("loaded model %s", mid)
     except Exception:
         pass
     return PIPE
@@ -278,13 +281,14 @@ def _run_pipe(**kwargs):
                                 "img0_max": float(arr.max()),
                             }
                         )
-                        LOGGER.info(
+                        if _lv() >= 2:
+                            LOGGER.info(
                             "img0 stats mean=%.3f std=%.3f min=%s max=%s",
                             float(arr.mean()),
                             float(arr.std()),
                             arr.min(),
                             arr.max(),
-                        )
+                            )
                     except Exception:
                         pass
 
@@ -471,17 +475,18 @@ def generate_flux_image_latents(
             init_sigma = getattr(sched, "init_noise_sigma", None)
         except Exception:
             init_sigma = None
-        LOGGER.info(
-            "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
-            width,
-            height,
-            steps,
-            guidance_eff,
-            std,
-            mean,
-            shp,
-            init_sigma,
-        )
+        if _lv() >= 2:
+            LOGGER.info(
+                "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
+                width,
+                height,
+                steps,
+                guidance_eff,
+                std,
+                mean,
+                shp,
+                init_sigma,
+            )
     except Exception:
         pass
     guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
@@ -527,6 +532,7 @@ def set_model(model_id: str):
 
             cfg = getattr(pipe, "scheduler", None).config
             pipe.scheduler = LCMScheduler.from_config(cfg)  # type: ignore[index]
-            LOGGER.info("turbo model detected; using LCMScheduler for %s", model_id)
+            if _lv() >= 1:
+                LOGGER.info("turbo model detected; using LCMScheduler for %s", model_id)
     except Exception:
         pass
