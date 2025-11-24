@@ -1672,3 +1672,14 @@ Update (Nov 24, 2025 — XGB auto‑fit on selection)
 - When the Value model is set to XGBoost, the sidebar now triggers a synchronous XGB fit automatically if a usable dataset is present and the cache is stale. Implementation: ui_sidebar.render_sidebar_tail → value_model.ensure_fitted → fit_value_model (sync‑only). It’s cache‑aware, so reruns do not retrain unless row count changes. Ridge remains always‑on for w.
 - Added a focused unit test tests/test_xgb_autofit_when_selected.py that stubs flux_local and xgboost to keep the test light and asserts session_state.xgb_cache is populated after render with XGBoost selected.
 - Rationale: removes confusion about when XGB becomes active; keeps behavior simple and explicit.
+Radon snapshot (Nov 24, 2025)
+- Top cyclomatic complexity (CC):
+  - ipo/ui/ui_sidebar.py: render_sidebar_tail F(76), _emit_train_results E(31), value‑model block D(24).
+  - ipo/infra/flux_local.py: _ensure_pipe E(31), _run_pipe D(24), generate_flux_image_latents C(16).
+  - ipo/core/persistence.py: get_dataset_for_prompt_or_session C(20), dataset_stats_for_prompt C(12).
+  - ipo/core/value_model.py: fit_value_model C(20), _maybe_fit_xgb C(16).
+- Actions in-progress: extracted compute_train_results_lines and dataset helper usage; gated logs.
+- Next trims:
+  - Split ui_sidebar.render_sidebar_tail into small blocks (we started); target < C.
+  - Break flux_local._ensure_pipe into load_cpu→to_cuda and post_load_config; move logging behind LOG_VERBOSITY.
+  - Split persistence.get_dataset_for_prompt_or_session into path_resolve, scan_rows, filter_dim.
