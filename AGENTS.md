@@ -1738,3 +1738,10 @@ Sidebar CV (Nov 24, 2025):
 Value model (Nov 24, 2025):
 - Extracted `_train_optionals` (XGB/Logit sync fit) and `_record_train_summaries` (CLI prints) from `fit_value_model`.
 - `fit_value_model` is now short and clearer (A(3)); same behavior and strings.
+Micro refactor (Nov 24, 2025 — late):
+- Batch UI:
+  - _choose_scorer reduced to A by extracting _vm_and_cache, _ridge_norm, _compute_zp, and _pick_scorer; behavior and strings unchanged.
+  - _tile_value_text reduced to B via _predict_value and _vm_tag; captions remain “Value: … [XGB/Ridge/Logit/Distance]”.
+- Sidebar:
+  - _mem_dataset_stats reduced to A by factoring out _labels_pos_neg; sidebar lines/order unchanged.
+- Radon: verify with `radon cc -s -a ipo/ui/batch_ui.py` and `.../ui_sidebar.py`.

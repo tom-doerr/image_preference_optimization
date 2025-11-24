@@ -32,6 +32,10 @@ Questions for you
 2. OK to leave fragments permanently off (code path already non‑frag only), and delete remaining fragment guards in a later pass?
 3. Any tolerance to delete old async/background remnants in tests to simplify further? (Would reduce surface area.)
 
+Q&A (Nov 24, 2025 – late)
+- Done: Reduced CC in batch_ui (_choose_scorer→A, _tile_value_text→B) and ui_sidebar (_mem_dataset_stats→A) without altering behavior/strings. Verified with Radon.
+- Question: Should I proceed with batch_ui._curation_add (currently C 17) next, or focus on ui_sidebar._emit_last_call_info (C 12)? Both are low‑risk extractions that keep UI strings stable.
+- Note: The full test suite shows a few syntax issues in tests in this workspace; I did not modify tests in this pass. If you want, I can prioritize a quick pass to fix or isolate those before continuing.
 How to reproduce
 - Activate venv and run:
   - `radon cc -s -a ipo`
