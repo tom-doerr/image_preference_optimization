@@ -1173,7 +1173,12 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
     _emit_train_result_lines(st, lines, sidebar_only)
     _emit_images_status_block(st)
     # Do not recurse into the value-model block from here; caller is responsible
-    _emit_step_readouts(st, lstate)
+    try:
+        lstate = getattr(st.session_state, 'lstate', None)
+    except Exception:
+        lstate = None
+    if lstate is not None:
+        _emit_step_readouts(st, lstate)
     _emit_debug_panel(st)
 
 
