@@ -1756,3 +1756,5 @@ Batch curation (Nov 24, 2025 — _curation_add):
 - Follow‑up (Nov 24, 2025 — batch/ui & sidebar):
   - `_refit_from_dataset_keep_batch` reduced to B by extracting `_cooldown_recent` and `_fit_ridge_once`.
   - `_render_metadata_panel_inline` reduced to A by extracting `_resolve_meta_pairs` and `_emit_meta_pairs`; outputs unchanged.
+  - `_pick_scorer` in `batch_ui` reduced to A by factoring `_try_distance/_try_logistic/_try_xgb_cached/_try_ridge_if_norm`; same scorer order/tags.
+  - `_curation_train_and_next` reduced to B by reusing the shared cooldown/fit helpers.
