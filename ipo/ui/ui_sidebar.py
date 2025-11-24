@@ -363,6 +363,80 @@ def _autofit_xgb_if_selected(st: Any, lstate: Any, vm_choice: str, Xd, yd) -> No
         # Keep UI resilient; tests still assert cache via explicit fits when needed
         pass
 
+
+def compute_train_results_lines(
+    st: Any, lstate: Any, prompt: str, vm_choice: str
+) -> list[str]:
+    """Return canonical Train-results lines in fixed order.
+
+    Order:
+    - Train score
+    - CV score
+    - Last CV
+    - Last train
+    - Value scorer status
+    - Value scorer (label)
+    - XGBoost active yes/no
+    - Optimization line
+    """
+    # Defaults so lines always render
+    tscore = "n/a"
+    cv_line = "n/a"
+    try:
+        last_train = str(st.session_state.get(Keys.LAST_TRAIN_AT) or "n/a")
+    except Exception:
+        last_train = "n/a"
+    try:
+        last_cv = st.session_state.get(Keys.CV_LAST_AT) or "n/a"
+    except Exception:
+        last_cv = "n/a"
+    vs_status = "xgb_unavailable" if str(vm_choice) == "XGBoost" else "ridge_untrained"
+    vs_line = (
+        f"XGBoost (xgb_unavailable, rows=0)"
+        if str(vm_choice) == "XGBoost"
+        else "Ridge (ridge_untrained, rows=0)"
+    )
+
+    # Compute train score and scorer status when possible
+    try:
+        # Prefer in-memory dataset; else folder dataset
+        Xd, yd = _get_dataset_for_display(st, lstate, prompt)
+        if Xd is not None and yd is not None and getattr(Xd, "shape", (0,))[0] > 0:
+            import numpy as _np
+            from value_scorer import get_value_scorer as _gvs
+
+            scorer, tag = _gvs(vm_choice, lstate, prompt, st.session_state)
+            vs_status = "ok" if scorer is not None else str(tag)
+            rows = int(getattr(Xd, "shape", (0,))[0])
+            label = f"{vm_choice or 'Ridge'} ({vs_status}, rows={rows})"
+            vs_line = label
+            if scorer is not None and callable(scorer):
+                scores = _np.asarray([scorer(x) for x in Xd], dtype=float)
+                if str(vm_choice) == "XGBoost":
+                    yhat = scores >= 0.5
+                else:
+                    yhat = scores >= 0.0
+            else:
+                w = getattr(lstate, "w", _np.zeros(getattr(Xd, "shape", (0, 0))[1]))
+                yhat = (Xd @ w) >= 0.0
+            acc = float((yhat == (yd > 0)).mean())
+            tscore = f"{acc * 100:.0f}%"
+    except Exception:
+        pass
+
+    active = "yes" if (str(vm_choice) == "XGBoost" and str(vs_status) == "ok") else "no"
+    lines = [
+        f"Train score: {tscore}",
+        f"CV score: {cv_line}",
+        f"Last CV: {last_cv}",
+        f"Last train: {last_train}",
+        f"Value scorer status: {vs_status}",
+        f"Value scorer: {vs_line}",
+        f"XGBoost active: {active}",
+        "Optimization: Ridge only",
+    ]
+    return lines
+
 # Use shared helpers.safe_write to avoid duplication
 
 # Local alias for concise access
@@ -887,33 +961,8 @@ def render_sidebar_tail(
                 pass
             return tscore, cv_line, last_train, vs_line, vs_status
 
-        # Compute with safe defaults so lines always render
-        tscore = 'n/a'
-        cv_line = 'n/a'
-        last_train = str(st.session_state.get(Keys.LAST_TRAIN_AT) or 'n/a') if hasattr(st, 'session_state') else 'n/a'
-        vs_line = f"{vm_choice or 'Ridge'} (xgb_unavailable, rows=0)" if vm_choice == 'XGBoost' else 'Ridge (ridge_untrained, rows=0)'
-        vs_status = 'xgb_unavailable' if vm_choice == 'XGBoost' else 'ridge_untrained'
-        try:
-            tscore, cv_line, last_train, vs_line, vs_status = _compute_train_results_summary(st, lstate, prompt, vm_choice)
-        except Exception:
-            pass
-        try:
-            last_cv = st.session_state.get(K.CV_LAST_AT) or "n/a"
-        except Exception:
-            last_cv = "n/a"
-        # Compose canonical order once
-        # Active only when XGB is selected and scorer status is ok
-        active = "yes" if (vm_choice == "XGBoost" and str(vs_status) == "ok") else "no"
-        lines = [
-            f"Train score: {tscore}",
-            f"CV score: {cv_line}",
-            f"Last CV: {last_cv}",
-            f"Last train: {last_train}",
-            f"Value scorer status: {vs_status}",
-            f"Value scorer: {vs_line}",
-            f"XGBoost active: {active}",
-            "Optimization: Ridge only",
-        ]
+        # Compose canonical lines via helper for stability
+        lines = compute_train_results_lines(st, lstate, prompt, vm_choice)
         # Emit once here (safe_write + sidebar), then omit the Optimization line inside the expander below
         _emit_train_results(st, lines)
         # Compatibility line expected by some tests
