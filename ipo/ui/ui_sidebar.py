@@ -249,6 +249,46 @@ def build_queue_controls(st, expanded: bool = False) -> int:
 
 
 # Minimal copies of step‑score helpers so ui_sidebar is self‑contained
+def _ridge_dir(lstate: Any):
+    try:
+        import numpy as _np
+        w_raw = getattr(lstate, "w", None)
+        if w_raw is None:
+            return None
+        w = _np.asarray(w_raw[: getattr(lstate, "d", 0)], dtype=float).copy()
+        n = float(_np.linalg.norm(w))
+        if n == 0.0:
+            return None
+        return w, n, (w / n)
+    except Exception:
+        return None
+
+
+def _get_scorer_for_vm(vm_choice: str, lstate: Any, prompt: str, session_state: Any):
+    try:
+        from value_scorer import get_value_scorer
+        scorer, _ = get_value_scorer(vm_choice, lstate, prompt, session_state)
+        return scorer
+    except Exception:
+        return None
+
+
+def _accumulate_step_scores(d1, step_len: float, n_steps: int, z_p, scorer, w):
+    import numpy as _np
+    scores: list[float] = []
+    for k in range(1, n_steps + 1):
+        zc = z_p + (k * step_len) * d1
+        try:
+            if scorer is not None:
+                s = float(scorer(zc - z_p))
+            else:
+                s = float(_np.dot(w, (zc - z_p)))
+        except Exception:
+            s = float(_np.dot(w, (zc - z_p)))
+        scores.append(s)
+    return scores
+
+
 def compute_step_scores(
     lstate: Any,
     prompt: str,
@@ -259,38 +299,19 @@ def compute_step_scores(
     session_state: Any,
 ):
     try:
-        import numpy as _np
         from latent_logic import z_from_prompt as _zfp
-        from value_scorer import get_value_scorer
 
-        w_raw = getattr(lstate, "w", None)
-        w = (
-            None
-            if w_raw is None
-            else _np.asarray(w_raw[: getattr(lstate, "d", 0)], dtype=float).copy()
-        )
-        n = float(_np.linalg.norm(w)) if w is not None else 0.0
-        scorer, tag = get_value_scorer(vm_choice, lstate, prompt, session_state)
-        if w is None or n == 0.0:
+        ridge = _ridge_dir(lstate)
+        if ridge is None:
             return None
+        w, _n, d1 = ridge
+        scorer = _get_scorer_for_vm(vm_choice, lstate, prompt, session_state)
         if vm_choice != "Ridge" and scorer is None:
             return None
-        d1 = w / n
         n_steps = max(1, int(iter_steps))
         step_len = _step_len_for_scores(lstate, n_steps, iter_eta, trust_r)
         z_p = _zfp(lstate, prompt)
-        scores: list[float] = []
-        for k in range(1, n_steps + 1):
-            zc = z_p + (k * step_len) * d1
-            try:
-                if scorer is not None:
-                    s = float(scorer(zc - z_p))
-                else:
-                    s = float(_np.dot(w, (zc - z_p)))
-            except Exception:
-                s = float(_np.dot(w, (zc - z_p)))
-            scores.append(s)
-        return scores
+        return _accumulate_step_scores(d1, step_len, n_steps, z_p, scorer, w)
     except Exception:
         return None
 
@@ -1073,6 +1094,23 @@ def _emit_debug_panel(st: Any) -> None:
         pass
 
 
+def _lc_write_key(st: Any, lc: dict, key: str) -> None:
+    try:
+        if key in lc:
+            safe_write(st, f"{key}: {lc[key]}")
+    except Exception:
+        pass
+
+
+def _lc_warn_std(st: Any, lc: dict) -> None:
+    try:
+        stdv = lc.get("latents_std")
+        if stdv is not None and float(stdv) <= 1e-9:
+            st.sidebar.write(f"warn: latents std {float(stdv):.3g}")
+    except Exception:
+        pass
+
+
 def _emit_last_call_info(st: Any) -> None:
     try:
         from flux_local import get_last_call  # type: ignore
@@ -1080,17 +1118,8 @@ def _emit_last_call_info(st: Any) -> None:
     except Exception:
         lc = {}
     for k in ("model_id", "event", "width", "height", "latents_std", "latents_mean"):
-        try:
-            if k in lc:
-                safe_write(st, f"{k}: {lc[k]}")
-        except Exception:
-            pass
-    try:
-        stdv = lc.get("latents_std")
-        if stdv is not None and float(stdv) <= 1e-9:
-            st.sidebar.write(f"warn: latents std {float(stdv):.3g}")
-    except Exception:
-        pass
+        _lc_write_key(st, lc, k)
+    _lc_warn_std(st, lc)
     try:
         w = lc.get("width")
         h = lc.get("height")
