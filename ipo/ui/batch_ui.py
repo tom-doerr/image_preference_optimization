@@ -474,16 +474,87 @@ def _curation_replace_at(idx: int) -> None:
             pass
 
 
+def _append_mem_dataset(st, Keys, feat: np.ndarray, label: float) -> None:
+    try:
+        X = st.session_state.get("dataset_X")
+        y = st.session_state.get("dataset_y")
+        lab = np.array([float(label)])
+        st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
+        st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
+        st.session_state[Keys.DATASET_X] = st.session_state.dataset_X
+        st.session_state[Keys.DATASET_Y] = st.session_state.dataset_y
+    except Exception:
+        pass
+
+
+def _save_and_print(prompt: str, feat: np.ndarray, label: float, img, st):
+    from ipo.core import persistence as p
+    try:
+        row_idx = p.append_sample(prompt, feat, float(label), img)
+    except Exception:
+        row_idx = None
+    try:
+        save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
+    except Exception:
+        save_dir = "data"
+    msg = (
+        f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
+        if row_idx is not None
+        else "Saved sample #n/a"
+    )
+    try:
+        _log(
+            f"[data] saved row={row_idx if row_idx is not None else 'n/a'} path={save_dir}/{row_idx:06d}"  # type: ignore[str-format]
+        )
+    except Exception:
+        pass
+    try:
+        print(f"[data] saved row={row_idx if row_idx is not None else 'n/a'}")
+    except Exception:
+        pass
+    try:
+        st.sidebar.write(msg)
+    except Exception:
+        pass
+    return row_idx, save_dir, msg
+
+
+def _record_last_action_and_step(st, Keys, lstate, msg: str) -> None:
+    try:
+        import time as _time
+        st.session_state[Keys.LAST_ACTION_TEXT] = msg
+        st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+    except Exception:
+        pass
+    try:
+        setattr(lstate, "step", int(getattr(lstate, "step", 0)) + 1)
+    except Exception:
+        pass
+
+
+def _update_rows_display(st, Keys) -> None:
+    try:
+        _yl = st.session_state.get(Keys.DATASET_Y, None)
+        rows_live = int(len(_yl)) if _yl is not None else 0
+    except Exception:
+        rows_live = 0
+    try:
+        st.session_state[Keys.ROWS_DISPLAY] = str(rows_live)
+    except Exception:
+        pass
+    try:
+        print(f"[rows] live={rows_live} disp={rows_live}")
+    except Exception:
+        pass
+
+
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
-    from ipo.core import persistence as p
     from ipo.infra.constants import Keys
     from latent_logic import z_from_prompt
 
     lstate, prompt = _lstate_and_prompt()
     z_p = z_from_prompt(lstate, prompt)
-    X = getattr(st.session_state, "dataset_X", None)
-    y = getattr(st.session_state, "dataset_y", None)
     feat = (z - z_p).reshape(1, -1)
     try:
         _log(f"[data] append label={int(label)} ‖feat‖={float(np.linalg.norm(feat)):.3f}")
@@ -494,62 +565,11 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
         print(f"[data] append label={int(label)}")
     except Exception:
         pass
-    lab = np.array([float(label)])
-    st.session_state.dataset_X = feat if X is None else np.vstack([X, feat])
-    st.session_state.dataset_y = lab if y is None else np.concatenate([y, lab])
-    # Also mirror into keyed entries for consistency with Keys-based readers
+    _append_mem_dataset(st, Keys, feat, float(label))
     try:
-        st.session_state[Keys.DATASET_X] = st.session_state.dataset_X
-        st.session_state[Keys.DATASET_Y] = st.session_state.dataset_y
-    except Exception:
-        pass
-    try:
-        row_idx = p.append_sample(prompt, feat, float(label), img)
-        try:
-            save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
-        except Exception:
-            save_dir = "data"
-        msg = f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
-        try:
-            _log(f"[data] saved row={row_idx} path={save_dir}/{row_idx:06d}")
-        except Exception:
-            pass
-        # Unconditional short debug for tests capturing stdout
-        try:
-            print(f"[data] saved row={row_idx}")
-        except Exception:
-            pass
-        # Single line notice only (no toasts): keep it boring and explicit
-        try:
-            st.sidebar.write(msg)
-        except Exception:
-            pass
-        # Record last action for the sidebar panel
-        try:
-            import time as _time
-            st.session_state[Keys.LAST_ACTION_TEXT] = msg
-            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
-        except Exception:
-            pass
-        # Increment interaction step for visibility
-        try:
-            setattr(lstate, "step", int(getattr(lstate, "step", 0)) + 1)
-        except Exception:
-            pass
-        # Bump the live rows display immediately (memory-only)
-        try:
-            _yl = st.session_state.get(Keys.DATASET_Y, None)
-            rows_live = int(len(_yl)) if _yl is not None else 0
-        except Exception:
-            rows_live = 0
-        try:
-            st.session_state[Keys.ROWS_DISPLAY] = str(rows_live)
-        except Exception:
-            pass
-        try:
-            print(f"[rows] live={rows_live} disp={rows_live}")
-        except Exception:
-            pass
+        _row_idx, _save_dir, msg = _save_and_print(prompt, feat, float(label), img, st)
+        _record_last_action_and_step(st, Keys, lstate, msg)
+        _update_rows_display(st, Keys)
     except Exception:
         pass
 
