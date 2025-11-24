@@ -1648,6 +1648,13 @@ Update (Nov 22, 2025 — wrappers sweep)
   - proposer.py → removed; tiny API moved into latent_opt.
 - Ran a full suite to surface import issues; remaining failures are behavioral/strings (not import errors). We’ll align sidebar strings separately.
 
+Refactor (Nov 24, 2025 — ui_sidebar helpers)
+- Extracted two tiny helpers to reduce duplication and LOC in ui_sidebar:
+  - `_get_dataset_for_display(st, lstate, prompt)` returns in‑memory rows when present; otherwise prompt folder rows.
+  - `_autofit_xgb_if_selected(st, lstate, vm_choice, X, y)` performs the cache‑aware sync `ensure_fitted` when XGB is selected.
+- Updated `render_sidebar_tail` to call these helpers; behavior unchanged beyond the earlier auto‑fit addition.
+- Tests: `tests/test_ui_sidebar_refactor_helpers.py` covers both helpers (memory preference and `ensure_fitted` call).
+
 Update (Nov 24, 2025 — XGB auto‑fit on selection)
 - When the Value model is set to XGBoost, the sidebar now triggers a synchronous XGB fit automatically if a usable dataset is present and the cache is stale. Implementation: ui_sidebar.render_sidebar_tail → value_model.ensure_fitted → fit_value_model (sync‑only). It’s cache‑aware, so reruns do not retrain unless row count changes. Ridge remains always‑on for w.
 - Added a focused unit test tests/test_xgb_autofit_when_selected.py that stubs flux_local and xgboost to keep the test light and asserts session_state.xgb_cache is populated after render with XGBoost selected.
