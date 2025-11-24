@@ -1647,3 +1647,8 @@ Update (Nov 22, 2025 — wrappers sweep)
   - persistence.py → removed; imports now point to ipo.core.persistence.
   - proposer.py → removed; tiny API moved into latent_opt.
 - Ran a full suite to surface import issues; remaining failures are behavioral/strings (not import errors). We’ll align sidebar strings separately.
+
+Update (Nov 24, 2025 — XGB auto‑fit on selection)
+- When the Value model is set to XGBoost, the sidebar now triggers a synchronous XGB fit automatically if a usable dataset is present and the cache is stale. Implementation: ui_sidebar.render_sidebar_tail → value_model.ensure_fitted → fit_value_model (sync‑only). It’s cache‑aware, so reruns do not retrain unless row count changes. Ridge remains always‑on for w.
+- Added a focused unit test tests/test_xgb_autofit_when_selected.py that stubs flux_local and xgboost to keep the test light and asserts session_state.xgb_cache is populated after render with XGBoost selected.
+- Rationale: removes confusion about when XGB becomes active; keeps behavior simple and explicit.
