@@ -93,8 +93,8 @@ def _vm_and_cache(st):
         vm_choice = str(st.session_state.get(Keys.VM_CHOICE, ""))
     except Exception:
         vm_choice = ""
-    cache = st.session_state.get("xgb_cache") or {}
-    return vm_choice, cache
+    # XGB session cache removed; ignore any legacy keys
+    return vm_choice, {}
 
 
 def _ridge_norm(lstate) -> float:
@@ -130,9 +130,8 @@ def _try_logistic(_gvs, vm_choice, lstate, prompt, st):
     return (s, tag) if s is not None else (None, None)
 
 
-def _try_xgb_cached(_gvs, cache, lstate, prompt, st):
-    if cache.get("model") is None:
-        return None, None
+def _try_xgb_live(_gvs, lstate, prompt, st):
+    # No explicit cache: ask the scorer builder directly; returns None when unavailable
     s, tag = _gvs("XGBoost", lstate, prompt, st.session_state)
     return (s, tag) if s is not None else (None, None)
 
@@ -155,7 +154,7 @@ def _pick_scorer(vm_choice: str, cache, lstate, prompt, st):
     for fn in (
         lambda: _try_distance(_gvs, vm_choice, lstate, prompt, st),
         lambda: _try_logistic(_gvs, vm_choice, lstate, prompt, st),
-        lambda: _try_xgb_cached(_gvs, cache, lstate, prompt, st),
+        lambda: _try_xgb_live(_gvs, lstate, prompt, st),
         lambda: _try_ridge_if_norm(_gvs, lstate, prompt, st),
     ):
         s, tag = fn()

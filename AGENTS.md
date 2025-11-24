@@ -16,7 +16,7 @@ Update (Nov 21, 2025 – XGBoost stability + simplification):
 - Single scorer policy: captions use [XGB] when a cached model exists; else [Ridge] if ‖w‖>0; else “n/a”.
 - Data is scoped by both prompt hash and latent dimension. If either changes, the dataset may appear empty. Dim-mismatched rows are ignored, not errored.
 - XGBoost requires ≥2 classes (+1/−1) and ≥2 rows per class; otherwise status is xgb_unavailable. This is often the root cause of “no values” under images despite having some rows.
-- After a sync fit, we must set a small cache in session state (e.g., `xgb_cache={'model': mdl, 'n': rows}`) so scorers become available immediately on the next render.
+- Update (Nov 24, 2025): Removed the `xgb_cache` concept. After a sync fit, callers may optionally attach the trained model to `session_state.XGB_MODEL` for immediate use. Scorers do not depend on a cache; when no model is present, XGB captions remain unavailable and we fall back to Ridge or n/a per rules.
 - Logging: file logging via `helpers.enable_file_logging()` writes to `ipo.debug.log`. Noncritical logs are gated by `LOG_VERBOSITY` (0/1/2).
 
 New (Nov 21, 2025 – Logistic option):
@@ -115,9 +115,9 @@ Notes (Nov 22, 2025 — XGB simplification and gotchas):
   - Single‑class data: XGB needs at least one +1 and one −1 label.
   - Sync‑only training: we no longer auto‑fit on reruns; you must click “Train XGBoost now (sync)”.
 - Simplify contract to reduce bugs and LOC:
-  - Single scorer at a time. Use XGB only when `session_state.xgb_cache` exists; else Ridge if ‖w‖>0; else `n/a`.
+  - Single scorer at a time. Use XGB only when a live model is provided (e.g., `session_state.XGB_MODEL`); else Ridge if ‖w‖>0; else `n/a`.
   - One dataset source in memory; write rows to disk on save, but don’t rescan folders for counters on rerun.
-- Explicit XGB fit button writes `session_state.xgb_cache = {"model": mdl, "n": rows}` and prints `[xgb] using cached model rows=N`.
+- Explicit XGB fit button runs a sync fit and may place `session_state.XGB_MODEL = mdl`; no cache dict is maintained.
   - Sidebar always prints: prompt hash, latent dim, dataset path, rows, and `XGBoost model rows: N (status: ok/running/unavailable)`.
   - Logs gated by `LOG_VERBOSITY` (0 default) to keep CI quiet; bump to 1 for `[scorer] …` lines.
   - Do not train automatically on reruns; no background futures.
@@ -232,7 +232,7 @@ New learnings (Nov 21, 2025, late)
 
 Next options (227)
 - 227a. Remove the shim (`get_value_scorer_with_status`) and update tests to use the unified API. Add two micro‑tests: Ridge with `w=0` returns `(None,'ridge_untrained')`; XGB with cache returns `(callable,'XGB')`. Recommended.
-- 227b. Simplify `value_model` to sync-only; delete async branches/keys. Keep only `xgb_cache` + `LAST_TRAIN_AT/MS`. Small, safe.
+- 227b. Simplify `value_model` to sync-only; delete async branches/keys. Keep only `LAST_TRAIN_AT/MS`. (xgb_cache removed.)
 - 227c. Delete fragment/page remnants and dead async docs/tests. Shrinks surface area.
 - 227d. Canonicalize sidebar train block (single 6–8 lines, fixed order) and drop duplicate lines. Low risk, improves test stability.
 
@@ -1225,7 +1225,7 @@ New learnings (Nov 20, 2025, evening):
 - Iter steps honored: `tests/test_step_scores_count_matches_iter_steps.py` verifies `compute_step_scores` produces exactly `iter_steps` entries (e.g., 5 steps → 5 scores computed from the current `w`), ensuring the optimization step slider is respected.
 - Queue toasts: `_queue_label` now emits a toast “Accepted (+1)” / “Rejected (-1)” on label; tests `tests/test_queue_toast_label.py` and `tests/test_queue_toast_reject.py` stub `st.toast` and assert the messages appear.
 - Rows CLI hum: `_curation_add` logs `[rows] live=<session> disk=<on-disk>` without tripping on numpy truthiness. Test: `tests/test_rows_cli_print.py` captures stdout to pin the behavior.
-- XGB scorer availability: `_build_xgb_scorer` now falls back to `xgb_value.get_cached_scorer(prompt, session_state)` when no model object is in `xgb_cache`, returning status `ok` if found. Test: `tests/test_xgb_scorer_available.py`.
+- XGB scorer availability: `_build_xgb_scorer` no longer reads a session cache; it returns available only when a live model is provided (e.g., `session_state.XGB_MODEL`).
 - XGB model cache path covered: `tests/test_xgb_scorer_model_cache.py` stubs `score_xgb_proba` and a cached model; status must be `ok` and the scorer should run with the model’s bias.
 - Saved path surfaced: `Saved sample #n` toast/sidebar now include the sample directory (`data/<hash>/<row>`) so the path is visible. Test: `tests/test_saved_path_in_toast.py`.
 - Black images investigation: recurring reports at 640px / sd-turbo. Debug plan: check sidebar Debug for `latents_std` ~0, run `scripts/sanity_decode.py` at current size/steps, and consider lowering to 512px/6 steps. Keep `FLUX_LOCAL_MODEL` set; LCM scheduler warnings are benign but monitor `init_sigma` vs `latents_std`.
@@ -1431,7 +1431,7 @@ New learnings (Nov 21, 2025 – keys + sidebar + tests):
   - Fragment path keeps keys stable across reruns using only (batch_nonce, index) to avoid swallowed clicks and keep UI predictable.
 - App length: app.py trimmed to ≤400 lines to satisfy tests; comments and no‑ops collapsed.
 - Latents helper: batch_ui imports z_to_latents from latent_logic, but falls back to latent_opt when tests stub only that module.
-- XGBoost sync fits: after a synchronous fit we explicitly set session_state.xgb_cache={"model": mdl, "n": rows} and mark XGB_TRAIN_STATUS='ok'.
+- XGBoost sync fits: after a synchronous fit, we set `session_state.XGB_MODEL = mdl` and mark XGB_TRAIN_STATUS='ok'.
 - Sidebar early lines: on import we always emit Value model / Train score / Step scores / XGBoost active and Latent dim so text‑capture tests are stable.
 - Render nonce: a lightweight render_nonce is incremented each _render_batch_ui() render (used only in non‑fragment keys). Cur_batch_nonce is incremented on new batches only.
 - Follow‑ups: finish stabilizing batch_keys_unique (isolated batch_ui) and batch_scores_visible.
@@ -1583,7 +1583,7 @@ Rationale: these are surgical, low‑risk deletions that reduce indirection and 
 
 Next Simplifications (Nov 21, 2025, 226)
 - 226a. Remove the scorer status shim entirely: delete `get_value_scorer_with_status` and update remaining tests to `get_value_scorer`. Add two tiny unit tests for Ridge zero‑w and XGB cached‑model. Small, clear API.
-- 226b. Simplify `value_model` XGB/Ridge paths to sync‑only: remove dead async branches and future/status writes; keep `xgb_cache` and `LAST_TRAIN_{AT,MS}` only. Optional: retain `Keys.XGB_TRAIN_STATUS` as a dumb mirror for a transition period.
+- 226b. Simplify `value_model` XGB/Ridge paths to sync‑only: remove dead async branches and future/status writes; remove `xgb_cache`; keep `LAST_TRAIN_{AT,MS}` only.
 - 226c. Finish thinning `ipo.ui.ui`: keep it as a facade that re‑exports `ui_sidebar` helpers; once tests stop importing it, retire the file.
 - 226d. Prune any tests that assume async behavior (futures/status transitions) after 226b lands; replace with explicit click‑to‑fit tests.
 Simplify wave (Nov 21, 2025, 218)
@@ -1631,7 +1631,7 @@ New learnings (Nov 21, 2025 – XGB clarity)
 Update (Nov 22, 2025 — late)
 - Simplified app bootstrap: `app.py` now delegates to `app_api`/`app_bootstrap` cleanly; fixed prior indentation/import issues.
 - Batch buttons render outside fragments to avoid swallowed clicks; visuals can still cache per-tile.
-- XGBoost bugs: root causes were cache not set on reruns, rows filtered by dim/prompt mismatch, and fits triggered implicitly. We keep XGB sync-only and set `session_state.xgb_cache` immediately on a sync fit. Until then, captions show `[Ridge]` when `‖w‖>0`, otherwise `n/a`.
+- XGBoost bugs: we removed the cache to avoid stale state. XGB remains sync-only; until a live model is present, captions show `[Ridge]` when `‖w‖>0`, otherwise `n/a`.
 - One scorer at a time, one dataset source (memory; write-through on label), minimal logging default.
 - Next: remove remaining async/auto-fit mentions from tests/docs; keep a single “Train XGBoost now (sync)” action.
 Update (Nov 22, 2025 — code trim)
@@ -1670,7 +1670,7 @@ Suggested next steps
 
 Update (Nov 24, 2025 — XGB auto‑fit on selection)
 - When the Value model is set to XGBoost, the sidebar now triggers a synchronous XGB fit automatically if a usable dataset is present and the cache is stale. Implementation: ui_sidebar.render_sidebar_tail → value_model.ensure_fitted → fit_value_model (sync‑only). It’s cache‑aware, so reruns do not retrain unless row count changes. Ridge remains always‑on for w.
-- Added a focused unit test tests/test_xgb_autofit_when_selected.py that stubs flux_local and xgboost to keep the test light and asserts session_state.xgb_cache is populated after render with XGBoost selected.
+- (Obsolete) Removed references to `xgb_cache` in tests; new flows rely on a live `XGB_MODEL` (if provided) or Ridge fallback.
 - Rationale: removes confusion about when XGB becomes active; keeps behavior simple and explicit.
 Radon snapshot (Nov 24, 2025)
 - Top cyclomatic complexity (CC):
@@ -1756,9 +1756,11 @@ Batch curation (Nov 24, 2025 — _curation_add):
 - Follow‑up (Nov 24, 2025 — batch/ui & sidebar):
   - `_refit_from_dataset_keep_batch` reduced to B by extracting `_cooldown_recent` and `_fit_ridge_once`.
   - `_render_metadata_panel_inline` reduced to A by extracting `_resolve_meta_pairs` and `_emit_meta_pairs`; outputs unchanged.
-  - `_pick_scorer` in `batch_ui` reduced to A by factoring `_try_distance/_try_logistic/_try_xgb_cached/_try_ridge_if_norm`; same scorer order/tags.
+  - `_pick_scorer` in `batch_ui` reduced to A by factoring `_try_distance/_try_logistic/_try_xgb_live/_try_ridge_if_norm`; same scorer order/tags.
   - `_curation_train_and_next` reduced to B by reusing the shared cooldown/fit helpers.
 ---
 Tests (Nov 24, 2025):
 - tests/test_ui_sidebar_emit_train_results.py: regression guard for missing lstate in session; ensures a line is written.
 - tests/test_batch_cooldown_recent.py: asserts cooldown True for recent timestamp and False for old.
+- tests/integration/test_integration_sidebar_tail.py: calls render_sidebar_tail with a stubbed streamlit + flux_local; asserts canonical lines render (Train score/CV/Optimization/XGBoost line).
+- tests/integration/test_integration_batch_flow_smoke.py: stubs streamlit, flux_local, latent_logic; runs batch_ui.run_batch_mode and asserts image captions were produced.

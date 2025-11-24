@@ -92,41 +92,32 @@ def _build_logit_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], floa
 def _build_xgb_scorer(
     vm_choice: str, lstate: Any, prompt: str, session_state: Any
 ) -> Tuple[Callable[[np.ndarray], float], str]:
+    """Simplified XGB scorer: no session cache.
+
+    We return unavailable unless a live XGB model is explicitly provided by callers
+    in session (optional `XGB_MODEL`), keeping logic simple and predictable.
+    """
     def _zero(_fvec: np.ndarray) -> float:
         return 0.0
 
     try:
-        cache = getattr(session_state, "xgb_cache", {}) or {}
-        mdl = cache.get("model")
-        if mdl is None:
-            try:
-                from ipo.core.xgb_value import get_cached_scorer  # type: ignore
-
-                scorer = get_cached_scorer(prompt, session_state)
-                if scorer is not None:
-                    return scorer, "ok"
-            except Exception:
-                pass
+        # Optional: allow direct provision of a model under a neutral key
+        mdl = getattr(session_state, "XGB_MODEL", None)
         if mdl is None:
             try:
                 from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
 
-                Xd, _ = _get_ds(prompt, session_state)
+                Xd, yd = _get_ds(prompt, session_state)
                 rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
                 d_lat = getattr(lstate, "d", "?")
                 print(
-                    f"[xgb] scorer unavailable: no cached model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
+                    f"[xgb] scorer unavailable: no model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
                 )
             except Exception:
-                print("[xgb] scorer unavailable: no cached model")
+                print("[xgb] scorer unavailable: no model")
             return _zero, "xgb_unavailable"
-        from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 
-        try:
-            n = int(cache.get("n") or 0)
-            print(f"[xgb] using cached model rows={n} d={getattr(lstate, 'd', '?')}")
-        except Exception:
-            pass
+        from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 
         def _xgb(fvec: np.ndarray) -> float:
             return float(score_xgb_proba(mdl, np.asarray(fvec, dtype=float)))

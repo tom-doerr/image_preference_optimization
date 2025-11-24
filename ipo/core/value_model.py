@@ -78,7 +78,11 @@ def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
 
 
 def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
-    """Sync XGB fit with minimal side effects; updates xgb_cache when usable."""
+    """Sync XGB fit with minimal side effects; no session-state cache.
+
+    If a usable model is trained, we place it under session_state.XGB_MODEL so
+    callers can use it immediately. We do not maintain any separate cache dict.
+    """
     try:
         from ipo.core.xgb_value import fit_xgb_classifier  # type: ignore
 
@@ -89,8 +93,6 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
             yy = np.asarray(y).astype(int)
             pos = int((yy > 0).sum())
             neg = int((yy < 0).sum())
-            cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
-            last_n = int(cache.get("n") or 0)
             # Clear stale future handles (sync-only path)
             try:
                 session_state.pop(Keys.XGB_FIT_FUTURE, None)
@@ -105,24 +107,21 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
                 max_depth = int(session_state.get("xgb_max_depth", 3))
             except Exception:
                 max_depth = 3
-            if cache.get("model") is None or last_n != n:
-                _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-                _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-                t_x = _time.perf_counter()
-                mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-                session_state.xgb_cache = {"model": mdl, "n": n}
-                try:
-                    session_state["xgb_toast_ready"] = True
-                except Exception:
-                    pass
-                dt_ms = (_time.perf_counter() - t_x) * 1000.0
-                _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-                try:
-                    session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
-                except Exception:
-                    pass
-            else:
-                _log(f"[xgb] skip: cache up-to-date rows={n}")
+            _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+            _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+            t_x = _time.perf_counter()
+            mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+            try:
+                session_state.XGB_MODEL = mdl
+                session_state["xgb_toast_ready"] = True
+            except Exception:
+                pass
+            dt_ms = (_time.perf_counter() - t_x) * 1000.0
+            _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+            try:
+                session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+            except Exception:
+                pass
         else:
             _log(
                 f"[xgb] skip: insufficient classes rows={int(X.shape[0])} classes={sorted(list(classes)) if classes else []}"
@@ -203,8 +202,7 @@ def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: floa
             pass
         # XGB summary
         try:
-            cache = getattr(session_state, Keys.XGB_CACHE, {}) or {}
-            mdl = cache.get("model")
+            mdl = getattr(session_state, "XGB_MODEL", None)
             if mdl is not None and n > 0:
                 from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 

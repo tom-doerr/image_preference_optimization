@@ -746,7 +746,7 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
 
     # Header + cache
     vm = "Ridge" if vm_choice not in ("XGBoost", "Ridge", "Distance") else vm_choice
-    cache = st.session_state.get("xgb_cache") or {}
+    cache = {}
     safe_write(st, f"Value model: {vm}")
     _emit_cv_all()
 
