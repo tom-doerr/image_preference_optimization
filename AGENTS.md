@@ -1753,3 +1753,6 @@ Batch curation (Nov 24, 2025 — _curation_add):
   - `_append_mem_dataset`, `_save_and_print`, `_record_last_action_and_step`, `_update_rows_display`.
 - No visible string/order changes; the sidebar “Saved sample …” line and CLI prints stay identical.
 - Radon: `_curation_add` C→A.
+- Follow‑up (Nov 24, 2025 — batch/ui & sidebar):
+  - `_refit_from_dataset_keep_batch` reduced to B by extracting `_cooldown_recent` and `_fit_ridge_once`.
+  - `_render_metadata_panel_inline` reduced to A by extracting `_resolve_meta_pairs` and `_emit_meta_pairs`; outputs unchanged.

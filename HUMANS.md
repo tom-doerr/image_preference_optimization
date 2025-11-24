@@ -37,6 +37,7 @@ Q&A (Nov 24, 2025 – late)
 - Update: Also reduced ui_sidebar.compute_step_scores to A and _emit_last_call_info to B via tiny helpers; visible strings remain identical.
 - Question: Should I proceed with batch_ui._curation_add (currently C 17) next? It’s the next clean win (toast/save/train split) with no UI string changes.
 Update (same day): I split `_curation_add` into four tiny helpers (append memory dataset, save+notice, record last action+step, update rows display). Behavior and output lines are the same; complexity drops to A. If you want, next I can trim `_refit_from_dataset_keep_batch` from C by pulling cooldown/fit blocks into helpers (no behavior change).
+Extra: Reduced `_refit_from_dataset_keep_batch` to B with `_cooldown_recent` and `_fit_ridge_once`. Sidebar metadata panel now uses `_resolve_meta_pairs` + `_emit_meta_pairs` (same strings, clearer flow).
 - Note: The full test suite shows a few syntax issues in tests in this workspace; I did not modify tests in this pass. If you want, I can prioritize a quick pass to fix or isolate those before continuing.
 How to reproduce
 - Activate venv and run:
