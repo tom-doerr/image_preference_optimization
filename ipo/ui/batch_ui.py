@@ -116,6 +116,34 @@ def _compute_zp(lstate, prompt):
         return None
 
 
+def _try_distance(_gvs, vm_choice, lstate, prompt, st):
+    if vm_choice != "Distance":
+        return None, None
+    s, tag = _gvs("Distance", lstate, prompt, st.session_state)
+    return (s, tag if s is not None else None)
+
+
+def _try_logistic(_gvs, vm_choice, lstate, prompt, st):
+    if vm_choice != "Logistic":
+        return None, None
+    s, tag = _gvs("Logistic", lstate, prompt, st.session_state)
+    return (s, tag) if s is not None else (None, None)
+
+
+def _try_xgb_cached(_gvs, cache, lstate, prompt, st):
+    if cache.get("model") is None:
+        return None, None
+    s, tag = _gvs("XGBoost", lstate, prompt, st.session_state)
+    return (s, tag) if s is not None else (None, None)
+
+
+def _try_ridge_if_norm(_gvs, lstate, prompt, st):
+    if _ridge_norm(lstate) <= 0.0:
+        return None, None
+    s, tag = _gvs("Ridge", lstate, prompt, st.session_state)
+    return (s, tag) if (s is not None and tag == "Ridge") else (None, None)
+
+
 def _pick_scorer(vm_choice: str, cache, lstate, prompt, st):
     """Internal: decide scorer without side effects.
     Order: Distance → Logistic → XGB(cache) → Ridge(||w||>0).
@@ -124,29 +152,15 @@ def _pick_scorer(vm_choice: str, cache, lstate, prompt, st):
         from value_scorer import get_value_scorer as _gvs
     except Exception:
         return None, None
-
-    # Distance (explicit)
-    if vm_choice == "Distance":
-        s, tag = _gvs("Distance", lstate, prompt, st.session_state)
-        return (s, tag if s is not None else None)
-
-    # Logistic when selected
-    if vm_choice == "Logistic":
-        s_log, tag_log = _gvs("Logistic", lstate, prompt, st.session_state)
-        if s_log is not None:
-            return s_log, tag_log
-
-    # XGB if cached
-    if cache.get("model") is not None:
-        s_xgb, tag_xgb = _gvs("XGBoost", lstate, prompt, st.session_state)
-        if s_xgb is not None:
-            return s_xgb, tag_xgb
-
-    # Ridge if ||w||>0
-    if _ridge_norm(lstate) > 0.0:
-        s2, tag2 = _gvs("Ridge", lstate, prompt, st.session_state)
-        if s2 is not None and tag2 == "Ridge":
-            return s2, tag2
+    for fn in (
+        lambda: _try_distance(_gvs, vm_choice, lstate, prompt, st),
+        lambda: _try_logistic(_gvs, vm_choice, lstate, prompt, st),
+        lambda: _try_xgb_cached(_gvs, cache, lstate, prompt, st),
+        lambda: _try_ridge_if_norm(_gvs, lstate, prompt, st),
+    ):
+        s, tag = fn()
+        if s is not None:
+            return s, tag
     return None, None
 
 
@@ -668,28 +682,12 @@ def _curation_train_and_next() -> None:
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
         try:
             lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
-            # Only train Ridge automatically; XGB trains via explicit button
-            vm_train = "Ridge"
             try:
-                getattr(st, "toast", lambda *a, **k: None)(f"Training {vm_train}…")
+                getattr(st, "toast", lambda *a, **k: None)("Training Ridge…")
             except Exception:
                 pass
-            # Cooldown + single synchronous fit
-            from datetime import datetime, timezone
-            last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
-            min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
-            recent = False
-            if last_at and min_wait > 0.0:
-                try:
-                    dt = datetime.fromisoformat(last_at)
-                    recent = (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
-                except Exception:
-                    recent = False
-            try:
-                from ipo.core.value_model import fit_value_model as _fit_vm
-                _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
-            except Exception:
-                pass
+            if not _cooldown_recent(st):
+                _fit_ridge_once(lstate, X, y, lam_now, st)
         except Exception:
             pass
     _curation_new_batch()
