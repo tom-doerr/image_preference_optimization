@@ -1744,4 +1744,6 @@ Micro refactor (Nov 24, 2025 — late):
   - _tile_value_text reduced to B via _predict_value and _vm_tag; captions remain “Value: … [XGB/Ridge/Logit/Distance]”.
 - Sidebar:
   - _mem_dataset_stats reduced to A by factoring out _labels_pos_neg; sidebar lines/order unchanged.
+  - compute_step_scores reduced to A by extracting _ridge_dir, _get_scorer_for_vm, and _accumulate_step_scores; render output identical.
+  - _emit_last_call_info reduced to B by extracting _lc_write_key and _lc_warn_std; strings unchanged.
 - Radon: verify with `radon cc -s -a ipo/ui/batch_ui.py` and `.../ui_sidebar.py`.
