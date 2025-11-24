@@ -715,8 +715,9 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
                         if Xm is not None and ym is not None and getattr(Xm, 'shape', (0,))[0] > 0:
                             Xd, yd = Xm, ym
                         else:
-                            from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
-                            Xd, yd = _get_ds(prompt, st.session_state)
+                            # Use shared helper to keep memory-first policy consistent
+                            from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
+                            Xd, yd = _gdf(st, lstate, prompt)
                         acc = None
                         if Xd is not None and yd is not None and getattr(Xd, 'shape', (0,))[0] > 1:
                             if vm == "XGBoost":

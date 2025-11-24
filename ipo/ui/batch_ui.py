@@ -561,15 +561,15 @@ def _render_batch_tile_body(
 
 def _curation_train_and_next() -> None:
     import streamlit as st
-    from ipo.core.persistence import get_dataset_for_prompt_or_session
+    # Use shared helper to resolve dataset (memory-first; then folder)
+    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     lstate, prompt = _lstate_and_prompt()
     # Respect toggle: skip training when disabled
     if not bool(st.session_state.get("train_on_new_data", True)):
         _curation_new_batch()
         return
-    # Clear previous future handle
-    # Async keys removed
-    X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
+    # Resolve dataset once (memory-first)
+    X, y = _gdf(st, lstate, prompt)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
         try:
@@ -603,12 +603,13 @@ def _curation_train_and_next() -> None:
 
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
-    from ipo.core.persistence import get_dataset_for_prompt_or_session
+    # Use shared helper for dataset resolution (memory-first)
+    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return
-    # Async training removed
-    X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
+    # Async training removed; resolve dataset once
+    X, y = _gdf(st, lstate, prompt)
     # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
     try:
         if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
