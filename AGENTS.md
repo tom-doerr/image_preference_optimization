@@ -1747,3 +1747,9 @@ Micro refactor (Nov 24, 2025 — late):
   - compute_step_scores reduced to A by extracting _ridge_dir, _get_scorer_for_vm, and _accumulate_step_scores; render output identical.
   - _emit_last_call_info reduced to B by extracting _lc_write_key and _lc_warn_std; strings unchanged.
 - Radon: verify with `radon cc -s -a ipo/ui/batch_ui.py` and `.../ui_sidebar.py`.
+
+Batch curation (Nov 24, 2025 — _curation_add):
+- Split `_curation_add` into tiny helpers to reduce CC and improve readability:
+  - `_append_mem_dataset`, `_save_and_print`, `_record_last_action_and_step`, `_update_rows_display`.
+- No visible string/order changes; the sidebar “Saved sample …” line and CLI prints stay identical.
+- Radon: `_curation_add` C→A.
