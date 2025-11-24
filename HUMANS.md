@@ -43,6 +43,9 @@ Latest: `_pick_scorer` is now A (split into four tiny try_* helpers), and `_cura
 New tests (Nov 24, 2025):
 - Sidebar regression: `_emit_train_results` with no `lstate` in session must not crash and must write the provided lines.
 - Cooldown helper: `_cooldown_recent` returns True for a recent timestamp and False for an old one.
+- Integration smokes:
+  - Sidebar-tail: `render_sidebar_tail` with stubbed `streamlit` + `flux_local` renders the canonical lines.
+  - Batch flow: `batch_ui.run_batch_mode` with stubbed `streamlit`/`latent_logic`/`flux_local` produces image captions (no GPU).
 - Note: The full test suite shows a few syntax issues in tests in this workspace; I did not modify tests in this pass. If you want, I can prioritize a quick pass to fix or isolate those before continuing.
 How to reproduce
 - Activate venv and run:
