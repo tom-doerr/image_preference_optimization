@@ -31,7 +31,7 @@ def train_xgb_for_prompt(
     if len(set(np.asarray(y).astype(int))) < 2:
         raise ValueError("Need both classes to train XGBoost (labels +1 and -1).")
 
-    from xgb_value import fit_xgb_classifier  # local import keeps CLI light
+    from ipo.core.xgb_value import fit_xgb_classifier  # local import keeps CLI light
 
     model = fit_xgb_classifier(X, y, n_estimators=n_estimators, max_depth=max_depth)
     preds = model.predict_proba(X)[:, 1] >= 0.5

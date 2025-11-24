@@ -18,7 +18,7 @@ class RowsCliPrintTest(unittest.TestCase):
         st.session_state.lstate = types.SimpleNamespace(
             d=4, width=64, height=64, sigma=1.0, rng=np.random.default_rng(0)
         )
-        from constants import Keys
+from constants import Keys
 
         st.session_state.dataset_y = [0.0]
         st.session_state.dataset_X = [np.zeros(4)]
@@ -39,8 +39,7 @@ class RowsCliPrintTest(unittest.TestCase):
         sys.modules["persistence"] = p
 
         sys.modules["streamlit"] = st
-
-        import batch_ui
+import batch_ui
 
         buf = io.StringIO()
         with redirect_stdout(buf):

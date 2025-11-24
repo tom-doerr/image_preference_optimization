@@ -51,7 +51,7 @@ class BatchMultipleSavesTest(unittest.TestCase):
         sys.modules["value_scorer"] = vs
 
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         batch_ui._curation_add(1, st.session_state.cur_batch[0])
         batch_ui._curation_add(-1, st.session_state.cur_batch[1])

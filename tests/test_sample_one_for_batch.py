@@ -13,7 +13,7 @@ class LS:
 
 class TestSampleOneForBatch(unittest.TestCase):
     def test_uses_xgb_hill_when_available(self):
-        import batch_ui as bu
+import batch_ui as bu
 
         # Stub latent_logic.sample_z_xgb_hill to return a sentinel vector
         ll_orig = sys.modules.get("latent_logic")
@@ -33,7 +33,7 @@ class TestSampleOneForBatch(unittest.TestCase):
                 sys.modules.pop("latent_logic", None)
 
     def test_falls_back_to_around_prompt_when_no_xgb(self):
-        import batch_ui as bu
+import batch_ui as bu
 
         # Monkeypatch the around_prompt helper
         called = {}

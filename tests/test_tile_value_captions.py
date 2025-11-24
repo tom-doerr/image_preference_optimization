@@ -39,8 +39,7 @@ class TestTileValueCaptions(unittest.TestCase):
         vs = types.ModuleType("value_scorer")
         vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: 0.0, "xgb_unavailable")
         sys.modules["value_scorer"] = vs
-
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
         # Expect captions contain "Value: n/a"
@@ -59,8 +58,7 @@ class TestTileValueCaptions(unittest.TestCase):
             return (lambda f: xv.score_xgb_proba("stub", f), "ok")
         vs.get_value_scorer_with_status = _xgb_scorer_with_status
         sys.modules["value_scorer"] = vs
-
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
         # Expect captions contain Value: 0.123

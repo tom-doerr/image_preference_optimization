@@ -7,7 +7,7 @@ from typing import Any
 import os
 import shutil
 import numpy as np
-from constants import APP_VERSION
+from ipo.infra.constants import APP_VERSION
 
 
 def state_path_for_prompt(prompt: str) -> str:
@@ -113,66 +113,80 @@ def dataset_rows_for_prompt_dim(prompt: str, d: int) -> int:
 # dataset_rows_all_for_prompt removed (203f): use dataset_rows_for_prompt instead.
 
 
+def _target_dim_from_session(session_state) -> int | None:
+    try:
+        lstate = getattr(session_state, "lstate", None)
+        if lstate is None:
+            return None
+        d = int(getattr(lstate, "d", 0) or 0)
+        return d or None
+    except Exception:
+        return None
+
+
+def _iter_sample_paths(root: str):
+    for name in sorted(os.listdir(root)):
+        p = os.path.join(root, name, "sample.npz")
+        if os.path.exists(p):
+            yield p
+
+
+def _load_sample_npz(path: str) -> tuple[np.ndarray | None, np.ndarray | None]:
+    with np.load(path) as d:
+        Xi = d["X"] if "X" in d.files else None
+        yi = d["y"] if "y" in d.files else None
+    return Xi, yi
+
+
+def _record_dim_mismatch(session_state, d_x: int | None, target_d: int) -> None:
+    try:
+        from ipo.infra.constants import Keys as _K
+
+        session_state[_K.DATASET_DIM_MISMATCH] = (d_x, target_d)
+    except Exception:
+        session_state["dataset_dim_mismatch"] = (d_x, target_d)
+
+
 def get_dataset_for_prompt_or_session(
     prompt: str, session_state
 ) -> tuple[object | None, object | None]:
     """Return (X, y) from per-sample folders only (no NPZ fallback).
 
     - Reads rows from data/<hash>/*/sample.npz and concatenates them.
-    - If session_state.lstate exists and feature dim != lstate.d, return (None, None)
+    - If session_state.lstate exists and feature dim != lstate.d, skip those rows
       and record the mismatch in session_state['dataset_dim_mismatch'].
     - If the folder is missing or empty, returns (None, None).
     """
     X = y = None
     root = data_root_for_prompt(prompt)
     try:
-        if os.path.isdir(root):
-            xs: list[np.ndarray] = []
-            ys: list[np.ndarray] = []
-            # Determine target latent dim if available; else accept all rows
-            target_d = None
-            try:
-                lstate = getattr(session_state, "lstate", None)
-                if lstate is not None:
-                    target_d = int(getattr(lstate, "d", 0) or 0) or None
-            except Exception:
-                target_d = None
-            for name in sorted(os.listdir(root)):
-                sample_path = os.path.join(root, name, "sample.npz")
-                if not os.path.exists(sample_path):
-                    continue
-                with np.load(sample_path) as d:
-                    Xi = d["X"] if "X" in d.files else None
-                    yi = d["y"] if "y" in d.files else None
-                if Xi is None or yi is None:
-                    continue
-                # If a target latent dimension is known, skip rows that don't match
-                if target_d is not None:
-                    try:
-                        d_x = int(getattr(Xi, "shape", (0, 0))[1])
-                    except Exception:
-                        d_x = None  # type: ignore
-                    if d_x != target_d:
-                        # Record a mismatch notice in session_state for the sidebar
-                        try:
-                            from constants import Keys as _K
-
-                            session_state[_K.DATASET_DIM_MISMATCH] = (d_x, target_d)
-                        except Exception:
-                            session_state["dataset_dim_mismatch"] = (d_x, target_d)
-                        continue
-                xs.append(Xi)
-                ys.append(yi)
-            if xs:
-                X = np.vstack(xs)
-                y = np.concatenate(ys)
+        if not os.path.isdir(root):
+            raise FileNotFoundError
+        xs: list[np.ndarray] = []
+        ys: list[np.ndarray] = []
+        target_d = _target_dim_from_session(session_state)
+        for sample_path in _iter_sample_paths(root):
+            Xi, yi = _load_sample_npz(sample_path)
+            if Xi is None or yi is None:
+                continue
+            if target_d is not None:
                 try:
-                    print(
-                        f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}"
-                    )
+                    d_x = int(getattr(Xi, "shape", (0, 0))[1])
                 except Exception:
-                    pass
-                return X, y
+                    d_x = None  # type: ignore
+                if d_x != target_d:
+                    _record_dim_mismatch(session_state, d_x, target_d)
+                    continue
+            xs.append(Xi)
+            ys.append(yi)
+        if xs:
+            X = np.vstack(xs)
+            y = np.concatenate(ys)
+            try:
+                print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}")
+            except Exception:
+                pass
+            return X, y
     except Exception:
         X = y = None
     try:

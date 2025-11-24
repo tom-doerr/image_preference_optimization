@@ -5,7 +5,6 @@ import types
 import unittest
 
 import numpy as np
-
 from constants import Keys
 from tests.helpers.st_streamlit import stub_basic
 
@@ -34,8 +33,7 @@ class TestLastActionAndRowsDisplayOnSave(unittest.TestCase):
         fl.generate_flux_image_latents = lambda *a, **k: "ok-image"
         fl.set_model = lambda *a, **k: None
         sys.modules["flux_local"] = fl
-
-        import batch_ui
+import batch_ui
 
         # Call the core save helper directly
         batch_ui._curation_add(+1, np.zeros(4), img=None)

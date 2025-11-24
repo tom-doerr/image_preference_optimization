@@ -80,7 +80,7 @@ class BatchKeysUniqueTest(unittest.TestCase):
         sys.modules["persistence"] = p
 
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
         batch_ui._render_batch_ui()

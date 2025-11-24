@@ -53,7 +53,7 @@ class TrainAsyncSingleSubmitTest(unittest.TestCase):
         sys.modules["value_model"] = vm
 
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         st.session_state.cur_batch = [np.zeros(4), np.ones(4)]
         st.session_state.cur_labels = [None, None]

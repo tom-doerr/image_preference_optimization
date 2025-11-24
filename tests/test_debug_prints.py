@@ -16,7 +16,7 @@ def _capture(func, *a, **k):
 
 
 def test_ensure_fitted_ridge_debug_and_updates_weights():
-    from value_model import ensure_fitted
+from value_model import ensure_fitted
 
     # Stub ridge_fit to avoid heavy math
     ll = types.ModuleType("latent_logic")
@@ -59,8 +59,7 @@ def test_batch_replace_at_debug_print():
     ll = types.ModuleType("latent_logic")
     ll.z_from_prompt = lambda lstate, prompt: np.zeros(lstate.d)
     sys.modules["latent_logic"] = ll
-
-    import batch_ui
+import batch_ui
 
     out = _capture(batch_ui._curation_replace_at, 1)
     assert "[batch] replace_at idx=1" in out
@@ -77,8 +76,7 @@ def test_data_save_debug_print():
     ll = types.ModuleType("latent_logic")
     ll.z_from_prompt = lambda lstate, prompt: np.zeros(lstate.d)
     sys.modules["latent_logic"] = ll
-
-    import batch_ui
+import batch_ui
 
     z = np.ones(4)
     out = _capture(batch_ui._curation_add, +1, z, None)

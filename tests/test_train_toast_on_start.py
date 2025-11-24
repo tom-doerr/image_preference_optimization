@@ -67,7 +67,7 @@ class TrainToastOnStartTest(unittest.TestCase):
         sys.modules["value_model"] = vm
 
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         batch_ui._curation_train_and_next()
 

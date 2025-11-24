@@ -16,7 +16,7 @@ class TestTrainToggleNoTrain(unittest.TestCase):
         sys.modules["flux_local"] = fl
         sys.modules["streamlit"] = st
         # Import batch helpers
-        import batch_ui as bu
+import batch_ui as bu
         from latent_state import init_latent_state
 
         st.session_state.lstate = init_latent_state()

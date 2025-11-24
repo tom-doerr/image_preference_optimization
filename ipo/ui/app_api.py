@@ -1,8 +1,8 @@
 import os
 import numpy as _np
 import streamlit as st
-from constants import DEFAULT_PROMPT, Keys
-import batch_ui as _batch_ui
+from ipo.infra.constants import DEFAULT_PROMPT, Keys
+from ipo.ui import batch_ui as _batch_ui
 
 
 def _export_state_bytes(state, prompt: str):
@@ -105,7 +105,7 @@ def build_controls(st, lstate, base_prompt):
     ) or eta_default
     st.session_state[Keys.ITER_ETA] = float(iter_eta_num)
     iter_eta = float(st.session_state.get(Keys.ITER_ETA) or eta_default)
-    from constants import DEFAULT_ITER_STEPS as _DEF_STEPS
+    from ipo.infra.constants import DEFAULT_ITER_STEPS as _DEF_STEPS
 
     steps_default = int(st.session_state.get(Keys.ITER_STEPS) or _DEF_STEPS)
     iter_steps_num = safe_sidebar_num(st, "Optimization steps (latent)", value=steps_default, step=1) or steps_default

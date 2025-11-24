@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Tuple
 import numpy as np
-from constants import Keys, DEFAULT_ITER_STEPS
+from ipo.infra.constants import Keys, DEFAULT_ITER_STEPS
 import logging as _logging
 
 LOGGER = _logging.getLogger("ipo")
@@ -82,10 +82,188 @@ def _lstate_and_prompt() -> Tuple[Any, str]:
             pass
     prompt = getattr(st.session_state, "prompt", None)
     if not prompt:
-        from constants import DEFAULT_PROMPT
+        from ipo.infra.constants import DEFAULT_PROMPT
 
         prompt = DEFAULT_PROMPT
     return lstate, prompt
+
+
+def _vm_and_cache(st):
+    try:
+        vm_choice = str(st.session_state.get(Keys.VM_CHOICE, ""))
+    except Exception:
+        vm_choice = ""
+    cache = st.session_state.get("xgb_cache") or {}
+    return vm_choice, cache
+
+
+def _ridge_norm(lstate) -> float:
+    try:
+        import numpy as _np
+
+        w = getattr(lstate, "w", None)
+        return float(_np.linalg.norm(w)) if w is not None else 0.0
+    except Exception:
+        return 0.0
+
+
+def _compute_zp(lstate, prompt):
+    try:
+        from latent_logic import z_from_prompt as _zfp
+
+        return _zfp(lstate, prompt)
+    except Exception:
+        return None
+
+
+def _pick_scorer(vm_choice: str, cache, lstate, prompt, st):
+    """Internal: decide scorer without side effects.
+    Order: Distance → Logistic → XGB(cache) → Ridge(||w||>0).
+    """
+    try:
+        from value_scorer import get_value_scorer as _gvs
+    except Exception:
+        return None, None
+
+    # Distance (explicit)
+    if vm_choice == "Distance":
+        s, tag = _gvs("Distance", lstate, prompt, st.session_state)
+        return (s, tag if s is not None else None)
+
+    # Logistic when selected
+    if vm_choice == "Logistic":
+        s_log, tag_log = _gvs("Logistic", lstate, prompt, st.session_state)
+        if s_log is not None:
+            return s_log, tag_log
+
+    # XGB if cached
+    if cache.get("model") is not None:
+        s_xgb, tag_xgb = _gvs("XGBoost", lstate, prompt, st.session_state)
+        if s_xgb is not None:
+            return s_xgb, tag_xgb
+
+    # Ridge if ||w||>0
+    if _ridge_norm(lstate) > 0.0:
+        s2, tag2 = _gvs("Ridge", lstate, prompt, st.session_state)
+        if s2 is not None and tag2 == "Ridge":
+            return s2, tag2
+    return None, None
+
+
+def _choose_scorer(st, lstate, prompt):
+    """Select a value scorer and tag based on session state (no auto-fit).
+
+    Returns (scorer_callable_or_None, tag_or_None, z_prompt_vector_or_None).
+    """
+    vm_choice, cache = _vm_and_cache(st)
+    scorer, scorer_tag = _pick_scorer(vm_choice, cache, lstate, prompt, st)
+    z_p = _compute_zp(lstate, prompt)
+    return scorer, scorer_tag, z_p
+
+
+def _predict_value(scorer, z_p, z_i):
+    try:
+        import numpy as _np
+
+        if scorer is None or z_p is None:
+            return None
+        fvec = z_i - z_p
+        return float(scorer(fvec))
+    except Exception:
+        return None
+
+
+def _vm_tag(st) -> str:
+    try:
+        vmn = str(getattr(st.session_state, "vm_choice", ""))
+        return (
+            "Distance" if vmn == "Distance" else
+            "XGB" if vmn == "XGBoost" else
+            "Logit" if vmn == "Logistic" else
+            "Ridge"
+        )
+    except Exception:
+        return "Ridge"
+
+
+def _tile_value_text(st, z_p, z_i, scorer) -> str:
+    """Compute the caption value text with model tag; falls back to Logit if set.
+
+    Returns a string like "Value: 0.123 [XGB]" or "Value: n/a".
+    """
+    v = _predict_value(scorer, z_p, z_i)
+    if v is not None:
+        v_text = f"Value: {v:.3f} [{_vm_tag(st)}]"
+        # gated debug print
+        try:
+            _val = getattr(st.session_state, "log_verbosity", None)
+            _lv = 0 if (_val is None) else int(_val)
+        except Exception:
+            _lv = 0
+        if _lv > 0:
+            try:
+                vmn = st.session_state.get("vm_choice")
+                _log(f"[scorer] tile vm={vmn} v={v:.3f}")
+            except Exception:
+                pass
+        return v_text
+    # Fallback: explicit logit caption if available
+    try:
+        alt = _maybe_logit_value(z_p, z_i, st)
+        if alt:
+            return alt
+    except Exception:
+        pass
+    return "Value: n/a"
+
+
+def _render_tiles_row(
+    st,
+    idxs,
+    lstate,
+    prompt: str,
+    steps: int,
+    guidance_eff: float,
+    best_of: bool,
+    scorer,
+    cur_batch,
+    z_p,
+):
+    try:
+        rn = int(st.session_state.get("render_nonce", 0))
+    except Exception:
+        rn = 0
+    cols = getattr(st, "columns", lambda x: [None] * x)(len(idxs))
+    for col, i in zip(cols, idxs):
+        if col is not None:
+            with col:
+                _render_batch_tile_body(
+                    int(i),
+                    rn,
+                    lstate,
+                    prompt,
+                    int(steps),
+                    float(guidance_eff),
+                    bool(best_of),
+                    scorer,
+                    False,
+                    cur_batch,
+                    z_p,
+                )
+        else:
+            _render_batch_tile_body(
+                int(i),
+                rn,
+                lstate,
+                prompt,
+                int(steps),
+                float(guidance_eff),
+                bool(best_of),
+                scorer,
+                False,
+                cur_batch,
+                z_p,
+            )
 
 
 def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
@@ -299,7 +477,7 @@ def _curation_replace_at(idx: int) -> None:
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
     from ipo.core import persistence as p
-    from constants import Keys
+    from ipo.infra.constants import Keys
     from latent_logic import z_from_prompt
 
     lstate, prompt = _lstate_and_prompt()
@@ -400,70 +578,8 @@ def _render_batch_tile_body(
     # Do not resample latents on render; keep the batch stable until replaced or new batch is created
     z_i = cur_batch[i]
 
-    t0 = _time.perf_counter()
-    la = z_to_latents(lstate, z_i)
-    img_i = generate_flux_image_latents(
-        prompt,
-        latents=la,
-        width=lstate.width,
-        height=lstate.height,
-        steps=steps,
-        guidance=guidance_eff,
-    )
-    try:
-        dt_ms = (_time.perf_counter() - t0) * 1000.0
-    except Exception:
-        dt_ms = -1.0
-    _log(
-        f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
-    )
-    v_text = "Value: n/a"
-    if scorer is not None and z_p is not None:
-        try:
-            fvec = z_i - z_p
-            v = float(scorer(fvec))
-            v_text = f"Value: {v:.3f}"
-            # Append model tag for clarity
-            try:
-                vmn = str(getattr(st.session_state, "vm_choice", ""))
-                if vmn == "Distance":
-                    tag = "Distance"
-                elif vmn == "XGBoost":
-                    tag = "XGB"
-                elif vmn == "Logistic":
-                    tag = "Logit"
-                else:
-                    tag = "Ridge"
-                v_text = f"{v_text} [{tag}]"
-            except Exception:
-                pass
-            try:
-                _val = getattr(st.session_state, "log_verbosity", None)
-                _lv = 0 if (_val is None) else int(_val)
-            except Exception:
-                _lv = 0
-            if _lv > 0:
-                try:
-                    vmn = st.session_state.get("vm_choice")
-                    _log(f"[scorer] tile={i} vm={vmn} v={v:.3f}")
-                except Exception:
-                    pass
-        except Exception:
-            v_text = "Value: n/a"
-    # Minimal direct-logit path: if Logistic selected and weights present, compute
-    if v_text == "Value: n/a":
-        try:
-            from constants import Keys as _K
-            w = st.session_state.get(_K.LOGIT_W)
-            if w is not None and z_p is not None:
-                import numpy as _np
-                wv = _np.asarray(w, dtype=float)
-                fvec = z_i - z_p
-                zlog = float(_np.dot(wv, fvec))
-                p = float(1.0 / (1.0 + _np.exp(-zlog)))
-                v_text = f"Value: {p:.3f} [Logit]"
-        except Exception:
-            pass
+    img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
+    v_text = _tile_value_text(st, z_p, z_i, scorer)
     cap_txt = f"Item {i} • {v_text}"
     st.image(img_i, caption=cap_txt, width="stretch")
 
@@ -490,73 +606,7 @@ def _render_batch_tile_body(
 
         nonce = int(st.session_state.get("cur_batch_nonce", 0))
 
-        def _btn_key(prefix: str, idx: int) -> str:
-            # Non-fragment path: make keys vary across renders but stable within
-            # a single render so duplicate-key errors are avoided and tests can
-            # observe change across reruns.
-            try:
-                rnd = int(st.session_state.get("render_nonce", 0))
-            except Exception:
-                rnd = 0
-            try:
-                rcount = int(st.session_state.get("render_count", 0))
-            except Exception:
-                rcount = 0
-            try:
-                seq = int(st.session_state.get("btn_seq", 0)) + 1
-            except Exception:
-                seq = 1
-            st.session_state["btn_seq"] = seq
-            return f"{prefix}_{rcount}_{rnd}_{nonce}_{idx}_{seq}"
-
-        def _good_clicked() -> bool:
-            if gcol is not None:
-                with gcol:
-                    return st.button(
-                        f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
-                    )
-            return st.button(f"Good (+1) {i}", key=_btn_key("good", i), width="stretch")
-
-        def _bad_clicked() -> bool:
-            if bcol is not None:
-                with bcol:
-                    return st.button(
-                        f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
-                    )
-            return st.button(f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch")
-
-        if _good_clicked():
-            t0g = _time.perf_counter()
-            _curation_add(1, z_i, img_i)
-            st.session_state.cur_labels[i] = 1
-            _refit_from_dataset_keep_batch()
-            _curation_replace_at(i)
-            _log(
-                f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
-            )
-            # Force a rerun so sidebar counters update immediately
-            try:
-                rr = getattr(st, "rerun", None)
-                if callable(rr):
-                    rr()
-            except Exception:
-                pass
-        if _bad_clicked():
-            t0b2 = _time.perf_counter()
-            _curation_add(-1, z_i, img_i)
-            st.session_state.cur_labels[i] = -1
-            _refit_from_dataset_keep_batch()
-            _curation_replace_at(i)
-            _log(
-                f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
-            )
-            # Force a rerun so sidebar counters update immediately
-            try:
-                rr = getattr(st, "rerun", None)
-                if callable(rr):
-                    rr()
-            except Exception:
-                pass
+        _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
 
 
 def _curation_train_and_next() -> None:
@@ -592,7 +642,7 @@ def _curation_train_and_next() -> None:
                 except Exception:
                     recent = False
             try:
-                from value_model import fit_value_model as _fit_vm
+                from ipo.core.value_model import fit_value_model as _fit_vm
                 _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
             except Exception:
                 pass
@@ -632,7 +682,7 @@ def _refit_from_dataset_keep_batch() -> None:
                     recent = False
             if not recent:
                 try:
-                    from value_model import fit_value_model as _fit_vm
+                    from ipo.core.value_model import fit_value_model as _fit_vm
                     _fit_vm(vm_train, lstate, X, y, lam_now, st.session_state)
                 except Exception:
                     pass
@@ -642,120 +692,11 @@ def _refit_from_dataset_keep_batch() -> None:
 
 def _render_batch_ui() -> None:
     import streamlit as st
-    try:
-        from latent_logic import z_to_latents, z_from_prompt
-    except Exception:
-        from latent_opt import z_to_latents
-        from latent_logic import z_from_prompt
-    from flux_local import generate_flux_image_latents
     import time as _time
 
-    # Ensure a model is loaded before any decode. The app sets this, but guard here
-    # so fragments don’t trigger the env fallback path in flux_local.
-    try:
-        from flux_local import CURRENT_MODEL_ID, set_model  # type: ignore
-
-        if CURRENT_MODEL_ID is None:
-            from constants import DEFAULT_MODEL
-
-            set_model(DEFAULT_MODEL)
-    except Exception:
-        pass
-
-    (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
-    try:
-        globals()["GLOBAL_RENDER_COUNTER"] = int(globals().get("GLOBAL_RENDER_COUNTER", 0)) + 1
-    except Exception:
-        globals()["GLOBAL_RENDER_COUNTER"] = 1
-    # Maintain a per-render counter in session for non-fragment key uniqueness
-    try:
-        st.session_state["render_count"] = int(st.session_state.get("render_count", 0)) + 1
-    except Exception:
-        pass
-    # Bump a small render nonce and salt so non-frag keys differ per render
-    try:
-        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
-        try:
-            import secrets as __sec
-            st.session_state["render_salt"] = int(__sec.randbits(32))
-        except Exception:
-            import time as __t
-            st.session_state["render_salt"] = int(__t.time() * 1e9)
-    except Exception:
-        pass
-    # Reset per-render button sequence to keep keys unique yet bounded
-    # Keep button keys stable across reruns so clicks are captured
-    lstate, prompt = _lstate_and_prompt()
-    try:
-        steps = int(getattr(st.session_state, "steps", 6) or 6)
-    except Exception:
-        steps = 6
-    try:
-        guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0)
-    except Exception:
-        guidance_eff = 0.0
+    # Header + init
+    lstate, prompt, steps, guidance_eff, cur_batch, scorer, z_p = _batch_init(st)
     best_of = False  # Best-of removed: always use Good/Bad buttons
-    cur_batch = st.session_state.cur_batch or []
-    if not cur_batch:
-        try:
-            _curation_init_batch()
-        except Exception:
-            pass
-        cur_batch = st.session_state.cur_batch or []
-    # Prepare optional value scorer once per batch
-    scorer = None
-    scorer_status = None
-    fut_running = False
-    z_p = None
-    scorer_tag = None
-    try:
-        from value_scorer import get_value_scorer
-        vm_choice = str(st.session_state.get(Keys.VM_CHOICE, ""))
-        cache = st.session_state.get("xgb_cache") or {}
-        scorer = None
-        scorer_status = "n/a"
-        # Explicit Distance model takes precedence
-        if vm_choice == "Distance":
-            scorer, tag = _gvs("Distance", lstate, prompt, st.session_state)
-            scorer_tag = tag if scorer is not None else None
-        else:
-            # Prefer Logistic when selected
-            if vm_choice == "Logistic":
-                s_log, tag_log = _gvs("Logistic", lstate, prompt, st.session_state)
-                if s_log is not None:
-                    scorer, scorer_tag = s_log, tag_log
-            # Else prefer XGB when cached
-            if scorer is None and cache.get("model") is not None:
-                s_xgb, tag_xgb = _gvs("XGBoost", lstate, prompt, st.session_state)
-                if s_xgb is not None:
-                    scorer, scorer_tag = s_xgb, tag_xgb
-            # Finally fall back to Ridge when ||w||>0
-            if scorer is None:
-                try:
-                    import numpy as _np
-                    w = getattr(lstate, "w", None)
-                    w_norm = float(_np.linalg.norm(w)) if w is not None else 0.0
-                except Exception:
-                    w_norm = 0.0
-                if w_norm > 0.0:
-                    s2, tag2 = _gvs("Ridge", lstate, prompt, st.session_state)
-                    if s2 is not None and tag2 == "Ridge":
-                        scorer, scorer_tag = s2, tag2
-        # Gate noncritical scorer logs behind a simple verbosity flag (0/1/2)
-        try:
-            _val = getattr(st.session_state, "log_verbosity", None)
-            _lv = 0 if (_val is None) else int(_val)
-        except Exception:
-            _lv = 0
-        if _lv > 0:
-            try:
-                _log(f"[scorer] vm={vm_choice} status={scorer_status}")
-            except Exception:
-                pass
-        fut_running = False
-        z_p = z_from_prompt(lstate, prompt)
-    except Exception:
-        scorer = None
     n = len(cur_batch)
     if n == 0:
         return
@@ -763,6 +704,24 @@ def _render_batch_ui() -> None:
 
     for row_start in range(0, n, per_row):
         row_end = min(row_start + per_row, n)
+        # Use unified tile renderer for the row
+        try:
+            _render_tiles_row(
+                st,
+                list(range(row_start, row_end)),
+                lstate,
+                prompt,
+                steps,
+                guidance_eff,
+                best_of,
+                scorer,
+                cur_batch,
+                z_p,
+            )
+            continue
+        except Exception:
+            pass
+        # Fallback: inline render (unchanged behavior)
         cols = getattr(st, "columns", lambda x: [None] * x)(row_end - row_start)
         for col_idx, i in enumerate(range(row_start, row_end)):
             col = cols[col_idx] if cols and len(cols) > col_idx else None
@@ -774,26 +733,7 @@ def _render_batch_ui() -> None:
                 # Keep latents stable: use the current batch value; do not resample here
                 z_i = cur_batch[i]
 
-                t0 = _time.perf_counter()
-                try:
-                    la = z_to_latents(lstate, z_i)
-                except Exception:
-                    la = z_to_latents(z_i, lstate)
-                img_i = generate_flux_image_latents(
-                    prompt,
-                    latents=la,
-                    width=lstate.width,
-                    height=lstate.height,
-                    steps=steps,
-                    guidance=guidance_eff,
-                )
-                try:
-                    dt_ms = (_time.perf_counter() - t0) * 1000.0
-                except Exception:
-                    dt_ms = -1.0
-                _log(
-                    f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
-                )
+                img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
                 # Predicted value using current value model scorer
                 v_text = "Value: n/a"
                 if scorer is not None and z_p is not None and scorer_tag is not None:
@@ -805,18 +745,7 @@ def _render_batch_ui() -> None:
                     except Exception:
                         v_text = "Value: n/a"
                 if v_text == "Value: n/a":
-                    try:
-                        from constants import Keys as _K
-                        w = st.session_state.get(_K.LOGIT_W)
-                        if w is not None and z_p is not None:
-                            import numpy as _np
-                            wv = _np.asarray(w, dtype=float)
-                            fvec = z_i - z_p
-                            zlog = float(_np.dot(wv, fvec))
-                            p = float(1.0 / (1.0 + _np.exp(-zlog)))
-                            v_text = f"Value: {p:.3f} [Logit]"
-                    except Exception:
-                        pass
+                    v_text = _maybe_logit_value(z_p, z_i, st) or v_text
                 cap_txt = f"Item {i} • {v_text}"
                 st.image(img_i, caption=cap_txt, width="stretch")
 
@@ -903,29 +832,7 @@ def _render_batch_ui() -> None:
                             f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
                         )
                     if _bad_clicked():
-                        t0b2 = _time.perf_counter()
-                        _curation_add(-1, z_i, img_i)
-                        st.session_state.cur_labels[i] = -1
-                        _refit_from_dataset_keep_batch()
-                        _curation_replace_at(i)
-                        try:
-                            _log(f"[batch] click bad item={i}")
-                        except Exception:
-                            pass
-                        try:
-                            msg = "Labeled Bad (-1)"
-                            getattr(st, "toast", lambda *a, **k: None)(msg)
-                            try:
-                                import time as __t
-                                st.session_state[Keys.LAST_ACTION_TEXT] = msg
-                                st.session_state[Keys.LAST_ACTION_TS] = float(__t.time())
-                            except Exception:
-                                pass
-                        except Exception:
-                            pass
-                        _log(
-                            f"[perf] bad_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms"
-                        )
+                        _label_and_replace(i, -1, z_i, img_i, st)
 
             # Wrap each tile in its own fragment when available so the
             # latent sampling, decode, buttons, and saves are scoped per
@@ -1055,7 +962,7 @@ def _render_batch_ui() -> None:
                         v_text = "Value: n/a"
                 if v_text == "Value: n/a":
                     try:
-                        from constants import Keys as _K
+                        from ipo.infra.constants import Keys as _K
                         w = st.session_state.get(_K.LOGIT_W)
                         if w is not None and z_p is not None:
                             import numpy as _np
@@ -1116,63 +1023,216 @@ def _render_batch_ui() -> None:
                 if zi is None:
                     return
                 if _good_clicked():
-                    _curation_add(1, zi, img_local)
-                    st.session_state.cur_labels[i] = 1
-                    _refit_from_dataset_keep_batch()
-                    _curation_replace_at(i)
-                    try:
-                        getattr(st, "toast", lambda *a, **k: None)("Labeled Good (+1)")
-                    except Exception:
-                        pass
+                    _label_and_replace(i, 1, zi, img_local, st)
                 if _bad_clicked():
-                    _curation_add(-1, zi, img_local)
-                    st.session_state.cur_labels[i] = -1
-                    _refit_from_dataset_keep_batch()
-                    _curation_replace_at(i)
-                    try:
-                        getattr(st, "toast", lambda *a, **k: None)("Labeled Bad (-1)")
-                    except Exception:
-                        pass
+                    _label_and_replace(i, -1, zi, img_local, st)
 
+            # Fragments are disabled; render one tile via helper
+            try:
+                _log("[fragpath] inactive -> non-frag tile render")
+            except Exception:
+                pass
+            try:
+                rn = int(st.session_state.get("render_nonce", 0))
+            except Exception:
+                rn = 0
             if col is not None:
                 with col:
-                    if use_frags and callable(frag):
-                        try:
-                            _log("[fragpath] active")
-                        except Exception:
-                            pass
-                        try:
-                            wrapped = frag(_render_visual_and_cache)
-                            wrapped()
-                        except TypeError:
-                            _render_visual_and_cache()
-                        _render_buttons_from_cache()
-                    else:
-                        try:
-                            _log("[fragpath] inactive -> non-frag _render_item")
-                        except Exception:
-                            pass
-                        _render_item()
+                    _render_batch_tile_body(
+                        i,
+                        rn,
+                        lstate,
+                        prompt,
+                        steps,
+                        guidance_eff,
+                        best_of,
+                        scorer,
+                        False,
+                        cur_batch,
+                        z_p,
+                    )
             else:
-                if use_frags and callable(frag):
-                    try:
-                        _log("[fragpath] active (no col)")
-                    except Exception:
-                        pass
-                    try:
-                        wrapped = frag(_render_visual_and_cache)
-                        wrapped()
-                    except TypeError:
-                        _render_visual_and_cache()
-                    _render_buttons_from_cache()
-                else:
-                    try:
-                        _log("[fragpath] inactive (no col) -> non-frag _render_item")
-                    except Exception:
-                        pass
-                    _render_item()
+                _render_batch_tile_body(
+                    i,
+                    rn,
+                    lstate,
+                    prompt,
+                    steps,
+                    guidance_eff,
+                    best_of,
+                    scorer,
+                    False,
+                    cur_batch,
+                    z_p,
+                )
 
 
 def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
+def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, guidance_eff: float):
+    t0 = _time.perf_counter()
+    try:
+        la = z_to_latents(lstate, z_i)
+    except Exception:
+        la = z_to_latents(z_i, lstate)
+    img_i = generate_flux_image_latents(
+        prompt,
+        latents=la,
+        width=lstate.width,
+        height=lstate.height,
+        steps=steps,
+        guidance=guidance_eff,
+    )
+    try:
+        dt_ms = (_time.perf_counter() - t0) * 1000.0
+    except Exception:
+        dt_ms = -1.0
+    _log(
+        f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
+    )
+    return img_i
+
+
+def _maybe_logit_value(z_p, z_i, st) -> str | None:
+    try:
+        from ipo.infra.constants import Keys as _K
+        w = st.session_state.get(_K.LOGIT_W)
+        if w is not None and z_p is not None:
+            import numpy as _np
+            wv = _np.asarray(w, dtype=float)
+            fvec = z_i - z_p
+            zlog = float(_np.dot(wv, fvec))
+            p = float(1.0 / (1.0 + _np.exp(-zlog)))
+            return f"Value: {p:.3f} [Logit]"
+    except Exception:
+        return None
+    return None
+
+
+def _label_and_replace(i: int, lbl: int, z_i: np.ndarray, img_i, st) -> None:
+    t0b2 = _time.perf_counter()
+    _curation_add(lbl, z_i, img_i)
+    st.session_state.cur_labels[i] = lbl
+    _refit_from_dataset_keep_batch()
+    _curation_replace_at(i)
+    _log(f"[perf] {'good' if lbl>0 else 'bad'}_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms")
+    try:
+        rr = getattr(st, "rerun", None)
+        if callable(rr):
+            rr()
+    except Exception:
+        pass
+
+
+def _render_good_bad_buttons(st, i: int, z_i: np.ndarray, img_i, nonce: int, gcol, bcol) -> None:
+    gkey = _button_key(st, "good", nonce, i)
+    bkey = _button_key(st, "bad", nonce, i)
+    # Good (+1)
+    if gcol is not None:
+        with gcol:
+            if st.button(f"Good (+1) {i}", key=gkey, width="stretch"):
+                _label_and_replace(i, 1, z_i, img_i, st)
+                _toast_and_record(st, "Labeled Good (+1)")
+    else:
+        if st.button(f"Good (+1) {i}", key=gkey, width="stretch"):
+            _label_and_replace(i, 1, z_i, img_i, st)
+            _toast_and_record(st, "Labeled Good (+1)")
+    # Bad (-1)
+    if bcol is not None:
+        with bcol:
+            if st.button(f"Bad (-1) {i}", key=bkey, width="stretch"):
+                _label_and_replace(i, -1, z_i, img_i, st)
+                _toast_and_record(st, "Labeled Bad (-1)")
+    else:
+        if st.button(f"Bad (-1) {i}", key=bkey, width="stretch"):
+            _label_and_replace(i, -1, z_i, img_i, st)
+            _toast_and_record(st, "Labeled Bad (-1)")
+
+def _ensure_model_ready() -> None:
+    """Ensure a decode model is loaded before any image generation."""
+    try:
+        from flux_local import CURRENT_MODEL_ID, set_model  # type: ignore
+        if CURRENT_MODEL_ID is None:
+            from ipo.infra.constants import DEFAULT_MODEL
+            set_model(DEFAULT_MODEL)
+    except Exception:
+        pass
+
+
+def _prep_render_counters(st) -> None:
+    """Bump simple counters/nonces used to keep Streamlit keys stable."""
+    try:
+        globals()["GLOBAL_RENDER_COUNTER"] = int(globals().get("GLOBAL_RENDER_COUNTER", 0)) + 1
+    except Exception:
+        globals()["GLOBAL_RENDER_COUNTER"] = 1
+    try:
+        st.session_state["render_count"] = int(st.session_state.get("render_count", 0)) + 1
+    except Exception:
+        pass
+    try:
+        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
+        try:
+            import secrets as __sec
+            st.session_state["render_salt"] = int(__sec.randbits(32))
+        except Exception:
+            import time as __t
+            st.session_state["render_salt"] = int(__t.time() * 1e9)
+    except Exception:
+        pass
+
+def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
+    try:
+        rnd = int(st.session_state.get("render_nonce", 0))
+    except Exception:
+        rnd = 0
+    try:
+        rcount = int(st.session_state.get("render_count", 0))
+    except Exception:
+        rcount = 0
+    try:
+        seq = int(st.session_state.get("btn_seq", 0)) + 1
+    except Exception:
+        seq = 1
+    st.session_state["btn_seq"] = seq
+    return f"{prefix}_{rcount}_{rnd}_{nonce}_{idx}_{seq}"
+
+
+def _toast_and_record(st, msg: str) -> None:
+    try:
+        getattr(st, "toast", lambda *a, **k: None)(msg)
+        from ipo.infra.constants import Keys as _K
+        import time as __t
+        st.session_state[_K.LAST_ACTION_TEXT] = msg
+        st.session_state[_K.LAST_ACTION_TS] = float(__t.time())
+    except Exception:
+        pass
+
+
+def _batch_init(st):
+    """Header + counters + state init for the batch UI.
+
+    Returns (lstate, prompt, steps, guidance_eff, cur_batch, scorer, z_p).
+    """
+    # Ensure a model is loaded before any decode.
+    _ensure_model_ready()
+    (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
+    _prep_render_counters(st)
+    lstate, prompt = _lstate_and_prompt()
+    try:
+        steps = int(getattr(st.session_state, "steps", 6) or 6)
+    except Exception:
+        steps = 6
+    try:
+        guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0)
+    except Exception:
+        guidance_eff = 0.0
+    cur_batch = st.session_state.cur_batch or []
+    if not cur_batch:
+        try:
+            _curation_init_batch()
+        except Exception:
+            pass
+        cur_batch = st.session_state.cur_batch or []
+    scorer, _scorer_tag, z_p = _choose_scorer(st, lstate, prompt)
+    return lstate, prompt, steps, guidance_eff, cur_batch, scorer, z_p

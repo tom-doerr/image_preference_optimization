@@ -29,7 +29,7 @@ def test_captions_n_a_when_xgb_unavailable():
     sys.modules["flux_local"] = fl
 
     # No xgb_cache present → scorer unavailable
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     assert any("Value: n/a" in c for c in images)

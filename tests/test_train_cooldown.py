@@ -81,7 +81,7 @@ class TestTrainCooldown(unittest.TestCase):
         sys.modules["flux_local"] = fl
 
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         batch_ui._curation_train_and_next()
 

@@ -26,8 +26,7 @@ def test_latents_do_not_change_until_new_batch():
     fl = types.ModuleType("flux_local")
     fl.generate_flux_image_latents = lambda *a, **k: "img"
     sys.modules["flux_local"] = fl
-
-    import batch_ui
+import batch_ui
 
     before = [b.copy() for b in st.session_state.cur_batch]
     # Render twice: latents must remain identical

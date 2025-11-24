@@ -33,8 +33,7 @@ class TestTileValueCaptionsRidgeUntrained(unittest.TestCase):
         # Use real value_scorer, which will report ridge_untrained, but scorer is usable
         import value_scorer as vs
         sys.modules["value_scorer"] = vs
-
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
         self.assertTrue(any("Value: 0.000" in cap for cap in images))

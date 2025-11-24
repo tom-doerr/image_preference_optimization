@@ -38,7 +38,7 @@ class TestRidgeStatusSidebar(unittest.TestCase):
     def test_status_ok_without_future(self):
         st, writes = self._stub_streamlit()
         self._install_stubs(st)
-        from constants import Keys
+from constants import Keys
 
         class L:
             d = 4

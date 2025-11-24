@@ -9,7 +9,7 @@ import numpy as np
 )
 class TestSmokeNonConstantImage(unittest.TestCase):
     def test_latent_decode_is_not_near_constant(self):
-        from constants import DEFAULT_PROMPT
+from constants import DEFAULT_PROMPT
         from latent_opt import init_latent_state, z_from_prompt, z_to_latents
         from flux_local import set_model, generate_flux_image_latents
 

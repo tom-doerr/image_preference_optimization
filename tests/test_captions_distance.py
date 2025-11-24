@@ -29,8 +29,7 @@ def test_captions_include_distance_when_selected():
     fl = types.ModuleType("flux_local")
     fl.generate_flux_image_latents = lambda *a, **k: "img"
     sys.modules["flux_local"] = fl
-
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     assert any("[Distance]" in c for c in images)

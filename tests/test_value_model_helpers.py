@@ -17,7 +17,7 @@ class LState:
 
 class TestValueModelHelpers(unittest.TestCase):
     def test_fit_ridge_sets_weights(self):
-        from ipo.core.value_model import _fit_ridge
+        from value_model import _fit_ridge
 
         d = 4
         X = np.eye(d)
@@ -28,8 +28,8 @@ class TestValueModelHelpers(unittest.TestCase):
         self.assertEqual(len(st.w), d)
 
     def test_maybe_fit_logit_creates_W(self):
-        from ipo.core.value_model import _maybe_fit_logit
-        from constants import Keys
+        from value_model import _maybe_fit_logit
+from constants import Keys
 
         X = np.array([[1.0, 0.0], [0.9, 0.1], [-1.0, 0.0], [-0.9, -0.1]], dtype=float)
         y = np.array([+1.0, +1.0, -1.0, -1.0], dtype=float)
@@ -41,7 +41,7 @@ class TestValueModelHelpers(unittest.TestCase):
         self.assertEqual(W.shape, (2,))
 
     def test_maybe_fit_xgb_creates_cache(self):
-        from ipo.core.value_model import _maybe_fit_xgb
+        from value_model import _maybe_fit_xgb
 
         X = np.array([[1.0, 0.0], [0.9, 0.1], [-1.0, 0.0], [-0.9, -0.1]], dtype=float)
         y = np.array([+1.0, +1.0, -1.0, -1.0], dtype=float)

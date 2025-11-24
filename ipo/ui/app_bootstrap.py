@@ -2,7 +2,7 @@ import hashlib
 import os
 import types
 import streamlit as st
-from constants import DEFAULT_PROMPT, Keys
+from ipo.infra.constants import DEFAULT_PROMPT, Keys
 from ipo.infra.util import enable_file_logging, safe_write
 
 
@@ -26,7 +26,7 @@ def emit_early_sidebar() -> None:
         if Keys.ITER_ETA not in st.session_state:
             st.session_state[Keys.ITER_ETA] = 0.00001
         if Keys.ITER_STEPS not in st.session_state:
-            from constants import DEFAULT_ITER_STEPS as _DEF
+            from ipo.infra.constants import DEFAULT_ITER_STEPS as _DEF
             st.session_state[Keys.ITER_STEPS] = int(_DEF)
     except Exception:
         pass

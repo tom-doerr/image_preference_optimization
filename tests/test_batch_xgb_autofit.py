@@ -46,8 +46,7 @@ class BatchXGBAutofitTest(unittest.TestCase):
         xv.fit_xgb_classifier = lambda X_in, y_in, **kwargs: {"trained_on": len(y_in)}
         xv.score_xgb_proba = lambda mdl, fvec: 0.8
         sys.modules["xgb_value"] = xv
-
-        import batch_ui  # noqa: WPS433
+import batch_ui  # noqa: WPS433
 
         batch_ui._curation_new_batch()
 

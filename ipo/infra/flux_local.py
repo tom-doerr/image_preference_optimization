@@ -33,7 +33,7 @@ except Exception:
     pass
 
 from .flux_utils import (
-    get_default_model_id as _get_model_id,
+    get_default_model_id as _get_default_model_id,
     p as _p,
     log_verbosity as _lv,
     to_cuda_fp16 as _to_cuda_fp16,
@@ -64,14 +64,87 @@ def _free_pipe() -> None:
         pass
 
 
-def _ensure_pipe(model_id: Optional[str] = None):
-    """Ensure a CUDA pipeline is loaded for the given or env model id."""
-    global PIPE, CURRENT_MODEL_ID
+def _load_pipeline(mid: str):
+    """Load Diffusers pipeline with the small set of guarded fallbacks we support.
+
+    Kept separate to reduce branching in _ensure_pipe without changing behavior.
+    """
+    import time as _time
     try:
         import torch  # type: ignore
         from diffusers import DiffusionPipeline  # type: ignore
     except Exception as e:
         raise ValueError("torch/diffusers not installed") from e
+    t0 = _time.perf_counter()
+    try:
+        pipe = DiffusionPipeline.from_pretrained(
+            mid,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=False,
+        ).to("cuda")
+    except NotImplementedError:
+        _p("[pipe] meta-to error; reloading with device_map='cuda'", 1)
+        try:
+            pipe = DiffusionPipeline.from_pretrained(
+                mid,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+                device_map="cuda",
+            )
+        except (NotImplementedError, ValueError) as e2:
+            if "meta tensor" not in str(e2) and "device_map" not in str(e2):
+                raise
+            _p(
+                "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True",
+                1,
+            )
+            pipe = DiffusionPipeline.from_pretrained(
+                mid,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+            ).to("cuda")
+    try:
+        dt = _time.perf_counter() - t0
+        _p(f"[pipe] loaded model id={mid!r} in {dt:.3f} s", 1)
+    except Exception:
+        pass
+    return pipe
+
+
+def _disable_safety(pipe) -> None:
+    """Disable safety components on the pipeline (best-effort)."""
+    try:
+        if hasattr(pipe, "safety_checker"):
+            pipe.safety_checker = None  # type: ignore[assignment]
+        if hasattr(pipe, "feature_extractor"):
+            pipe.feature_extractor = None  # type: ignore[assignment]
+        try:
+            if hasattr(pipe, "register_to_config"):
+                pipe.register_to_config(requires_safety_checker=False)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            cfg = getattr(pipe, "config", None)
+            if cfg is not None:
+                setattr(cfg, "requires_safety_checker", False)
+        except Exception:
+            pass
+        try:
+            if _lv() >= 1:
+                LOGGER.info("safety checker disabled for model %s", CURRENT_MODEL_ID)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _ensure_pipe(model_id: Optional[str] = None):
+    """Ensure a CUDA pipeline is loaded for the given or env model id."""
+    global PIPE, CURRENT_MODEL_ID
+    try:
+        import torch  # type: ignore
+    except Exception as e:
+        raise ValueError("torch not installed") from e
     if not torch.cuda.is_available():
         raise ValueError("CUDA GPU not available; require 1080 Ti (cuda)")
 
@@ -88,73 +161,8 @@ def _ensure_pipe(model_id: Optional[str] = None):
     if PIPE is not None and CURRENT_MODEL_ID != mid:
         _free_pipe()
     _p(f"[pipe] loading model id={mid!r}", 1)
-    import time as _time
-
-    t0 = _time.perf_counter()
-    # Load on CPU first, then move to CUDA. Some Diffusers/Transformers
-    # versions initialize params on 'meta' under certain configs; calling
-    # .to('cuda') on such modules raises NotImplementedError. In that case,
-    # reload directly with a CUDA device_map and skip the extra .to().
-    try:
-        PIPE = DiffusionPipeline.from_pretrained(
-            mid,
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=False,
-        ).to("cuda")
-    except NotImplementedError:
-        # Fallback 1: meta-tensor during .to('cuda') → reload with device_map='cuda'
-        _p("[pipe] meta-to error; reloading with device_map='cuda'", 1)
-        try:
-            PIPE = DiffusionPipeline.from_pretrained(
-                mid,
-                torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
-                device_map="cuda",
-            )
-        except (NotImplementedError, ValueError) as e2:
-            # Fallback 2: if device_map path also hits a meta-to (or device_map error),
-            # try a CPU load with low_cpu_mem_usage=True and then move to CUDA.
-            if "meta tensor" not in str(e2) and "device_map" not in str(e2):
-                raise
-            _p(
-                "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True",
-                1,
-            )
-            PIPE = DiffusionPipeline.from_pretrained(
-                mid,
-                torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
-            ).to("cuda")
-    try:
-        dt = _time.perf_counter() - t0
-        _p(f"[pipe] loaded model id={mid!r} in {dt:.3f} s", 1)
-    except Exception:
-        pass
-    # Disable safety checker/filter components to prevent black frames.
-    try:
-        if hasattr(PIPE, "safety_checker"):
-            PIPE.safety_checker = None  # type: ignore[assignment]
-        if hasattr(PIPE, "feature_extractor"):
-            PIPE.feature_extractor = None  # type: ignore[assignment]
-        # Ensure config no longer requires a safety checker
-        try:
-            if hasattr(PIPE, "register_to_config"):
-                PIPE.register_to_config(requires_safety_checker=False)  # type: ignore[attr-defined]
-        except Exception:
-            pass
-        try:
-            cfg = getattr(PIPE, "config", None)
-            if cfg is not None:
-                setattr(cfg, "requires_safety_checker", False)
-        except Exception:
-            pass
-        try:
-            if _lv() >= 1:
-                LOGGER.info("safety checker disabled for model %s", mid)
-        except Exception:
-            pass
-    except Exception:
-        pass
+    PIPE = _load_pipeline(mid)
+    _disable_safety(PIPE)
     try:
         if hasattr(PIPE, "enable_attention_slicing"):
             PIPE.enable_attention_slicing()
@@ -180,6 +188,31 @@ def _ensure_pipe(model_id: Optional[str] = None):
 
 
 # helpers moved to flux_utils
+
+
+def _prepare_scheduler_locked(steps: int) -> None:
+    """Prepare scheduler timesteps and step_index while PIPE_LOCK is held."""
+    try:
+        sched = getattr(PIPE, "scheduler", None)
+        if sched is None:
+            return
+        if hasattr(sched, "set_timesteps"):
+            try:
+                sched.set_timesteps(int(steps), device="cuda")
+            except TypeError:
+                sched.set_timesteps(int(steps))
+        if getattr(sched, "_step_index", None) is None:
+            try:
+                sched._step_index = 0  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        try:
+            if getattr(sched, "num_inference_steps", None) is None:
+                sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def _run_pipe(**kwargs):
@@ -235,26 +268,7 @@ def _run_pipe(**kwargs):
                 2,
             )
             with PIPE_LOCK:
-                # Prepare scheduler under the lock to avoid races with set_model()
-                try:
-                    sched = getattr(PIPE, "scheduler", None)
-                    if sched is not None and hasattr(sched, "set_timesteps"):
-                        try:
-                            sched.set_timesteps(int(steps), device="cuda")
-                        except TypeError:
-                            sched.set_timesteps(int(steps))
-                        if getattr(sched, "_step_index", None) is None:
-                            try:
-                                sched._step_index = 0  # type: ignore[attr-defined]
-                            except Exception:
-                                pass
-                        try:
-                            if getattr(sched, "num_inference_steps", None) is None:
-                                sched.num_inference_steps = int(steps)  # type: ignore[attr-defined]
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+                _prepare_scheduler_locked(int(steps))
                 out = PIPE(**kwargs)
             dur_s = _time.perf_counter() - t0
             try:
@@ -536,3 +550,11 @@ def set_model(model_id: str):
                 LOGGER.info("turbo model detected; using LCMScheduler for %s", model_id)
     except Exception:
         pass
+def _get_model_id() -> str:
+    """Return the effective default model id and emit a tiny gated log."""
+    mid = _get_default_model_id()
+    try:
+        _p("[pipe] resolved default model id", 1)
+    except Exception:
+        pass
+    return mid

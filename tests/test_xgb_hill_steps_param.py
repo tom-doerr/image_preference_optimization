@@ -55,7 +55,7 @@ class TestXgbHillStepsParam(unittest.TestCase):
         sys.modules["value_scorer"] = vs
 
         # Act
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
 

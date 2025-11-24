@@ -2,7 +2,7 @@ import hashlib
 import os
 import streamlit as st
 
-from constants import DEFAULT_PROMPT, Keys
+from ipo.infra.constants import DEFAULT_PROMPT, Keys
 
 # Early bootstrap
 from app_bootstrap import init_page_and_logging, emit_early_sidebar, ensure_prompt_and_state

@@ -52,7 +52,7 @@ class TestUIControlsFallbacks(unittest.TestCase):
         # Top-level slider provides value
         st.slider = lambda *a, **k: k.get("value")
         # Batch default is controlled by constants.DEFAULT_BATCH_SIZE
-        from constants import DEFAULT_BATCH_SIZE
+from constants import DEFAULT_BATCH_SIZE
 
         self.assertEqual(ui.build_batch_controls(st, expanded=False), DEFAULT_BATCH_SIZE)
         self.assertEqual(ui.build_queue_controls(st, expanded=False), 6)

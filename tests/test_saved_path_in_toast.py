@@ -32,8 +32,7 @@ class SavedPathToastTest(unittest.TestCase):
         st.session_state.lstate = types.SimpleNamespace(d=4, width=64, height=64, sigma=1.0, rng=np.random.default_rng(0))
         st.session_state.dataset_y = np.zeros((0,))
         st.session_state.dataset_X = np.zeros((0, 4))
-
-        import batch_ui
+import batch_ui
 
         batch_ui._curation_add(+1, np.zeros(4))
         out = "\n".join(writes)

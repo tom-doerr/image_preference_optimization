@@ -23,8 +23,7 @@ class TestXGBLogging(unittest.TestCase):
         xgb_mod.fit_xgb_classifier = fit_xgb_classifier  # type: ignore[attr-defined]
         xgb_mod.score_xgb_proba = lambda mdl, f: 0.5  # unused here
         sys.modules["xgb_value"] = xgb_mod
-
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):

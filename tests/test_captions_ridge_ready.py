@@ -31,8 +31,7 @@ def test_captions_include_ridge_and_numeric_when_w_nonzero():
     vs = types.ModuleType("value_scorer")
     vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: 0.321, "ok")
     sys.modules["value_scorer"] = vs
-
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     assert any("Value:" in c for c in images)

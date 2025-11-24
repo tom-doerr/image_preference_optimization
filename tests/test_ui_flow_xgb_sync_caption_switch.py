@@ -43,14 +43,14 @@ def test_ui_flow_sync_xgb_changes_captions():
     sys.modules["flux_local"] = fl
 
     # Before training, captions should be n/a for XGB
-    import batch_ui
+import batch_ui
 
     images.clear()
     batch_ui._render_batch_ui()
     assert any("Value: n/a" in c for c in images)
 
     # Stub value_model.fit_value_model to perform a synchronous fit that writes cache
-    from constants import Keys
+from constants import Keys
 
     vm = types.ModuleType("value_model")
 

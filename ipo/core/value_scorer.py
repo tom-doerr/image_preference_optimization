@@ -40,6 +40,55 @@ def _build_ridge_scorer(lstate: Any) -> Tuple[Callable[[np.ndarray], float], str
         return _ridge, "ridge_untrained"
 
 
+def _build_distance_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], float], str]:
+    try:
+        from ipo.infra.constants import Keys as _K
+
+        p = float(getattr(session_state, _K.DIST_EXP, session_state.get(_K.DIST_EXP, 2.0)))
+    except Exception:
+        p = 2.0
+
+    def _dist(fvec: np.ndarray) -> float:
+        fv = np.asarray(fvec, dtype=float)
+        try:
+            if p == 2.0:
+                return float(-np.sum(fv * fv))
+            if p == 1.0:
+                return float(-np.sum(np.abs(fv)))
+            return float(-np.sum(np.abs(fv) ** p))
+        except Exception:
+            return float(-np.sum(fv * fv))
+
+    try:
+        print(f"[dist] exponent p={p}")
+    except Exception:
+        pass
+    return _dist, "Distance"
+
+
+def _build_logit_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], float] | None, str]:
+    try:
+        from ipo.infra.constants import Keys as _K
+        w = session_state.get(_K.LOGIT_W)
+        if w is None:
+            return None, "logit_untrained"
+        w = np.asarray(w, dtype=float)
+        if w.size == 0 or float(np.linalg.norm(w)) == 0.0:
+            return None, "logit_untrained"
+
+        def _logit(fvec: np.ndarray) -> float:
+            z = float(np.dot(w, np.asarray(fvec, dtype=float)))
+            return float(1.0 / (1.0 + np.exp(-z)))
+
+        try:
+            print(f"[logit] scorer ready ||w||={float(np.linalg.norm(w)):.3f}")
+        except Exception:
+            pass
+        return _logit, "Logit"
+    except Exception:
+        return None, "logit_error"
+
+
 def _build_xgb_scorer(
     vm_choice: str, lstate: Any, prompt: str, session_state: Any
 ) -> Tuple[Callable[[np.ndarray], float], str]:
@@ -51,7 +100,7 @@ def _build_xgb_scorer(
         mdl = cache.get("model")
         if mdl is None:
             try:
-                from xgb_value import get_cached_scorer  # type: ignore
+                from ipo.core.xgb_value import get_cached_scorer  # type: ignore
 
                 scorer = get_cached_scorer(prompt, session_state)
                 if scorer is not None:
@@ -71,7 +120,7 @@ def _build_xgb_scorer(
             except Exception:
                 print("[xgb] scorer unavailable: no cached model")
             return _zero, "xgb_unavailable"
-        from xgb_value import score_xgb_proba  # type: ignore
+        from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 
         try:
             n = int(cache.get("n") or 0)
@@ -102,55 +151,15 @@ def get_value_scorer(
     """
     choice = str(vm_choice or "Ridge")
     if choice == "Distance":
-        try:
-            from constants import Keys as _K
-
-            p = float(getattr(session_state, _K.DIST_EXP, session_state.get(_K.DIST_EXP, 2.0)))
-        except Exception:
-            p = 2.0
-
-        def _dist(fvec: np.ndarray) -> float:
-            fv = np.asarray(fvec, dtype=float)
-            try:
-                if p == 2.0:
-                    return float(-np.sum(fv * fv))
-                if p == 1.0:
-                    return float(-np.sum(np.abs(fv)))
-                return float(-np.sum(np.abs(fv) ** p))
-            except Exception:
-                return float(-np.sum(fv * fv))
-
-        try:
-            print(f"[dist] exponent p={p}")
-        except Exception:
-            pass
-        return _dist, "Distance"
+        return _build_distance_scorer(session_state)
 
     if choice == "XGBoost":
         s, status = _build_xgb_scorer(choice, lstate, prompt, session_state)
         return (s if status == "ok" else None), ("XGB" if status == "ok" else status)
 
     if choice == "Logistic":
-        try:
-            from constants import Keys as _K
-            w = session_state.get(_K.LOGIT_W)
-            if w is None:
-                return None, "logit_untrained"
-            w = np.asarray(w, dtype=float)
-            if w.size == 0 or float(np.linalg.norm(w)) == 0.0:
-                return None, "logit_untrained"
-
-            def _logit(fvec: np.ndarray) -> float:
-                z = float(np.dot(w, np.asarray(fvec, dtype=float)))
-                return float(1.0 / (1.0 + np.exp(-z)))
-
-            try:
-                print(f"[logit] scorer ready ||w||={float(np.linalg.norm(w)):.3f}")
-            except Exception:
-                pass
-            return _logit, "Logit"
-        except Exception:
-            return None, "logit_error"
+        s, status = _build_logit_scorer(session_state)
+        return (s if status == "Logit" else None), status
 
     # Ridge (default)
     s, status = _build_ridge_scorer(lstate)

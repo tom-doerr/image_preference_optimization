@@ -16,7 +16,7 @@ def _capture(func, *a, **k):
 
 
 def test_ensure_fitted_uses_xgb_params_from_session():
-    from value_model import ensure_fitted
+from value_model import ensure_fitted
 
     # Stub xgb trainer and capture params implicitly via debug line
     xv = types.ModuleType("xgb_value")

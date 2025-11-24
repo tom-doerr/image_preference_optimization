@@ -40,8 +40,7 @@ def test_captions_include_xgb_and_numeric_after_cache():
     vs = types.ModuleType("value_scorer")
     vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: xv.score_xgb_proba("stub", f), "ok")
     sys.modules["value_scorer"] = vs
-
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     # Expect two image captions with a numeric Value

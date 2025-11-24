@@ -56,40 +56,51 @@ def to_cuda_fp16(latents):
     return latents
 
 
+def _scheduler_init_sigma(pipe: Any, steps: Optional[int]) -> float:
+    try:
+        sched = getattr(pipe, "scheduler", None)
+        if sched is None:
+            return 1.0
+        if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
+            try:
+                sched.set_timesteps(int(steps))
+            except Exception:
+                pass
+        s = getattr(sched, "init_noise_sigma", None)
+        if s is None:
+            sigmas = getattr(sched, "sigmas", None)
+            if sigmas is not None and hasattr(sigmas, "max"):
+                s = float(sigmas.max().item())
+        return float(s) if s is not None else 1.0
+    except Exception:
+        return 1.0
+
+
+def _latents_std(latents) -> float:
+    try:
+        if hasattr(latents, "numel") and hasattr(latents, "std"):
+            return float(latents.std().item()) if latents.numel() else 1.0
+    except Exception:
+        pass
+    try:
+        import numpy as _np  # type: ignore
+
+        arr = getattr(latents, "arr", None)
+        val = float(_np.asarray(arr).std()) if arr is not None else 1.0
+    except Exception:
+        val = 1.0
+    if not math.isfinite(val) or val == 0.0:
+        val = 1.0
+    return val
+
+
 def normalize_to_init_sigma(pipe: Any, latents, steps: Optional[int] = None):
     """Scale latents so std ≈ scheduler.init_noise_sigma for current steps.
 
     Works with real torch tensors and simple numpy‑backed stubs.
     """
-    init_sigma = 1.0
-    try:
-        sched = getattr(pipe, "scheduler", None)
-        if sched is not None:
-            if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
-                try:
-                    sched.set_timesteps(int(steps))
-                except Exception:
-                    pass
-            s = getattr(sched, "init_noise_sigma", None)
-            if s is None:
-                sigmas = getattr(sched, "sigmas", None)
-                if sigmas is not None and hasattr(sigmas, "max"):
-                    s = float(sigmas.max().item())
-            init_sigma = float(s) if s is not None else 1.0
-    except Exception:
-        pass
-    try:
-        std = float(latents.std().item()) if latents.numel() else 1.0
-    except Exception:
-        try:
-            import numpy as _np  # type: ignore
-
-            arr = getattr(latents, "arr", None)
-            std = float(_np.asarray(arr).std()) if arr is not None else 1.0
-        except Exception:
-            std = 1.0
-    if not math.isfinite(std) or std == 0.0:
-        std = 1.0
+    init_sigma = _scheduler_init_sigma(pipe, steps)
+    std = _latents_std(latents)
     try:
         return (latents / std) * init_sigma
     except Exception:

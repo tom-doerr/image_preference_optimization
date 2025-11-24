@@ -45,8 +45,7 @@ class BatchValueCaptionTest(unittest.TestCase):
         p.save_sample_image = lambda *a, **k: None
         p.dataset_rows_for_prompt = lambda *a, **k: 0
         sys.modules["persistence"] = p
-
-        import batch_ui
+import batch_ui
 
         batch_ui._render_batch_ui()
         # Captured captions should include the value text

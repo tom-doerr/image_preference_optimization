@@ -30,7 +30,7 @@ class TestValueScorerXGBStatuses(unittest.TestCase):
 
     def test_xgb_training_status(self):
         # When training is running and no model, report xgb_training
-        from constants import Keys
+from constants import Keys
 
         ss = {Keys.XGB_TRAIN_STATUS: {"state": "running"}, "xgb_cache": {}}
         l = types.SimpleNamespace(d=4)

@@ -32,8 +32,7 @@ def test_captions_ridge_zero_w_explicit_zero():
     vs = types.ModuleType("value_scorer")
     vs.get_value_scorer_with_status = lambda *a, **k: (lambda f: 0.0, "ok")
     sys.modules["value_scorer"] = vs
-
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     # With ||w|| == 0, captions should be n/a under 199f

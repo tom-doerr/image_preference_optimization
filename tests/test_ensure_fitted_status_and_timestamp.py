@@ -4,7 +4,6 @@ import unittest
 from datetime import datetime
 
 import numpy as np
-
 from constants import Keys
 
 
@@ -29,8 +28,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         xgb_mod.fit_xgb_classifier = fit_xgb_classifier  # type: ignore[attr-defined]
         xgb_mod.score_xgb_proba = lambda mdl, f: 0.5
         sys.modules["xgb_value"] = xgb_mod
-
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):
@@ -69,8 +67,7 @@ class TestEnsureFittedStatusAndTimestamp(unittest.TestCase):
         ll = types.ModuleType("latent_logic")
         ll.ridge_fit = lambda X, y, lam: np.ones(X.shape[1], dtype=float)
         sys.modules["latent_logic"] = ll
-
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         class LState:
             def __init__(self, d):

@@ -5,7 +5,7 @@ import numpy as np
 
 class TestValueModelFitRecordsTime(unittest.TestCase):
     def test_fit_updates_w_and_records_time(self):
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         # simple linear separable dataset
         rng = np.random.default_rng(0)

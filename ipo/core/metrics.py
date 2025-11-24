@@ -77,7 +77,7 @@ def xgb_cv_accuracy(
     - Returns mean accuracy over non-empty folds in [0,1]; NaN if no folds.
     """
     import numpy as _np
-    from xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
+    from ipo.core.xgb_value import fit_xgb_classifier, score_xgb_proba  # type: ignore
 
     X = _np.asarray(X, dtype=float)
     y = _np.asarray(y, dtype=float).ravel()

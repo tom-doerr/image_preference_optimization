@@ -3,7 +3,7 @@ from typing import Optional, Any, Mapping
 import numpy as np
 import os
 import io
-from constants import Config
+from ipo.infra.constants import Config
 import threading as _threading
 
 

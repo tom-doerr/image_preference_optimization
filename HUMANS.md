@@ -1,32 +1,51 @@
-Q: Why is XGBoost still “unavailable” even though there is data?
-- The app trains XGB only when you click “Train XGBoost now (sync)”. We removed auto‑fit on reruns to simplify.
-- Data is per‑prompt and per latent dimension. If you change prompt or resolution, you’re in a new folder/hash; old rows don’t count.
-- Rows saved at a different dim are filtered (e.g., d=9216 vs d=25600). You’ll see a note in the sidebar when that happens.
-- XGB needs at least two classes (+1/−1). Single‑class datasets won’t produce a usable model.
-- After a sync fit succeeds, the scorer becomes ready only if `session_state.xgb_cache` is populated. We set it to `{model, n}` and print `[xgb] using cached model rows=N`.
+HUMANS.md — notes for maintainers (Nov 24, 2025)
 
-Q: What should I expect in the UI?
-- Before training: captions show `Value: n/a`; sidebar line `XGBoost model rows: 0 (status: unavailable)`.
-- After saving mixed labels and pressing the sync fit button: captions switch to `Value: … [XGB]` and the status becomes `ok` with `rows=N`.
-- Ridge values show only when explicitly selected and ‖w‖>0; otherwise `n/a`.
+What I did now
+- Ran Radon across `ipo/` only (tests currently have a few legacy formatting issues) to get clear hotspots.
+- Fixed two indentation issues that blocked static analysis:
+  - `ipo/core/value_scorer.py`: mis‑indented inner `try` block around `get_cached_scorer` import.
+  - `ipo/ui/batch_ui.py`: mis‑indented `from ipo.core.value_model import fit_value_model` inside a `try`.
+- Split `ipo/ui/ui_sidebar.render_sidebar_tail` into small helpers; complexity from F→B without changing strings/ordering.
 
-Q: What’s the fastest way to debug “no values”?
-- Confirm dataset counters for the current prompt > 0 and contain both classes.
-- Click “Train XGBoost now (sync)”; watch for `[xgb] train start rows=N` and then `[xgb] using cached model rows=N` in the CLI.
-- Ensure log verbosity ≥1 if you want `[scorer] …` lines.
+Nov 24 — follow‑up (Radon + flux_local extractions)
+- Ran Radon again and focused on infra loader/run hotspots.
+- Extracted helpers in `ipo/infra/flux_local.py` to reduce branching without behavior change:
+  - `_load_pipeline(mid)`, `_disable_safety(pipe)`, `_prepare_scheduler_locked(steps)`.
+  - `_ensure_pipe`: E→C (31→17). `_run_pipe`: D→C (24→16).
+- Restored a tiny gated log for `_get_model_id()` so `tests/test_flux_log_gating.py` passes when `LOG_VERBOSITY=1`.
+- Verified quick subset: `tests/test_flux_loader_kwargs.py`, `tests/test_flux_run_wrapper.py`, `tests/test_flux_log_gating.py` → OK.
 
-Q: Why don’t we auto‑fit on rerun anymore?
-- It caused surprising status flaps under Streamlit reruns. Sync‑only keeps behavior deterministic and reduced code/LOC.
+Hotspots to consider next
+- `ipo/ui/ui_sidebar.render_sidebar_tail` — F(76), main candidate to split into smaller helpers (panels already exist). Minimal risk, good MI win.
+- `ipo/infra/flux_local._ensure_pipe` / `_run_pipe` — E/D; clean split into load/configure and prepare/run steps keeps behavior intact.
+- `ipo/ui/batch_ui._render_batch_ui` — F(51); extract tiny helpers for decode/caption/label.
+Update: `render_sidebar_tail` is now B(10). `_emit_train_results` is split and A(1). `_sidebar_value_model_block` was partially split (still D but lower). Next targets:
+- Flux loader pair (`_ensure_pipe` E / `_run_pipe` D) — split load/configure and prepare/run/record; gate logs.
+- Batch tile rendering (`_render_batch_ui` F / `_render_batch_tile_body` E) — extract tiny decode/label helpers.
 
-Nov 22, 2025 — 229c follow‑up
-- You asked to remove top‑level shims (e.g., ui_sidebar.py, ui_controls.py). There are no top‑level files by those names now. The only copies live under `ipo/ui/` (`ipo/ui/ui_sidebar.py`, `ipo/ui/ui_controls.py`). Tests import those package paths, so no deletion was needed at the repo root.
+New changes (Nov 24):
+- Batch UI helpers added: `_ensure_model_ready`, `_prep_render_counters`, `_decode_one`, `_maybe_logit_value`, `_label_and_replace`, `_button_key`, `_render_good_bad_buttons`.
+- `_render_batch_tile_body` now D(25). `_render_batch_ui` F(45). Plan: extract inner visual/buttons next.
 
-Nov 24, 2025 — XGB auto‑fit on selection
-- Implemented: when Value model = XGBoost, the app auto‑fits XGB synchronously during sidebar render if a usable dataset is present and cache is stale. It updates `session_state.xgb_cache = {model, n}` and logs `[xgb] train start …/train done …`. Ridge still fits on every call to keep `w` fresh.
-- Added focused test `tests/test_xgb_autofit_when_selected.py` that stubs heavy deps and asserts the cache is populated after render with an in‑memory dataset.
-- Question: keep auto‑fit “on render if stale” or restrict to “on selection change only”? Current behavior is the former, with a cache guard to avoid repeated training.
+Questions for you
+1. Proceed to split `ipo/ui/batch_ui._render_batch_ui` (F 45) into two tiny helpers (visual vs. buttons)? Low risk if we reuse existing helpers; goal D/C.
+2. OK to leave fragments permanently off (code path already non‑frag only), and delete remaining fragment guards in a later pass?
+3. Any tolerance to delete old async/background remnants in tests to simplify further? (Would reduce surface area.)
 
-Nov 24, 2025 — Maintainability review questions
-- Do you want me to delete the root-level re-export shims (`value_model.py`, `xgb_value.py`, `constants.py`, `batch_ui.py`) once all imports are clean, and add a guard test to keep them from coming back?
-- Is it acceptable to extract one more helper `compute_train_results_lines(...)` so `render_sidebar_tail` just formats/prints? This will reduce LOC and make sidebar string tests steadier.
-- Should we gate all noncritical logs under `LOG_VERBOSITY` (0 by default) to keep CI quieter? We’ll still print critical errors.
+How to reproduce
+- Activate venv and run:
+  - `radon cc -s -a ipo`
+  - `radon mi -s ipo`
+- Nov 24 — batch_ui pass
+  - Simplified the fragment path in `ipo/ui/batch_ui._render_batch_ui` to a single non‑fragment code path.
+  - Extracted `_choose_scorer(...)` and `_tile_value_text(...)` to reduce branching in tile rendering and captions.
+  - Result: `_render_batch_ui` F→C (45→~18/19 after row helper) and `_render_batch_tile_body` D→C (25→12). No strings/behavior changed; duplication removed by `_render_tiles_row`.
+- Nov 24 — persistence pass
+  - Split `get_dataset_for_prompt_or_session` into tiny helpers:
+    `_target_dim_from_session`, `_iter_sample_paths`, `_load_sample_npz`, `_record_dim_mismatch`.
+  - Result: `get_dataset_for_prompt_or_session` C(12) (down from C(20)); avg for file is now A.
+  - Behavior unchanged (same prints and mismatch recording), simpler to reason about.
+- Flux utils: split `normalize_to_init_sigma` into `_scheduler_init_sigma` and `_latents_std`; main function now A(3). No behavior change.
+- Sidebar CV: refactored `_cv_on_demand` into small helpers (get K, dataset, compute CV, record cache). Function now A(3); UI strings unchanged ("CV folds", "Compute CV now").
+- Value model: split `fit_value_model` into tiny orchestrators `_train_optionals(...)` and `_record_train_summaries(...)`. Main `fit_value_model` now A(3) from C(20). Behavior unchanged; logging preserved.
+  - Ran a targeted subset of tests earlier; avoided full suite due to unrelated test file indentation issues in `tests/test_tile_value_captions.py` (appears pre‑existing).

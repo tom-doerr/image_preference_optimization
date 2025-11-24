@@ -5,7 +5,7 @@ import numpy as np
 
 def test_train_xgb_now_button_sets_cache():
     from tests.helpers.st_streamlit import stub_basic
-    from constants import Keys
+from constants import Keys
 
     st = stub_basic()
     st.session_state.prompt = "xgb-train-now"

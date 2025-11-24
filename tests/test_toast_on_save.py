@@ -32,7 +32,7 @@ class TestToastOnSave(unittest.TestCase):
             shutil.rmtree(data_dir)
 
         # Now import batch_ui and add one sample
-        import batch_ui
+import batch_ui
 
         z = st.session_state.lstate.mu.copy()
         batch_ui._curation_add(1, z, img=None)

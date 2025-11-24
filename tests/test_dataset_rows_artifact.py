@@ -14,7 +14,7 @@ class TestDatasetRowsArtifact(unittest.TestCase):
         # Memory-only rows: seed 7 live labels so sidebar shows 7
         st.session_state.dataset_y = [1] * 7
         try:
-            from constants import Keys as _K
+from constants import Keys as _K
             st.session_state[_K.DATASET_Y] = st.session_state.dataset_y
         except Exception:
             pass

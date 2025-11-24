@@ -72,8 +72,7 @@ class TestDebugLogTail(unittest.TestCase):
         # Provide minimal lstate and Keys
         class L:
             d = 4
-
-        from constants import Keys
+from constants import Keys
 
         st.session_state[Keys.SIDEBAR_COMPACT] = True
         st.session_state[Keys.REG_LAMBDA] = 1e-3

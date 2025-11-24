@@ -31,7 +31,7 @@ def test_captions_xgb_single_class_still_na():
     sys.modules["flux_local"] = fl
 
     # No xgb_cache present and single-class labels → scorer unavailable → caption n/a
-    import batch_ui
+import batch_ui
 
     batch_ui._render_batch_ui()
     assert any("Value: n/a" in c for c in images)

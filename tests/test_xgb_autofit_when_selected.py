@@ -68,7 +68,7 @@ def test_autofit_xgb_when_selected_trains_and_sets_cache():
 
     st = _ST()
     # Minimal keys used by the sidebar code
-    from constants import Keys
+from constants import Keys
 
     setattr(st.session_state, Keys.PROMPT, "unit test prompt")
     setattr(st.session_state, Keys.REG_LAMBDA, 1.0)

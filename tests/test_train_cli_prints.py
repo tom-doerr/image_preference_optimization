@@ -23,7 +23,7 @@ class TrainCliPrintsTest(unittest.TestCase):
         y = np.array([+1.0, -1.0], dtype=float)
         lstate = _LState(d=2)
         sess = _Sess()
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -40,7 +40,7 @@ class TrainCliPrintsTest(unittest.TestCase):
         # Make logit path active
         sess["logit_steps"] = 20
         buf = io.StringIO()
-        from value_model import fit_value_model
+from value_model import fit_value_model
 
         with contextlib.redirect_stdout(buf):
             fit_value_model("Logistic", lstate, X, y, lam=0.1, session_state=sess)

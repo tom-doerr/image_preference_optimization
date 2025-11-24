@@ -60,7 +60,7 @@ class BatchScoresVisibleTest(unittest.TestCase):
 
         # Buttons: never click
         sys.modules["streamlit"] = st
-        import batch_ui
+import batch_ui
 
         # stub latent_opt import inside batch_ui -> latent_opt
         lo = types.ModuleType("latent_opt")

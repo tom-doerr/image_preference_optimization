@@ -1683,3 +1683,58 @@ Radon snapshot (Nov 24, 2025)
   - Split ui_sidebar.render_sidebar_tail into small blocks (we started); target < C.
   - Break flux_local._ensure_pipe into load_cpu→to_cuda and post_load_config; move logging behind LOG_VERBOSITY.
   - Split persistence.get_dataset_for_prompt_or_session into path_resolve, scan_rows, filter_dim.
+Radon snapshot (Nov 24, 2025):
+- Ran Radon across `ipo/` to identify maintainability hotspots.
+- Top complexity:
+  - `ipo/ui/ui_sidebar.render_sidebar_tail` = F(76), MI≈0.00 — prime candidate to split into small helpers already present (status/value/persistence panels).
+  - `ipo/infra/flux_local._ensure_pipe` = E(31), `_run_pipe` = D(24) — can be split into “load/configure” and “prepare/run/record”.
+  - `ipo/ui/batch_ui._render_batch_ui` = F(51), `_render_batch_tile_body` = E(34) — extract tiny helpers for “decode”, “caption”, and “label save”.
+- Minor fixes landed: indentation errors in `ipo/core/value_scorer.py` and `ipo/ui/batch_ui.py` were corrected to restore toolability.
+
+New learnings (Nov 24, 2025):
+- Syntax/indent glitches can block static analysis; keep patches surgical and add a quick lint pass when touching hot files.
+- Keep `render_sidebar_tail` as a thin dispatcher; push logic into existing helpers to lower CC without changing behavior.
+
+Next simplifications under consideration:
+- 240a: Split `render_sidebar_tail` into thin calls (no behavior change) and add a unit test that asserts the canonical “Train results” line ordering.
+- 240b: Factor `_ensure_pipe` into `_load_pipe` and `_configure_pipe`; keep logs behind `LOG_VERBOSITY`.
+- 240c: Extract `_batch_decode_one` and `_batch_label_one` in `batch_ui` and cover with two small tests.
+Maintainability update (Nov 24, 2025 – later):
+- Extracted small helpers in `ipo/ui/ui_sidebar.py` and trimmed `render_sidebar_tail` to a dispatcher. New helpers:
+  - `_render_metadata_panel_inline`, `_emit_latent_dim_and_data_strip`, `_ensure_train_results_expander_label`, and `_handle_train_section`.
+  - Split train controls further into `_xgb_train_controls` and `_logit_train_controls` (sync‑only).
+- Result: `render_sidebar_tail` dropped from F(76) → B(10). Then split `_emit_train_results` into four helpers (now A(1)).
+- Further split `_sidebar_value_model_block` (now A(3)) by extracting `_vm_details_*`, CV emitters, details expander wrapper, and `_cv_on_demand` (C). `_emit_debug_panel` split into `_emit_last_call_info` (C) and `_emit_log_tail` (B). No string/order changes.
+- Batch UI reductions (Nov 24, 2025 – latest):
+  - Added `_ensure_model_ready`, `_prep_render_counters`, `_decode_one`, `_maybe_logit_value`, `_label_and_replace`, `_button_key`, and `_render_good_bad_buttons`.
+  - `_render_batch_tile_body` improved to D(25). `_render_batch_ui` dropped slightly to F(45); next step is to extract inner visual/buttons into helpers to reach D/C.
+Maintainability (Nov 24, 2025 — Radon pass):
+- Reduced flux loader complexity without changing behavior or strings:
+  - `ipo/infra/flux_local._ensure_pipe` E→C via `_load_pipeline(...)` and `_disable_safety(...)` helpers.
+  - `_run_pipe` D→C via `_prepare_scheduler_locked(steps)` helper.
+- Logging: `_get_model_id()` now emits a tiny gated "[pipe] resolved default model id" line so log‑gating tests remain explicit.
+- Next hotspots: `ipo/ui/batch_ui._render_batch_ui` (F 45) — extract per‑tile visual vs. buttons into tiny helpers, reuse `_render_good_bad_buttons`.
+- Radon commands: `radon cc -s -a ipo` (avg ~B, improved).
+
+Batch UI simplification (Nov 24, 2025):
+- Removed fragment‑only rendering branches; keep a single non‑fragment path.
+- Extracted `_choose_scorer(...)` and `_tile_value_text(...)`; `_render_batch_ui` now C (17) from F (45), and `_render_batch_tile_body` now C (12) from D (25).
+- Added `_render_tiles_row(...)` and switched the row loop to it; behavior identical, removes duplication.
+- No user‑visible string/order changes; tests relying on captions and keys should remain stable.
+
+Persistence simplification (Nov 24, 2025):
+- `ipo/core/persistence.get_dataset_for_prompt_or_session` refactored into small helpers
+  (list/parse/mismatch helpers). Complexity dropped to C(12), file average A.
+- Behavior (prints, mismatch flag) unchanged; IO layout unchanged.
+
+Flux utils (Nov 24, 2025):
+- Extracted `_scheduler_init_sigma` and `_latents_std` from `normalize_to_init_sigma`; main function is now small and clearer.
+- No change in behavior; same scheduler/tensor fallbacks preserved.
+
+Sidebar CV (Nov 24, 2025):
+- Split `_cv_on_demand` into tiny helpers for K selection, dataset selection, CV compute, and cache record.
+- Strings/labels unchanged ("CV folds", "Compute CV now"). Complexity now A(3).
+
+Value model (Nov 24, 2025):
+- Extracted `_train_optionals` (XGB/Logit sync fit) and `_record_train_summaries` (CLI prints) from `fit_value_model`.
+- `fit_value_model` is now short and clearer (A(3)); same behavior and strings.

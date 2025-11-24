@@ -24,7 +24,7 @@ def test_curation_train_skipped_when_toggle_off():
     sys.modules["persistence"] = p
 
     # Import and run
-    import batch_ui
+import batch_ui
 
     # Spy: value_model should not be imported/called
     sys.modules.pop("value_model", None)

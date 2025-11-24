@@ -42,9 +42,7 @@ class TestRidgeForcedAsyncInXGB(unittest.TestCase):
         # Fast xgb so future exists but finishes quickly
         xv = types.ModuleType("xgb_value")
         xv.fit_xgb_classifier = lambda Xd, yd, **k: "mdl"
-        sys.modules["xgb_value"] = xv
-
-        import value_model as vm
+        sys.modules["xgb_value"] = xvfrom ipo.core import value_model as vm
 
         try:
             vm.fit_value_model("XGBoost", lstate, X, y, lam=1e-3, session_state=ss)

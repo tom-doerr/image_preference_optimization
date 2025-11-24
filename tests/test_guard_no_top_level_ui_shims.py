@@ -4,7 +4,7 @@ import unittest
 
 class TestNoTopLevelUiShims(unittest.TestCase):
     def test_no_root_level_ui_shims(self):
-        for fname in ("ui.py", "ui_sidebar.py", "ui_controls.py"):
+        for fname in ("ui.py", "ui_sidebar.py", "ui_controls.py", "batch_ui.py"):
             self.assertFalse(os.path.exists(fname), f"unexpected file at repo root: {fname}")
 
     def test_no_reintroduced_ui_controls_in_package(self):
@@ -23,4 +23,3 @@ class TestNoTopLevelUiShims(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

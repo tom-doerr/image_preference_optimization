@@ -2,7 +2,6 @@ import sys
 import types
 
 import numpy as np
-
 from constants import Keys
 from ipo.ui.ui_sidebar import render_sidebar_tail
 from tests.helpers.st_streamlit import stub_with_writes

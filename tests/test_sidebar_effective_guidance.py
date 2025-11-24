@@ -1,6 +1,5 @@
 import types
 import unittest
-
 from constants import Keys
 
 
