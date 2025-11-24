@@ -335,6 +335,34 @@ def render_pair_sidebar(
         per_row=2,
     )
 
+# Small helpers to simplify render_sidebar_tail
+def _get_dataset_for_display(st: Any, lstate: Any, prompt: str):
+    """Prefer in-memory dataset; fall back to folder dataset for the prompt."""
+    Xm = getattr(lstate, 'X', None)
+    ym = getattr(lstate, 'y', None)
+    if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
+        return Xm, ym
+    try:
+        from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
+        return _get_ds(prompt, st.session_state)
+    except Exception:
+        return None, None
+
+
+def _autofit_xgb_if_selected(st: Any, lstate: Any, vm_choice: str, Xd, yd) -> None:
+    """Auto-fit XGB synchronously when selected and data is usable (cache-aware)."""
+    try:
+        if str(vm_choice) != "XGBoost":
+            return
+        if Xd is None or yd is None or getattr(Xd, 'shape', (0,))[0] <= 0:
+            return
+        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+        from value_model import ensure_fitted as _ensure
+        _ensure("XGBoost", lstate, Xd, yd, lam_now, st.session_state)
+    except Exception:
+        # Keep UI resilient; tests still assert cache via explicit fits when needed
+        pass
+
 # Use shared helpers.safe_write to avoid duplication
 
 # Local alias for concise access
@@ -727,36 +755,9 @@ def render_sidebar_tail(
     # Train results panel (train score, CV, last train, XGB status)
     try:
         # Opportunistic auto-fit exactly once: use ensure_fitted so we don't resubmit on reruns
-        from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
-        try:
-            from value_model import ensure_fitted as _ensure
-        except Exception:
-            _ensure = None
-        Xm = getattr(lstate, 'X', None)
-        ym = getattr(lstate, 'y', None)
-        if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
-            Xd, yd = Xm, ym
-        else:
-            Xd, yd = _get_ds(prompt, st.session_state)
+        Xd, yd = _get_dataset_for_display(st, lstate, prompt)
         # Always fit XGBoost when selected (sync, minimal, cached)
-        try:
-            if str(vm_choice) == "XGBoost":
-                from value_model import ensure_fitted as _ensure
-                lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-                Xs, Ys = (
-                    (Xm, ym)
-                    if (
-                        Xm is not None
-                        and getattr(Xm, "shape", (0,))[0] > 0
-                        and ym is not None
-                        and getattr(ym, "shape", (0,))[0] > 0
-                    )
-                    else (Xd, yd)
-                )
-                if Xs is not None and Ys is not None:
-                    _ensure("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
-        except Exception:
-            pass
+        _autofit_xgb_if_selected(st, lstate, vm_choice, Xd, yd)
         # Trainers also remain available via explicit buttons below.
         # (Kept for tests that click the sync-fit button.)
         # One‑click synchronous fit buttons per value model
