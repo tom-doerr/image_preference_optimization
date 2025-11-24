@@ -738,8 +738,27 @@ def render_sidebar_tail(
             Xd, yd = Xm, ym
         else:
             Xd, yd = _get_ds(prompt, st.session_state)
-        # Auto-fit removed: do not call ensure_fitted on reruns/import.
-        # Trainers run only when the user clicks the explicit sync button.
+        # Always fit XGBoost when selected (sync, minimal, cached)
+        try:
+            if str(vm_choice) == "XGBoost":
+                from value_model import ensure_fitted as _ensure
+                lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+                Xs, Ys = (
+                    (Xm, ym)
+                    if (
+                        Xm is not None
+                        and getattr(Xm, "shape", (0,))[0] > 0
+                        and ym is not None
+                        and getattr(ym, "shape", (0,))[0] > 0
+                    )
+                    else (Xd, yd)
+                )
+                if Xs is not None and Ys is not None:
+                    _ensure("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
+        except Exception:
+            pass
+        # Trainers also remain available via explicit buttons below.
+        # (Kept for tests that click the sync-fit button.)
         # One‑click synchronous fit buttons per value model
         try:
             if str(vm_choice) == "XGBoost":
