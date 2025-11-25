@@ -113,26 +113,43 @@ def update_latent_ridge(
 ):
     if choice not in ("a", "b"):
         raise ValueError("choice must be 'a' or 'b'")
-    winner = z_a if choice == "a" else z_b
-    state.mu = state.mu + lr_mu * (winner - state.mu)
-    if feats_a is not None and feats_b is not None:
-        diff = (feats_a - feats_b).reshape(1, -1)
-    else:
-        diff = (z_a - z_b).reshape(1, -1)
+    winner = _winner_vector(choice, z_a, z_b)
+    _update_mu_inplace(state, winner, lr_mu)
+    diff = _feature_diff(z_a, z_b, feats_a, feats_b)
     label = np.array([1.0 if choice == "a" else -1.0])
+    _append_row_and_fit(state, diff, label, lam)
+    append_pair(state, z_a, z_b, float(label[0]))
+    state.sigma = max(0.2, state.sigma * 0.99)
+    state.step += 1
+    _push_mu_history(state)
+
+
+def _winner_vector(choice: str, z_a: np.ndarray, z_b: np.ndarray) -> np.ndarray:
+    return z_a if choice == "a" else z_b
+
+
+def _feature_diff(z_a: np.ndarray, z_b: np.ndarray, feats_a, feats_b) -> np.ndarray:
+    if feats_a is not None and feats_b is not None:
+        return (feats_a - feats_b).reshape(1, -1)
+    return (z_a - z_b).reshape(1, -1)
+
+
+def _append_row_and_fit(state: LatentState, diff: np.ndarray, label: np.ndarray, lam: float) -> None:
     if state.X is None:
         state.X = diff
         state.y = label
     else:
         state.X = np.vstack([state.X, diff])
         state.y = np.concatenate([state.y, label]) if state.y is not None else label
-    # Closed-form ridge: w = (X^T X + lam I)^{-1} X^T y
     if state.X is not None and state.X.shape[0] >= 1:
         state.w = ridge_fit(state.X, state.y, lam)  # type: ignore[arg-type]
-    lbl = 1.0 if choice == "a" else -1.0
-    append_pair(state, z_a, z_b, lbl)
-    state.sigma = max(0.2, state.sigma * 0.99)
-    state.step += 1
+
+
+def _update_mu_inplace(state: LatentState, winner: np.ndarray, lr_mu: float) -> None:
+    state.mu = state.mu + float(lr_mu) * (winner - state.mu)
+
+
+def _push_mu_history(state: LatentState) -> None:
     mu_now = state.mu.reshape(1, -1)
     mh = getattr(state, "mu_hist", None)
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
@@ -377,28 +394,12 @@ def hill_climb_mu_distance(
         mu = z_p + scale * r
         state.mu = mu
     Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
-    diffs = mu.reshape(1, -1) - Z  # shape (n, d)
-    d2 = np.sum(diffs * diffs, axis=1)  # (n,)
     yy = np.asarray(y, dtype=float).reshape(-1)
-    sig = _sigmoid(gamma * d2)
-    try:
-        L0 = float(np.sum(-yy * sig))
-    except Exception:
-        L0 = None
-    # scalers per sample
-    scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)  # (n,)
-    grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
+    L0, grad = _distance_loss_and_grad(mu, Z, yy, float(gamma))
     mu_new = mu - float(eta) * grad
-    if trust_r is not None and float(trust_r) > 0.0:
-        delta = mu_new - z_p
-        n = float(np.linalg.norm(delta))
-        if n > float(trust_r) and n > 0.0:
-            mu_new = z_p + delta * (float(trust_r) / n)
+    mu_new = _trust_clamp(mu_new, z_p, trust_r)
     try:
-        diffs_new = mu_new.reshape(1, -1) - Z
-        d2_new = np.sum(diffs_new * diffs_new, axis=1)
-        sig_new = _sigmoid(gamma * d2_new)
-        L1 = float(np.sum(-yy * sig_new))
+        L1 = _distance_loss_only(mu_new, Z, yy, float(gamma))
         if L0 is not None:
             print(f"[hill] L(mu) before={L0:.4f} after={L1:.4f}")
         else:
@@ -406,10 +407,27 @@ def hill_climb_mu_distance(
     except Exception:
         pass
     state.mu = mu_new
-    # record history
-    mh = getattr(state, "mu_hist", None)
-    mu_now = state.mu.reshape(1, -1)
-    state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
+    _push_mu_history(state)
+
+
+def _distance_loss_and_grad(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> tuple[float | None, np.ndarray]:
+    diffs = mu.reshape(1, -1) - Z  # shape (n, d)
+    d2 = np.sum(diffs * diffs, axis=1)  # (n,)
+    sig = _sigmoid(gamma * d2)
+    try:
+        L = float(np.sum(-yy * sig))
+    except Exception:
+        L = None
+    scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)  # (n,)
+    grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
+    return L, grad
+
+
+def _distance_loss_only(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> float:
+    diffs = mu.reshape(1, -1) - Z
+    d2 = np.sum(diffs * diffs, axis=1)
+    sig = _sigmoid(gamma * d2)
+    return float(np.sum(-yy * sig))
 
 
 def hill_climb_mu_xgb(
