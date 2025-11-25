@@ -73,10 +73,9 @@ def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
             sidebar_metric(label, value)
 
 
-def status_panel(images: tuple, mu_image) -> None:
-    import streamlit as st
-    from .ui_sidebar_misc import status_panel as _sp
-    _sp(st, images, mu_image)
+def status_panel(*_args, **_kwargs) -> None:
+    """No-op: Images status panel removed from sidebar."""
+    return
 
 
 def env_panel(env: dict) -> None:

@@ -1914,6 +1914,7 @@ Sidebar simplification (Nov 25, 2025):
 - Removed duplicate “Train results” mirror inside a collapsed expander; we now emit a single canonical block once.
 - Kept only essential lines: Value model, Train/CV lines, XGBoost status, Optimization line, Ridge training status.
 Update: Train results block removed entirely (per request). Train controls remain available, but the sidebar no longer prints Train/CV/Last‑train lines. Keeps UI minimal; logs still show concise “[xgb] trained (sync)”.
+Update 2: Removed “Images status” panel. The sidebar no longer shows Left/Right ready/empty; batch tiles themselves are the source of truth. Keeps the sidebar focused on controls and minimal counters.
 
 Runtime log takeaway (Nov 25, 2025):
 - "[xgb] scorer unavailable: no model (… dataset_rows=0 …)" means no labeled rows yet for this prompt/dimension. Label at least one Good (+1) and one Bad (−1), then click "Train XGBoost now (sync)"; captions switch to "[XGB]" when ready.
