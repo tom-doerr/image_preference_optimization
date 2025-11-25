@@ -1798,5 +1798,10 @@ Keep in mind:
     `_print_xgb_unavailable`) reducing `_build_xgb_scorer` C→B.
   - Latent logic: line-search candidates moved to `_linesearch_mags`; function
     C→B without changing behavior.
+  - Value model: `_maybe_fit_xgb` factored into `_xgb_hparams`, `_store_xgb_model`,
+    and `_has_two_classes` (C→B). Behavior unchanged; still sync-only training
+    and legacy cache mirrored for compat.
+  - Flux utils: `_scheduler_init_sigma` split into `_ensure_timesteps` and
+    `_sigma_from_sigmas_attr` (C→A). No behavior/log changes.
   - Reran radon; average in changed files improved (A/B). Keep future extractions
     surgical and string-stable.

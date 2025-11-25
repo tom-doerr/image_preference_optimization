@@ -113,3 +113,15 @@ Update 2:
   into helpers. Function is B now (was C), messages unchanged.
 - `_record_latents_meta` was split into three helpers and is A now. Overall
   flux_local average improved; diagnostics remain the same.
+
+Update 3:
+- Value-model’s `_maybe_fit_xgb` complexity reduced (C→B) by extracting
+  `_xgb_hparams`, `_store_xgb_model`, and `_has_two_classes`. The function still
+  trains synchronously and mirrors the live model into legacy `xgb_cache` to
+  keep older paths/tests working.
+
+Update 4:
+- Flux-utils `_scheduler_init_sigma` simplified by extracting
+  `_ensure_timesteps` and `_sigma_from_sigmas_attr` (C→A). Behavior is identical;
+  we still set timesteps if available and fall back to `sigmas.max()` when the
+  scheduler lacks `init_noise_sigma`.

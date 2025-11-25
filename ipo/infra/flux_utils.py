@@ -61,19 +61,31 @@ def _scheduler_init_sigma(pipe: Any, steps: Optional[int]) -> float:
         sched = getattr(pipe, "scheduler", None)
         if sched is None:
             return 1.0
-        if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
-            try:
-                sched.set_timesteps(int(steps))
-            except Exception:
-                pass
+        _ensure_timesteps(sched, steps)
         s = getattr(sched, "init_noise_sigma", None)
         if s is None:
-            sigmas = getattr(sched, "sigmas", None)
-            if sigmas is not None and hasattr(sigmas, "max"):
-                s = float(sigmas.max().item())
+            s = _sigma_from_sigmas_attr(sched)
         return float(s) if s is not None else 1.0
     except Exception:
         return 1.0
+
+
+def _ensure_timesteps(sched: Any, steps: Optional[int]) -> None:
+    if isinstance(steps, int) and steps > 0 and hasattr(sched, "set_timesteps"):
+        try:
+            sched.set_timesteps(int(steps))
+        except Exception:
+            pass
+
+
+def _sigma_from_sigmas_attr(sched: Any):
+    sigmas = getattr(sched, "sigmas", None)
+    if sigmas is not None and hasattr(sigmas, "max"):
+        try:
+            return float(sigmas.max().item())
+        except Exception:
+            return None
+    return None
 
 
 def _latents_std(latents) -> float:
