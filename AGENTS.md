@@ -1822,3 +1822,7 @@ Queue removal (Nov 25, 2025):
 - Fully removed async queue mode. No queue UI, no queue helpers, and no queue keys in `constants.Keys` (deleted `QUEUE`/`QUEUE_SIZE`).
 - Tests that formerly targeted the queue path now call `skipTest("Async queue removed: test skipped")` and remain in the tree as historical references.
 - Generation mode dropdown shows only “Batch curation”.
+
+Async training removal (Nov 25, 2025):
+- Fully removed async model training keys from `constants.Keys` (`XGB_TRAIN_ASYNC`, `XGB_FIT_FUTURE`). Training is sync-only via explicit actions.
+- UI has no async toggles; value_model has no futures; status uses `XGB_TRAIN_STATUS` only for simple reporting.

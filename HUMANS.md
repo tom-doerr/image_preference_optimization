@@ -150,3 +150,6 @@ Nov 25, 2025 — XGB “why n/a?” quick reference
 
 Queue removal status (Nov 25, 2025)
 - Async queue mode is gone end‑to‑end. Only Batch curation remains. Any tests that referenced the queue path are marked skipped; no runtime code references remain and we removed queue keys from `constants.Keys`.
+
+Async training removal (Nov 25, 2025)
+- We also removed async model training keys (`XGB_TRAIN_ASYNC`, `XGB_FIT_FUTURE`). Training is sync-only now. If a test still refers to these, it should be updated or skipped.

@@ -67,11 +67,8 @@ class Keys:
     LOGIT_W = "logit_w"
     LOGIT_STEPS = "logit_steps"
     LOGIT_L2 = "logit_l2"
-    # Compatibility keys (sync-only training still defines these for tests)
+    # Training status (sync-only)
     XGB_TRAIN_STATUS = "xgb_train_status"
-    # Async training has been removed. Keys kept only for test compatibility; not used.
-    XGB_TRAIN_ASYNC = "xgb_train_async"
-    XGB_FIT_FUTURE = "xgb_fit_future"
     # Distance scorer exponent (p)
     DIST_EXP = "dist_exp"
     # Additional app keys for consistency
