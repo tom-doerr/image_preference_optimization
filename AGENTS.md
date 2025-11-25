@@ -1347,8 +1347,8 @@ Sidebar polish (Nov 21, 2025 — 147c):
 - Metadata panel now writes plain lines for `app_version:` and `created_at:` in addition to the metric rows, and keeps ordering `app_version`, `created_at`, `prompt_hash`.
 - Kept labels stable where tests assert exact strings (e.g., `Dataset rows`, `Rows (disk)`, `prompt_hash:`).
 
-Default resolution (Nov 21, 2025):
-- Default width/height is now 640×640 (constants.Config). Good balance for sd‑turbo with ~3.1 s/tile here; stick to multiples of 64.
+Default resolution (Nov 25, 2025 update):
+- Default width/height is now 512×512 (constants.Config). Balanced speed/VRAM; stick to multiples of 64.
 
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
