@@ -185,6 +185,9 @@ Nov 25, 2025 — Radon MI pass (sidebar)
 Nov 25, 2025 — Remove Debug mode
 - Removed the sidebar Debug panels and the "Debug (saves)" block. All debug checkboxes are now no-ops; no UI is rendered.
 - Logging remains enabled (ipo.debug.log) for field diagnosis, but the UI no longer exposes Debug controls.
+
+Nov 25, 2025 — Remove Download state UI
+- Removed the "State persistence" download control ("Download state (.npz)") from the sidebar. The helper now no-ops; strings elsewhere unchanged.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:

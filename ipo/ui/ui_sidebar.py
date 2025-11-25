@@ -347,8 +347,8 @@ K = Keys
 
 
 def _sidebar_persistence_section(st: Any, lstate: Any, prompt: str, state_path: str, apply_state_cb, rerun_cb) -> None:
-    st.sidebar.subheader("State persistence")
-    _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    """Download/State persistence UI removed (no-op)."""
+    return
 
 
 def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice: str, iter_steps: int, iter_eta: float | None) -> None:
