@@ -218,60 +218,9 @@ def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
         pass
 
 
-def render_pair_sidebar(
-    lstate,
-    prompt: str,
-    z_a,
-    z_b,
-    lr_mu_val: float,
-    value_scorer=None,
-) -> None:
-    """Compact vector/score info for the current pair.
-
-    Kept minimal for tests; uses pair_metrics and optional scorer.
-    """
-    import streamlit as st
-    import numpy as _np
-    try:
-        from metrics import pair_metrics as _pm
-    except Exception:
-        def _pm(w, za, zb):  # type: ignore
-            diff = zb - za
-            return {
-                "za_norm": float(_np.linalg.norm(za)),
-                "zb_norm": float(_np.linalg.norm(zb)),
-                "diff_norm": float(_np.linalg.norm(diff)),
-                "cos_w_diff": float("nan"),
-            }
-    w_raw = getattr(lstate, "w", None)
-    d = int(getattr(lstate, "d", 0))
-    w = (_np.asarray(w_raw[:d], dtype=float).copy() if w_raw is not None else _np.zeros(d, dtype=float))
-    m = _pm(w, _np.asarray(z_a, dtype=float), _np.asarray(z_b, dtype=float))
-    st.sidebar.subheader("Vector info (current pair)")
-    sidebar_metric_rows(
-        [("‖z_a‖", f"{float(m['za_norm']):.3f}"), ("‖z_b‖", f"{float(m['zb_norm']):.3f}")], per_row=2
-    )
-    sidebar_metric_rows([("‖z_b−z_a‖", f"{float(m['diff_norm']):.3f}")], per_row=1)
-    try:
-        from latent_opt import z_from_prompt as _zfp
-        z_p = _zfp(lstate, prompt)
-    except Exception:
-        z_p = _np.zeros_like(z_a)
-    if value_scorer is not None:
-        v_left = float(value_scorer(_np.asarray(z_a, dtype=float) - z_p))
-        v_right = float(value_scorer(_np.asarray(z_b, dtype=float) - z_p))
-    else:
-        v_left = float(_np.dot(w, (_np.asarray(z_a, dtype=float) - z_p)))
-        v_right = float(_np.dot(w, (_np.asarray(z_b, dtype=float) - z_p)))
-    sidebar_metric_rows([("V(left)", f"{v_left:.3f}"), ("V(right)", f"{v_right:.3f}")], per_row=2)
-    mu = getattr(lstate, "mu", _np.zeros_like(z_a))
-    sidebar_metric_rows(
-        [
-            ("step(A)", f"{lr_mu_val * float(_np.linalg.norm(_np.asarray(z_a, dtype=float) - mu)):.3f}"),
-            ("step(B)", f"{lr_mu_val * float(_np.linalg.norm(_np.asarray(z_b, dtype=float) - mu)):.3f}"),
-        ],
-        per_row=2,
-    )
+def render_pair_sidebar(*_args, **_kwargs) -> None:
+    """No-op: A/B pair optimization UI removed."""
+    return
 
 # Small helpers to simplify render_sidebar_tail
 def _get_dataset_for_display(st: Any, lstate: Any, prompt: str):
@@ -465,13 +414,8 @@ def _emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
 
 
 def _ensure_train_results_expander_label(st: Any) -> None:
-    try:
-        exp_tr = getattr(st.sidebar, "expander", None)
-        if callable(exp_tr):
-            with exp_tr("Train results", expanded=False):
-                pass
-    except Exception:
-        pass
+    """No-op: Train results block removed from sidebar."""
+    return
 
 
 def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
@@ -508,25 +452,8 @@ def _early_persistence_and_meta(
     set_model(selected_model)
 
 
-def _predicted_values_block(st: Any, vm_choice: str, lstate: Any, prompt: str) -> None:
-    """Write quick V(left)/V(right) when a scorer is ready for the current pair."""
-    try:
-        pair = getattr(st.session_state, 'lz_pair', None)
-        if pair is None:
-            return
-        z_a, z_b = pair
-        from latent_logic import z_from_prompt as _zfp
-        from value_scorer import get_value_scorer as _gvs
-        scorer, _ = _gvs(vm_choice, lstate, prompt, st.session_state)
-        if not callable(scorer):
-            return
-        z_p = _zfp(lstate, prompt)
-        va = float(scorer(z_a - z_p))
-        vb = float(scorer(z_b - z_p))
-        safe_write(st, f"V(left): {va:.3f}")
-        safe_write(st, f"V(right): {vb:.3f}")
-    except Exception:
-        pass
+def _predicted_values_block(*_args, **_kwargs) -> None:
+    return
 
 
 def render_sidebar_tail(
@@ -553,14 +480,8 @@ def render_sidebar_tail(
     _ensure_sidebar_shims(st)
     _emit_latent_dim_and_data_strip(st, lstate)
     _sidebar_training_data_block(st, prompt, lstate)
-    _ensure_train_results_expander_label(st)
-    # Train results panel (train score, CV, last train, XGB status)
+    # Train controls remain available; we omit the verbose Train results block
     _handle_train_section(st, lstate, prompt, vm_choice)
-
-    # Compose canonical lines via helper for stability
-    lines = compute_train_results_lines(st, lstate, prompt, vm_choice)
-    _emit_train_results(st, lines)
-    safe_write(st, "Ridge training: ok")
     _predicted_values_block(st, vm_choice, lstate, prompt)
 
 
