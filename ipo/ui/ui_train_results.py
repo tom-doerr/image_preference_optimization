@@ -107,16 +107,16 @@ def sidebar_emit_train_results(st: Any, lines: list[str], sidebar_only: bool = F
             st.sidebar.write(f"Last action: {txt}")
     except Exception:
         pass
-    # Images status and step readouts live in ui_sidebar_misc; import lazily
+    # Images status and step readouts live in sidebar.misc; import lazily
     try:
-        from .ui_sidebar_misc import status_panel as _status
+        from .sidebar.misc import status_panel as _status
         imgs = getattr(st.session_state, 'IMAGES', None)
         mu_img = getattr(st.session_state, 'MU_IMAGE', None)
         _status(st, imgs, mu_img)
     except Exception:
         pass
     try:
-        from .ui_sidebar_misc import emit_step_readouts as _emit_step
+        from .sidebar.misc import emit_step_readouts as _emit_step
         lstate = getattr(st.session_state, 'lstate', None)
         if lstate is not None:
             _emit_step(st, lstate)

@@ -141,7 +141,7 @@ def build_controls(st, lstate, base_prompt):
 
 def generate_pair(base_prompt: str) -> None:
     from latent_opt import z_to_latents as _z2l
-    from flux_local import generate_flux_image_latents as _gen
+    from ipo.infra.pipeline_local import generate_flux_image_latents as _gen
     try:
         lstate = st.session_state.lstate
         if st.session_state.get("lz_pair") is None:

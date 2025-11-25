@@ -30,7 +30,7 @@ def _lc_warn_std(st: Any, lc: dict) -> None:
 
 def _emit_last_call_info(st: Any) -> None:
     try:
-        from flux_local import get_last_call  # type: ignore
+        from ipo.infra.pipeline_local import get_last_call  # type: ignore
 
         lc = get_last_call() or {}
     except Exception:
@@ -72,4 +72,3 @@ def _emit_log_tail(st: Any) -> None:
             safe_write(st, 'Debug logs: (no ipo.debug.log yet)')
     except Exception:
         pass
-

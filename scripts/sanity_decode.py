@@ -5,7 +5,7 @@ import numpy as np
 
 def main():
     # Late imports to keep deps light if unused
-    import flux_local as fl
+    from ipo.infra import pipeline_local as fl
 
     model = os.getenv("SANITY_MODEL") or os.getenv("FLUX_LOCAL_MODEL") or "stabilityai/sd-turbo"
     prompt = os.getenv("SANITY_PROMPT", "latex, neon punk city, women with short hair, standing in the rain")

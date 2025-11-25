@@ -6,7 +6,7 @@ from typing import Any
 def ensure_model_ready() -> None:
     """Ensure a decode model is loaded before any image generation."""
     try:
-        from flux_local import CURRENT_MODEL_ID, set_model  # type: ignore
+        from ipo.infra.pipeline_local import CURRENT_MODEL_ID, set_model  # type: ignore
         if CURRENT_MODEL_ID is None:
             from ipo.infra.constants import DEFAULT_MODEL
             set_model(DEFAULT_MODEL)

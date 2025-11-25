@@ -81,7 +81,7 @@ def status_panel(*_args, **_kwargs) -> None:
 def env_panel(env: dict) -> None:
     """Compact Environment panel (Python/torch/CUDA/Streamlit)."""
     import streamlit as st
-    from .ui_sidebar_misc import env_panel as _ep
+    from .sidebar.misc import env_panel as _ep
     _ep(st, env)
 
 
@@ -180,7 +180,7 @@ def compute_step_scores(
 ):
     """Delegate to a smaller module to reduce sidebar complexity."""
     try:
-        from .ui_step_scores import compute_step_scores as _css
+        from .sidebar.step_scores import compute_step_scores as _css
         return _css(lstate, prompt, vm_choice, int(iter_steps), iter_eta, trust_r, session_state)
     except Exception:
         return None
@@ -195,7 +195,7 @@ def render_iter_step_scores(
     iter_eta: float | None,
     trust_r: float | None,
 ) -> None:
-    from .ui_step_scores_render import render_iter_step_scores as _render
+    from .sidebar.step_scores_render import render_iter_step_scores as _render
     _render(st, lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r)
 
 
@@ -290,7 +290,7 @@ def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice:
 
 
 def _ensure_sidebar_shims(st: Any) -> None:
-    from .ui_sidebar_misc import ensure_sidebar_shims as _ens
+    from .sidebar.misc import ensure_sidebar_shims as _ens
     _ens(st)
 
 
@@ -332,7 +332,7 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
         pass
 
 
-from .ui_sidebar_cv import cached_cv_lines as _cached_cv_lines
+from .sidebar.cv import cached_cv_lines as _cached_cv_lines
 def _xgb_status_line(st: Any, rows_n: int, status: str) -> None:
     try:
         line = f"XGBoost model rows: {rows_n} (status: {status})"
@@ -371,7 +371,7 @@ def _vm_details_distance(st: Any) -> None:
 
 
 def _vm_details_xgb(st: Any, cache: dict) -> None:
-    from .ui_sidebar_panels import _vm_details_xgb as _impl
+    from .sidebar.panels import _vm_details_xgb as _impl
     return _impl(st, cache)
 
 
@@ -381,12 +381,12 @@ def _emit_cv_metrics(st: Any, xgb_line: str, ridge_line: str) -> None:
 
 
 def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
-    from .ui_sidebar_panels import sidebar_value_model_block as _sv
+    from .sidebar.panels import sidebar_value_model_block as _sv
     _sv(st, lstate, prompt, vm_choice, reg_lambda)
 
 
 def _cv_on_demand(st: Any, lstate: Any, prompt: str, vm: str) -> None:
-    from .ui_sidebar_cv import sidebar_cv_on_demand as _cv
+    from .sidebar.cv import sidebar_cv_on_demand as _cv
     _cv(st, lstate, prompt, vm)
 
 
@@ -408,7 +408,7 @@ def _render_metadata_panel_inline(st: Any, lstate: Any, prompt: str, state_path:
 
 
 def _emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
-    from .ui_sidebar_misc import emit_latent_dim_and_data_strip as _emit
+    from .sidebar.misc import emit_latent_dim_and_data_strip as _emit
     _emit(st, lstate)
 
 
@@ -418,16 +418,16 @@ def _ensure_train_results_expander_label(st: Any) -> None:
 
 
 def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
-    from .ui_sidebar_panels import _xgb_train_controls as _impl
+    from .sidebar.panels import _xgb_train_controls as _impl
     return _impl(st, lstate, Xd, yd)
 
 
 def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
-    from .ui_sidebar_panels import _logit_train_controls as _impl
+    from .sidebar.panels import _logit_train_controls as _impl
     return _impl(st, lstate, Xd, yd)
 
 
-from .ui_sidebar_panels import handle_train_section as _handle_train_section
+from .sidebar.panels import handle_train_section as _handle_train_section
 
 
 def _early_persistence_and_meta(
@@ -440,7 +440,7 @@ def _early_persistence_and_meta(
     selected_model: str,
 ):
     """Emit persistence + metadata + step-score prep with minimal branching."""
-    from flux_local import set_model
+    from ipo.infra.pipeline_local import set_model
     try:
         if hasattr(st.sidebar, "download_button"):
             _sidebar_persistence_section(st, lstate, prompt, state_path, apply_state_cb, rerun_cb)
@@ -496,13 +496,13 @@ def _emit_images_status_block(st: Any) -> None:
         pass
 
 
-from .ui_sidebar_misc import emit_step_readouts as _emit_step_readouts
+from .sidebar.misc import emit_step_readouts as _emit_step_readouts
 
 
-from .ui_sidebar_misc import emit_debug_panel as _emit_debug_panel
+from .sidebar.misc import emit_debug_panel as _emit_debug_panel
 
 
-from .ui_sidebar_debug import _lc_write_key, _lc_warn_std
+from .sidebar.debug import _lc_write_key, _lc_warn_std
 
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
@@ -511,25 +511,25 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
 
 
 # Merged from ui_sidebar_extra
-from .ui_sidebar_misc import emit_dim_mismatch as _emit_dim_mismatch
+from .sidebar.misc import emit_dim_mismatch as _emit_dim_mismatch
 
 
-from .ui_sidebar_misc import emit_last_action_recent as _emit_last_action_recent
+from .sidebar.misc import emit_last_action_recent as _emit_last_action_recent
 
 
-from .ui_sidebar_misc import rows_refresh_tick as _rows_refresh_tick
+from .sidebar.misc import rows_refresh_tick as _rows_refresh_tick
 
 
 # moved to ui_sidebar_controls to reduce this file's complexity
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
-    from .ui_sidebar_controls import render_rows_and_last_action as _rows
+    from .sidebar.controls import render_rows_and_last_action as _rows
     _rows(st, base_prompt, lstate)
 
 
 def render_model_decode_settings(st: Any, lstate: Any):
-    from .ui_sidebar_controls import render_model_decode_settings as _ctl
+    from .sidebar.controls import render_model_decode_settings as _ctl
     return _ctl(st, lstate)
 
 

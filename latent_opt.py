@@ -1,4 +1,4 @@
-from latent_state import (
+from ipo.core.latent_state import (
     LatentState,
     init_latent_state,
     save_state,
@@ -7,7 +7,7 @@ from latent_state import (
     loads_state,
     state_summary,
 )
-from latent_logic import (
+from ipo.core.latent_logic import (
     propose_latent_pair_ridge,
     propose_pair_prompt_anchor,
     propose_pair_prompt_anchor_iterative,
@@ -18,7 +18,7 @@ from latent_logic import (
 )
 from dataclasses import dataclass
 from typing import Optional
-from latent_logic import (
+from ipo.core.latent_logic import (
     propose_pair_prompt_anchor_iterative as _propose_iter,
     propose_pair_prompt_anchor_linesearch as _propose_line,
 )

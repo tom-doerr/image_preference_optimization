@@ -14,7 +14,7 @@ def decode_one(i: int, lstate: Any, prompt: str, z_i, steps: int, guidance_eff: 
     except Exception:
         from latent_opt import z_to_latents  # tests may stub here
     try:
-        from flux_local import generate_flux_image_latents
+        from ipo.infra.pipeline_local import generate_flux_image_latents
     except Exception:
         # Allow tests that inject a stub module to satisfy this import
         from sys import modules as _modules
@@ -41,4 +41,3 @@ def decode_one(i: int, lstate: Any, prompt: str, z_i, steps: int, guidance_eff: 
     except Exception:
         pass
     return img_i
-

@@ -63,7 +63,7 @@ def _emit_latent_dim_and_model() -> None:
     ld = int(getattr(getattr(st.session_state, "lstate", None), "d", 0)) if hasattr(st, "session_state") else 0
     safe_write(st, f"Latent dim: {ld}")
     try:
-        from flux_local import set_model
+        from ipo.infra.pipeline_local import set_model
         set_model("stabilityai/sd-turbo")
     except Exception:
         pass

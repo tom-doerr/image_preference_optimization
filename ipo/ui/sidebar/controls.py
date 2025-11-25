@@ -23,7 +23,7 @@ def _debug_saves_section(st: Any, base_prompt: str, lstate: Any | None) -> None:
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
-    from ipo.ui.ui_sidebar_misc import emit_dim_mismatch as _emit_dim_mismatch, emit_last_action_recent as _emit_last_action_recent, rows_refresh_tick as _rows_refresh_tick
+    from ipo.ui.sidebar.misc import emit_dim_mismatch as _emit_dim_mismatch, emit_last_action_recent as _emit_last_action_recent, rows_refresh_tick as _rows_refresh_tick
     st.sidebar.subheader("Training data & scores")
     _emit_dim_mismatch(st)
     _emit_last_action_recent(st)

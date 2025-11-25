@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from latent_opt import init_latent_state, z_to_latents
-from flux_local import set_model, generate_flux_image_latents
+from ipo.infra.pipeline_local import set_model, generate_flux_image_latents
 
 
 def main():

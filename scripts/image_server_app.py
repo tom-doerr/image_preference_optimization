@@ -28,7 +28,7 @@ def _b64_png(img) -> str:
 
 def _ensure_model():
     try:
-        from flux_local import set_model
+        from ipo.infra.pipeline_local import set_model
 
         mid = os.getenv("FLUX_LOCAL_MODEL", "stabilityai/sd-turbo")
         set_model(mid)
@@ -63,14 +63,14 @@ class App(BaseHTTPRequestHandler):
             guidance = float(req.get("guidance", 0.0))
             prompt = str(req.get("prompt", ""))
             if self.path == "/generate":
-                from flux_local import generate_flux_image
+                from ipo.infra.pipeline_local import generate_flux_image
 
                 img = generate_flux_image(
                     prompt, width=width, height=height, steps=steps, guidance=guidance
                 )
                 return self._reply(200, {"image": _b64_png(img)})
             if self.path == "/generate_latents":
-                from flux_local import generate_flux_image_latents
+                from ipo.infra.pipeline_local import generate_flux_image_latents
 
                 latents = req.get("latents")
                 shape = req.get("latents_shape")
