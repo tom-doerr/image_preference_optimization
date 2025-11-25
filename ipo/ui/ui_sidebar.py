@@ -354,7 +354,27 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
         pass
 
 
-from .sidebar.cv import cached_cv_lines as _cached_cv_lines
+def _cached_cv_lines(st):
+    try:
+        from ipo.infra.constants import Keys
+        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+        if isinstance(cv_cache, dict):
+            r = cv_cache.get("Ridge") or {}
+            x = cv_cache.get("XGBoost") or {}
+            ridge_line = (
+                f"CV (Ridge): {float(r['acc']) * 100:.0f}% (k={int(r['k'])})"
+                if ("acc" in r and "k" in r)
+                else "CV (Ridge): n/a"
+            )
+            xgb_line = (
+                f"CV (XGBoost): {float(x['acc']) * 100:.0f}% (k={int(x['k'])})"
+                if ("acc" in x and "k" in x)
+                else "CV (XGBoost): n/a"
+            )
+            return xgb_line, ridge_line
+    except Exception:
+        pass
+    return "CV (XGBoost): n/a", "CV (Ridge): n/a"
 def _xgb_status_line(st: Any, rows_n: int, status: str) -> None:
     try:
         line = f"XGBoost model rows: {rows_n} (status: {status})"
@@ -408,8 +428,8 @@ def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str
 
 
 def _cv_on_demand(st: Any, lstate: Any, prompt: str, vm: str) -> None:
-    from .sidebar.cv import sidebar_cv_on_demand as _cv
-    _cv(st, lstate, prompt, vm)
+    """No-op CV compute (button removed to simplify)."""
+    return
 
 
 def _resolve_meta_pairs(prompt: str, state_path: str):

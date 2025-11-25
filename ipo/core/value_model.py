@@ -112,26 +112,18 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
 
 def _xgb_hparams(session_state: Any) -> tuple[int, int]:
     try:
-        n_estim = int(session_state.get("xgb_n_estimators", 50))
+        from ipo.core.xgb_value import get_params as _gp
+        return _gp(session_state)
     except Exception:
-        n_estim = 50
-    try:
-        max_depth = int(session_state.get("xgb_max_depth", 3))
-    except Exception:
-        max_depth = 3
-    return n_estim, max_depth
+        return 50, 3
 
 
 def _store_xgb_model(session_state: Any, mdl: Any, n_rows: int) -> None:
     try:
-        session_state.XGB_MODEL = mdl
-        cache = getattr(session_state, "xgb_cache", {}) or {}
-        cache["model"] = mdl
-        cache["n"] = int(n_rows)
-        session_state.xgb_cache = cache
-        session_state["xgb_toast_ready"] = True
+        from ipo.core.xgb_value import set_live_model as _slm
+        _slm(session_state, mdl, int(n_rows))
     except Exception:
-        pass
+        return None
 
 
 def _has_two_classes(y: np.ndarray) -> bool:

@@ -32,5 +32,43 @@ def score_xgb_proba(model, fvec):
     return proba
 
 
-# --- CLI-compatible helpers merged here for convenience ---
-"""XGBoost helpers (training function kept minimal; CLI removed)."""
+# Consolidated session helpers
+def get_params(session_state) -> tuple[int, int]:
+    """Return (n_estimators, max_depth) from session_state with small defaults."""
+    try:
+        ne = int(getattr(session_state, "xgb_n_estimators", 50))
+    except Exception:
+        ne = 50
+    try:
+        md = int(getattr(session_state, "xgb_max_depth", 3))
+    except Exception:
+        md = 3
+    return ne, md
+
+
+def set_live_model(session_state, model, n_rows: int) -> None:
+    """Store the trained model in session_state (and legacy cache) in one place."""
+    try:
+        session_state.XGB_MODEL = model
+        cache = getattr(session_state, "xgb_cache", {}) or {}
+        cache["model"] = model
+        cache["n"] = int(n_rows)
+        session_state.xgb_cache = cache
+        session_state["xgb_toast_ready"] = True
+    except Exception:
+        pass
+
+
+def get_live_model(session_state):
+    """Return a live trained XGB model from session state or None."""
+    try:
+        mdl = getattr(session_state, "XGB_MODEL", None)
+        if mdl is not None:
+            return mdl
+    except Exception:
+        pass
+    try:
+        cache = getattr(session_state, "xgb_cache", {}) or {}
+        return cache.get("model")
+    except Exception:
+        return None

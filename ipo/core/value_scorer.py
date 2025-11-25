@@ -126,16 +126,10 @@ def _build_xgb_scorer(
 
 
 def _get_live_xgb_model(session_state: Any):
-    """Return a live XGB model from session (new or legacy cache) or None."""
+    """Return a live XGB model from a single consolidated helper."""
     try:
-        mdl = getattr(session_state, "XGB_MODEL", None)
-    except Exception:
-        mdl = None
-    if mdl is not None:
-        return mdl
-    try:
-        cache = getattr(session_state, "xgb_cache", {}) or {}
-        return cache.get("model")
+        from ipo.core.xgb_value import get_live_model  # type: ignore
+        return get_live_model(session_state)
     except Exception:
         return None
 
