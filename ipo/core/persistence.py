@@ -162,23 +162,7 @@ def get_dataset_for_prompt_or_session(
     try:
         if not os.path.isdir(root):
             raise FileNotFoundError
-        xs: list[np.ndarray] = []
-        ys: list[np.ndarray] = []
-        target_d = _target_dim_from_session(session_state)
-        for sample_path in _iter_sample_paths(root):
-            Xi, yi = _load_sample_npz(sample_path)
-            if Xi is None or yi is None:
-                continue
-            if target_d is not None:
-                try:
-                    d_x = int(getattr(Xi, "shape", (0, 0))[1])
-                except Exception:
-                    d_x = None  # type: ignore
-                if d_x != target_d:
-                    _record_dim_mismatch(session_state, d_x, target_d)
-                    continue
-            xs.append(Xi)
-            ys.append(yi)
+        xs, ys = _load_rows_filtered(root, _target_dim_from_session(session_state), session_state)
         if xs:
             X = np.vstack(xs)
             y = np.concatenate(ys)
@@ -194,6 +178,27 @@ def get_dataset_for_prompt_or_session(
     except Exception:
         pass
     return X, y
+
+
+def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """Load per-sample rows, filtering by feature dim if target_d is provided."""
+    xs: list[np.ndarray] = []
+    ys: list[np.ndarray] = []
+    for sample_path in _iter_sample_paths(root):
+        Xi, yi = _load_sample_npz(sample_path)
+        if Xi is None or yi is None:
+            continue
+        if target_d is not None:
+            try:
+                d_x = int(getattr(Xi, "shape", (0, 0))[1])
+            except Exception:
+                d_x = None  # type: ignore
+            if d_x != target_d:
+                _record_dim_mismatch(session_state, d_x, target_d)
+                continue
+        xs.append(Xi)
+        ys.append(yi)
+    return xs, ys
 
 
 def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
@@ -306,13 +311,8 @@ def dataset_stats_for_prompt(prompt: str) -> dict:
     if not os.path.isdir(root):
         return {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": recent}
     labels: list[int] = []
-    for name in sorted(os.listdir(root)):
-        sample_path = os.path.join(root, name, "sample.npz")
-        if not os.path.exists(sample_path):
-            continue
-        with np.load(sample_path) as z:
-            Xi = z["X"] if "X" in z.files else None
-            yi = z["y"] if "y" in z.files else None
+    for sample_path in _iter_sample_paths(root):
+        Xi, yi = _load_sample_npz(sample_path)
         if Xi is None or yi is None:
             continue
         if d == 0 and getattr(Xi, "ndim", 1) == 2:
