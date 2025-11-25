@@ -303,20 +303,10 @@ def compute_step_scores(
     trust_r: float | None,
     session_state: Any,
 ):
+    """Delegate to a smaller module to reduce sidebar complexity."""
     try:
-        from latent_logic import z_from_prompt as _zfp
-
-        ridge = _ridge_dir(lstate)
-        if ridge is None:
-            return None
-        w, _n, d1 = ridge
-        scorer = _get_scorer_for_vm(vm_choice, lstate, prompt, session_state)
-        if vm_choice != "Ridge" and scorer is None:
-            return None
-        n_steps = max(1, int(iter_steps))
-        step_len = _step_len_for_scores(lstate, n_steps, iter_eta, trust_r)
-        z_p = _zfp(lstate, prompt)
-        return _accumulate_step_scores(d1, step_len, n_steps, z_p, scorer, w)
+        from .ui_step_scores import compute_step_scores as _css
+        return _css(lstate, prompt, vm_choice, int(iter_steps), iter_eta, trust_r, session_state)
     except Exception:
         return None
 
@@ -452,81 +442,22 @@ def _autofit_xgb_if_selected(st: Any, lstate: Any, vm_choice: str, Xd, yd) -> No
     return
 
 
-def compute_train_results_lines(
-    st: Any, lstate: Any, prompt: str, vm_choice: str
-) -> list[str]:
-    """Return canonical Train-results lines in fixed order.
-
-    Order:
-    - Train score
-    - CV score
-    - Last CV
-    - Last train
-    - Value scorer status
-    - Value scorer (label)
-    - XGBoost active yes/no
-    - Optimization line
-    """
-    def _last_times():
-        try:
-            lt = str(st.session_state.get(Keys.LAST_TRAIN_AT) or "n/a")
-        except Exception:
-            lt = "n/a"
-        try:
-            lc = st.session_state.get(Keys.CV_LAST_AT) or "n/a"
-        except Exception:
-            lc = "n/a"
-        return lt, lc
-
-    def _scorer_and_train_score():
-        # Defaults when no data/scorer
-        vs_stat = (
-            "xgb_unavailable" if str(vm_choice) == "XGBoost" else "ridge_untrained"
-        )
-        vs_lbl = (
-            f"XGBoost (xgb_unavailable, rows=0)"
-            if str(vm_choice) == "XGBoost"
-            else "Ridge (ridge_untrained, rows=0)"
-        )
-        tscore_local = "n/a"
-        try:
-            Xd, yd = _get_dataset_for_display(st, lstate, prompt)
-            if Xd is None or yd is None or getattr(Xd, "shape", (0,))[0] == 0:
-                return tscore_local, vs_stat, vs_lbl
-            import numpy as _np
-            from value_scorer import get_value_scorer as _gvs
-
-            scorer, tag = _gvs(vm_choice, lstate, prompt, st.session_state)
-            vs_stat = "ok" if scorer is not None else str(tag)
-            rows = int(getattr(Xd, "shape", (0,))[0])
-            vs_lbl = f"{vm_choice or 'Ridge'} ({vs_stat}, rows={rows})"
-            if scorer is not None and callable(scorer):
-                scores = _np.asarray([scorer(x) for x in Xd], dtype=float)
-                yhat = scores >= (0.5 if str(vm_choice) == "XGBoost" else 0.0)
-            else:
-                w = getattr(lstate, "w", _np.zeros(getattr(Xd, "shape", (0, 0))[1]))
-                yhat = (Xd @ w) >= 0.0
-            acc = float((yhat == (yd > 0)).mean())
-            tscore_local = f"{acc * 100:.0f}%"
-        except Exception:
-            pass
-        return tscore_local, vs_stat, vs_lbl
-
-    tscore, vs_status, vs_line = _scorer_and_train_score()
-    cv_line = "n/a"
-    last_train, last_cv = _last_times()
-    active = "yes" if (str(vm_choice) == "XGBoost" and str(vs_status) == "ok") else "no"
-    lines = [
-        f"Train score: {tscore}",
-        f"CV score: {cv_line}",
-        f"Last CV: {last_cv}",
-        f"Last train: {last_train}",
-        f"Value scorer status: {vs_status}",
-        f"Value scorer: {vs_line}",
-        f"XGBoost active: {active}",
-        "Optimization: Ridge only",
-    ]
-    return lines
+def compute_train_results_lines(st: Any, lstate: Any, prompt: str, vm_choice: str) -> list[str]:
+    """Delegate to ui_train_results to reduce this file’s complexity."""
+    try:
+        from .ui_train_results import compute_train_results_lines as _ctl
+        return _ctl(st, lstate, prompt, vm_choice)
+    except Exception:
+        return [
+            "Train score: n/a",
+            "CV score: n/a",
+            "Last CV: n/a",
+            "Last train: n/a",
+            "Value scorer status: ridge_untrained",
+            "Value scorer: Ridge (ridge_untrained, rows=0)",
+            "XGBoost active: no",
+            "Optimization: Ridge only",
+        ]
 
 # Use shared helpers.safe_write to avoid duplication
 
@@ -978,7 +909,7 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
         lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
         _fit_vm("Logistic", lstate, Xs, Ys, lam_now, st.session_state)
         try:
-            getattr(st, "toast", lambda *a, **k: None)("Logistic training: sync fit complete")
+            getattr(st, "toast", lambda *a, **k: None)("Logit: trained (sync)")
         except Exception:
             pass
 

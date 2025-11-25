@@ -38,6 +38,9 @@ Eta input (Nov 22, 2025):
 
 New learnings (Nov 25, 2025 — sync-only + unified scorer):
 - Training is sync-only across the app. No auto‑fit on reruns. XGBoost trains only on the explicit button; Ridge updates on label clicks.
+- Toasts: after a blocking fit we now show concise messages:
+  - XGBoost: "XGBoost: trained (sync)" (test added)
+  - Logistic: "Logit: trained (sync)" (test added)
 - Unified `value_scorer.get_value_scorer` API simplifies caption logic and makes the producing model explicit: `[XGB]`, `[Ridge]`, or `[Logit]`.
 - A live XGB model is stored at `session_state.XGB_MODEL` (also mirrored into `xgb_cache` for older paths). If missing or only one label class exists, XGB stays unavailable by design.
 - Early sidebar lines are deterministic at import: Value model, Step scores (n/a), Train/CV/Last, Latent dim, hardcoded model. Keeps text‑only tests stable.
@@ -1349,6 +1352,12 @@ Sidebar polish (Nov 21, 2025 — 147c):
 
 Default resolution (Nov 25, 2025 update):
 - Default width/height is now 512×512 (constants.Config). Balanced speed/VRAM; stick to multiples of 64.
+
+Maintainability (Nov 25, 2025 — MI split):
+- Extracted sidebar internals into small modules:
+  - `ipo/ui/ui_step_scores.py` (A MI) for step‑score math.
+  - `ipo/ui/ui_train_results.py` (A MI) for train‑results lines.
+- `ui_sidebar.py` delegates to these modules; public names/strings stay the same.
 
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
