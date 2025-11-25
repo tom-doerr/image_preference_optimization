@@ -285,18 +285,7 @@ def propose_pair_prompt_anchor_linesearch(
     z_p = z_from_prompt(state, prompt)
     d1 = _dir_w(state)
     S = float(trust_r) if (trust_r is not None and trust_r > 0) else float(state.sigma)
-    cands = (
-        mags
-        if (isinstance(mags, list) and len(mags) > 0)
-        else [0.25 * S, 0.5 * S, 1.0 * S]
-    )
-    # clamp candidates to trust_r if needed
-    mm = []
-    for m in cands:
-        m = float(max(0.0, m))
-        if trust_r is not None and trust_r > 0 and m > float(trust_r):
-            m = float(trust_r)
-        mm.append(m)
+    mm = _linesearch_mags(mags, S, trust_r)
     # value is proportional to m for linear ridge; pick largest
     m_best = max(mm) if mm else 0.0
     delta = m_best * d1
@@ -334,6 +323,18 @@ def _rand_orth_dir(state: LatentState, d1: np.ndarray) -> np.ndarray:
     if n <= 1e-12:
         return _unit(d1)
     return d2 / n
+
+
+def _linesearch_mags(mags: Optional[list[float]], S: float, trust_r: Optional[float]) -> list[float]:
+    """Prepare candidate magnitudes for line-search with optional trust clamp."""
+    cands = mags if (isinstance(mags, list) and len(mags) > 0) else [0.25 * S, 0.5 * S, 1.0 * S]
+    out: list[float] = []
+    for m in cands:
+        m = float(max(0.0, m))
+        if trust_r is not None and trust_r > 0 and m > float(trust_r):
+            m = float(trust_r)
+        out.append(m)
+    return out
 
 
 # propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration

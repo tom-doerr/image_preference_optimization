@@ -86,30 +86,38 @@ def ensure_prompt_and_state() -> str:
     if base_prompt != st.session_state.get("prompt"):
         st.session_state.prompt = base_prompt
     # State path
-    sp = st.session_state.get("state_path")
-    if not isinstance(sp, str) or not sp:
-        try:
-            from ipo.core.persistence import state_path_for_prompt as _spp
-
-            st.session_state.state_path = _spp(st.session_state.prompt)
-        except Exception:
-            h = hashlib.sha1(st.session_state.prompt.encode("utf-8")).hexdigest()[:10]
-            st.session_state.state_path = f"latent_state_{h}.npz"
+    _resolve_state_path()
     # Latent state
     if "lstate" not in st.session_state or base_prompt != st.session_state.get("prompt"):
-        from latent_state import init_latent_state, load_state
-
-        if os.path.exists(st.session_state.state_path):
-            try:
-                from .app_api import _apply_state
-                _apply_state(st, load_state(st.session_state.state_path))
-            except Exception:
-                from .app_api import _apply_state
-                _apply_state(st, init_latent_state())
-        else:
-            from .app_api import _apply_state
-            _apply_state(st, init_latent_state())
+        _apply_or_init_state()
         # Initialize placeholders without decoding at import time.
         if Keys.IMAGES not in st.session_state:
             st.session_state[Keys.IMAGES] = (None, None)
     return base_prompt
+
+
+def _resolve_state_path() -> None:
+    sp = st.session_state.get("state_path")
+    if isinstance(sp, str) and sp:
+        return
+    try:
+        from ipo.core.persistence import state_path_for_prompt as _spp
+
+        st.session_state.state_path = _spp(st.session_state.get("prompt") or DEFAULT_PROMPT)
+    except Exception:
+        h = hashlib.sha1((st.session_state.get("prompt") or DEFAULT_PROMPT).encode("utf-8")).hexdigest()[:10]
+        st.session_state.state_path = f"latent_state_{h}.npz"
+
+
+def _apply_or_init_state() -> None:
+    from latent_state import init_latent_state, load_state
+    from .app_api import _apply_state
+
+    path = st.session_state.get("state_path")
+    try:
+        if isinstance(path, str) and os.path.exists(path):
+            _apply_state(st, load_state(path))
+            return
+    except Exception:
+        pass
+    _apply_state(st, init_latent_state())

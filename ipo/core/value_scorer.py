@@ -101,27 +101,9 @@ def _build_xgb_scorer(
         return 0.0
 
     try:
-        # Primary: allow direct provision of a live model
-        mdl = getattr(session_state, "XGB_MODEL", None)
-        # Compat: accept legacy xgb_cache.model if present
+        mdl = _get_live_xgb_model(session_state)
         if mdl is None:
-            try:
-                cache = getattr(session_state, "xgb_cache", {}) or {}
-                mdl = cache.get("model")
-            except Exception:
-                mdl = None
-        if mdl is None:
-            try:
-                from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
-
-                Xd, yd = _get_ds(prompt, session_state)
-                rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
-                d_lat = getattr(lstate, "d", "?")
-                print(
-                    f"[xgb] scorer unavailable: no model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
-                )
-            except Exception:
-                print("[xgb] scorer unavailable: no model")
+            _print_xgb_unavailable(vm_choice, lstate, prompt, session_state)
             return _zero, "xgb_unavailable"
 
         # Prefer top-level stub when present (tests), otherwise package path
@@ -141,6 +123,36 @@ def _build_xgb_scorer(
     except Exception:
         print("[xgb] scorer error; returning 0 for all scores")
         return _zero, "xgb_error"
+
+
+def _get_live_xgb_model(session_state: Any):
+    """Return a live XGB model from session (new or legacy cache) or None."""
+    try:
+        mdl = getattr(session_state, "XGB_MODEL", None)
+    except Exception:
+        mdl = None
+    if mdl is not None:
+        return mdl
+    try:
+        cache = getattr(session_state, "xgb_cache", {}) or {}
+        return cache.get("model")
+    except Exception:
+        return None
+
+
+def _print_xgb_unavailable(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> None:
+    """Emit the same unavailable line as before (keeps tests stable)."""
+    try:
+        from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
+
+        Xd, _ = _get_ds(prompt, session_state)
+        rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
+        d_lat = getattr(lstate, "d", "?")
+        print(
+            f"[xgb] scorer unavailable: no model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
+        )
+    except Exception:
+        print("[xgb] scorer unavailable: no model")
 
 
 ## Legacy non‑ridge value models were removed.
