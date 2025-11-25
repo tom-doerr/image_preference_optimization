@@ -895,6 +895,13 @@ def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
             print("[xgb] trained (sync)")
         except Exception:
             pass
+        # Record ephemeral last action for sidebar Train results
+        try:
+            import time as _time
+            st.session_state[Keys.LAST_ACTION_TEXT] = "XGBoost: trained (sync)"
+            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+        except Exception:
+            pass
 
     Xs, Ys = _select_dataset()
     pos, neg = _count_pos_neg(Ys)
@@ -914,6 +921,12 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
         _fit_vm("Logistic", lstate, Xs, Ys, lam_now, st.session_state)
         try:
             getattr(st, "toast", lambda *a, **k: None)("Logit: trained (sync)")
+        except Exception:
+            pass
+        try:
+            import time as _time
+            st.session_state[Keys.LAST_ACTION_TEXT] = "Logit: trained (sync)"
+            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
         except Exception:
             pass
 
@@ -1060,6 +1073,15 @@ from .ui_sidebar_debug import _emit_last_call_info, _emit_log_tail
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
     _emit_train_result_lines(st, lines, sidebar_only)
+    # Ephemeral last-action echo inside Train results (e.g., XGBoost: trained (sync))
+    try:
+        import time as _time
+        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
+        ts = st.session_state.get(Keys.LAST_ACTION_TS)
+        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
+            st.sidebar.write(f"Last action: {txt}")
+    except Exception:
+        pass
     _emit_images_status_block(st)
     # Do not recurse into the value-model block from here; caller is responsible
     try:
