@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from metrics import pair_metrics
+from ipo.core.metrics import pair_metrics
 
 
 class TestMetrics(unittest.TestCase):

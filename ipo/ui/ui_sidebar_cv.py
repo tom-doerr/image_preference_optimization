@@ -46,9 +46,9 @@ def sidebar_cv_on_demand(st: Any, lstate: Any, prompt: str, vm: str) -> None:
             if Xd is None or yd is None or getattr(Xd, "shape", (0,))[0] <= 1:
                 return None
             if vm == "XGBoost":
-                from metrics import xgb_cv_accuracy as _cv
+                from ipo.core.metrics import xgb_cv_accuracy as _cv
             else:
-                from metrics import ridge_cv_accuracy as _cv
+                from ipo.core.metrics import ridge_cv_accuracy as _cv
             return float(_cv(Xd, yd, k=k))
         except Exception:
             return None
