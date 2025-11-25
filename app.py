@@ -5,7 +5,11 @@ import streamlit as st
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
 
 # Early bootstrap
-from app_bootstrap import init_page_and_logging, emit_early_sidebar, ensure_prompt_and_state
+from ipo.ui.app_bootstrap import (
+    init_page_and_logging,
+    emit_early_sidebar,
+    ensure_prompt_and_state,
+)
 
 # App API shims (keep names stable for tests)
 from ipo.ui.app_api import (
@@ -24,15 +28,15 @@ from ipo.ui.app_api import render_sidebar_tail as render_sidebar_tail_module
 
 # State helpers (re-export minimal surface expected by tests)
 def init_latent_state(*a, **k):
-    from latent_state import init_latent_state as _f
+    from ipo.core.latent_state import init_latent_state as _f
     return _f(*a, **k)
 
 def dumps_state(state):
-    from latent_state import dumps_state as _f
+    from ipo.core.latent_state import dumps_state as _f
     return _f(state)
 
 def loads_state(data: bytes):
-    from latent_state import loads_state as _f
+    from ipo.core.latent_state import loads_state as _f
     return _f(data)
 
 def _export_state_bytes(state, prompt: str):
@@ -106,7 +110,7 @@ def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None) -> None:
 run_app(st, vm_choice, selected_gen_mode)
 
 st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
-from latent_state import save_state  # local import to reduce global surface
+from ipo.core.latent_state import save_state  # local import to reduce global surface
 if st.button("Reset", type="secondary"):
     _apply_state(st, init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)

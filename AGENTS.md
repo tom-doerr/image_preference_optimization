@@ -1888,6 +1888,10 @@ Simplify further (Nov 25, 2025):
 - Hardcode model to sd‑turbo. Removed image‑server and fragments toggles to keep a single, stable path.
 - Minimal sidebar: plain text lines only (no st.metric). Early “log file …” and debug panels were removed; we keep IPO logs in ipo.debug.log for CLI debugging.
 
+Legacy shims removal (Nov 25, 2025):
+- Removed top-level re-export shims: `batch_ui.py`, `constants.py`, `latent_logic.py`, `latent_state.py`, `value_model.py`, `value_scorer.py`, `flux_local.py`, `env_info.py`, `app_bootstrap.py`.
+- Tests map legacy import names to new package modules via `tests/conftest.py` to keep imports working without re-scans.
+
 Keep in mind (ongoing):
 - XGBoost requires both classes (>0 pos and >0 neg). Until then, the scorer remains “xgb_unavailable” and captions should stay “Value: n/a”.
 - Do not auto‑train on reruns. The only training entry points are the explicit “Train XGBoost now (sync)” and “Logit: trained (sync)”.

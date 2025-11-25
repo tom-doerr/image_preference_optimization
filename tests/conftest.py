@@ -1,14 +1,22 @@
-import os
 import sys
 
+# Map legacy module names to new package modules to keep tests working
+legacy_to_new = {
+    "batch_ui": "ipo.ui.batch_ui",
+    "constants": "ipo.infra.constants",
+    "latent_logic": "ipo.core.latent_logic",
+    "latent_state": "ipo.core.latent_state",
+    "value_model": "ipo.core.value_model",
+    "value_scorer": "ipo.core.value_scorer",
+    "flux_local": "ipo.infra.flux_local",
+    "env_info": "ipo.infra.env_info",
+    "app_bootstrap": "ipo.ui.app_bootstrap",
+}
 
-# Ensure repository root is on sys.path for pytest runs
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+for legacy, new_name in legacy_to_new.items():
+    try:
+        if legacy not in sys.modules:
+            sys.modules[legacy] = __import__(new_name, fromlist=["*"])
+    except Exception:
+        pass
 
-# Import-time app render for tests that assert sidebar strings without
-# explicitly importing the app. We import the app after the test module is
-# imported so any Streamlit stub the test installs is active.
-# Note: Avoid auto-importing the app here; several tests stub streamlit
-# before import to assert import-time writes.
