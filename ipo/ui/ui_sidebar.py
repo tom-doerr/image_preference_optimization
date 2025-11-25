@@ -815,9 +815,6 @@ def _build_size_controls(st, lstate):
     apply_clicked = False
     if int(width) != int(getattr(lstate, "width", width)) or int(height) != int(getattr(lstate, "height", height)):
         apply_clicked = True
-    try:
-        if getattr(st.sidebar, "button", lambda *a, **k: False)("Apply size now"):
-            apply_clicked = True
-    except Exception:
-        pass
+    # Removed explicit "Apply size now" button; width/height changes are detected
+    # via the comparison above, and callers already ignore apply_clicked.
     return int(width), int(height), int(steps), float(guidance), bool(apply_clicked)
