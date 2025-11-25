@@ -130,3 +130,12 @@ Update 5:
 - Value-model `_maybe_fit_logit` reduced from C→B by factoring tiny helpers
   `_logit_params` (read steps/λ) and `_logit_train_loop` (SGD loop). The CLI
   log remains `[logit] fit rows=…` with the same fields.
+
+Update 6:
+- Latent-logic: cleaned up remaining C-grade functions without changing
+  behavior or strings:
+  - `hill_climb_mu_distance` now uses `_distance_loss_and_grad` and
+    `_distance_loss_only`; complexity B.
+  - `hill_climb_mu_xgb` and `sample_z_xgb_hill` reuse `_best_of_along_d1`
+    and `_trust_clamp`; both now B.
+  - `update_latent_ridge` split into small helpers and is A now.

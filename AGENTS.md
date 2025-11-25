@@ -1798,6 +1798,11 @@ Keep in mind:
     `_print_xgb_unavailable`) reducing `_build_xgb_scorer` C→B.
   - Latent logic: line-search candidates moved to `_linesearch_mags`; function
     C→B without changing behavior.
+  - Latent logic (follow-up):
+    - XGB hill climb factored via `_best_of_along_d1` and `_trust_clamp` (both C→B).
+    - Distance hill step uses `_distance_loss_and_grad` and `_distance_loss_only` (C→B).
+    - Ridge update split into `_winner_vector`, `_feature_diff`, `_append_row_and_fit`,
+      `_update_mu_inplace`, and `_push_mu_history` (C→A).
   - Value model: `_maybe_fit_xgb` factored into `_xgb_hparams`, `_store_xgb_model`,
     and `_has_two_classes` (C→B). Behavior unchanged; still sync-only training
     and legacy cache mirrored for compat.

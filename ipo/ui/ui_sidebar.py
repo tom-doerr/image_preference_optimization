@@ -4,6 +4,11 @@ from typing import Any
 
 import numpy as np
 
+"""Sidebar UI composition for the app.
+
+Debug/log-tail helpers live in `ui_sidebar_debug` to keep this file lean
+without changing behavior or strings.
+"""
 from ipo.infra.constants import Keys
 from ipo.core.persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
 from ipo.infra.util import safe_write
@@ -1122,65 +1127,10 @@ def _emit_debug_panel(st: Any) -> None:
         pass
 
 
-def _lc_write_key(st: Any, lc: dict, key: str) -> None:
-    try:
-        if key in lc:
-            safe_write(st, f"{key}: {lc[key]}")
-    except Exception:
-        pass
+from .ui_sidebar_debug import _lc_write_key, _lc_warn_std
 
 
-def _lc_warn_std(st: Any, lc: dict) -> None:
-    try:
-        stdv = lc.get("latents_std")
-        if stdv is not None and float(stdv) <= 1e-9:
-            st.sidebar.write(f"warn: latents std {float(stdv):.3g}")
-    except Exception:
-        pass
-
-
-def _emit_last_call_info(st: Any) -> None:
-    try:
-        from flux_local import get_last_call  # type: ignore
-        lc = get_last_call() or {}
-    except Exception:
-        lc = {}
-    for k in ("model_id", "event", "width", "height", "latents_std", "latents_mean"):
-        _lc_write_key(st, lc, k)
-    _lc_warn_std(st, lc)
-    try:
-        w = lc.get("width")
-        h = lc.get("height")
-        if w is not None and h is not None:
-            st.sidebar.write(f"pipe_size: {w}x{h}")
-    except Exception:
-        pass
-
-
-def _emit_log_tail(st: Any) -> None:
-    try:
-        import logging as _logging
-        _logging.getLogger("ipo").setLevel(_logging.DEBUG)
-        n_default = int(st.session_state.get(K.DEBUG_TAIL_LINES, 30) or 30)
-        n_lines = int(getattr(st.sidebar, 'number_input', lambda *a, **k: n_default)(
-            'Debug log tail (lines)', value=n_default, step=10
-        ) or n_default)
-        st.session_state[K.DEBUG_TAIL_LINES] = n_lines
-        try:
-            with open('ipo.debug.log', 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()[-int(max(1, n_lines)) :]
-            if hasattr(st.sidebar, 'expander') and callable(getattr(st.sidebar, 'expander', None)):
-                with st.sidebar.expander('Debug logs', expanded=False):
-                    for ln in lines:
-                        safe_write(st, ln.rstrip('\n'))
-            else:
-                safe_write(st, 'Debug logs:')
-                for ln in lines:
-                    st.sidebar.write(ln.rstrip('\n'))
-        except FileNotFoundError:
-            safe_write(st, 'Debug logs: (no ipo.debug.log yet)')
-    except Exception:
-        pass
+from .ui_sidebar_debug import _emit_last_call_info, _emit_log_tail
 
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
