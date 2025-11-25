@@ -158,3 +158,14 @@ Async training removal (Nov 25, 2025)
 Maintainability splits (Nov 25, 2025, later)
 - Sidebar logic has been split into small helpers: `ui_sidebar_panels`, `ui_sidebar_cv`, `ui_sidebar_meta`, `ui_sidebar_controls`, and `ui_step_scores_render`. The main `ui_sidebar` file delegates to them; behavior and strings are identical.
 - Batch UI splits: `batch_decode`, `batch_tiles`, `batch_buttons`, and `batch_util`. The orchestrator `batch_ui` delegates; keys/labels stayed the same.
+
+Nov 25, 2025 — quick clarifications
+- XGBoost shows “xgb_unavailable” until the current prompt+dim has at least one +1 and one −1 row AND you click “Train XGBoost now (sync)”. We removed auto‑fit on reruns.
+- With the new default prompt, older rows from a different prompt/dim are ignored by design; the sidebar shows the folder and row count to make this explicit.
+- Captions show `Value: … [XGB/Ridge/Logit]` only when the corresponding scorer is ready. Otherwise it’s `Value: n/a`.
+- We reduced fragment usage to a single non‑fragment path for predictability. Buttons use stable keys; z/img are cached per tile.
+
+Questions for you
+1) Keep Distance‑based scorer visible, or hide it for now?
+2) Keep 512×512 at 6 steps as default, or bump back to 640×640?
+3) OK to make CV strictly on‑demand (button only) and drop the always‑visible CV lines?

@@ -168,6 +168,11 @@ UX tweak (Nov 18, 2025, late):
 Legacy non‑ridge controls (removed):
   - Historical; non‑ridge modes have been pruned from the UI/backend.
 
+Nov 25, 2025 — This request
+- Keep XGBoost/Logistic training sync‑only (no auto‑fit on reruns, no futures). Collect rows, then click the explicit Train button.
+- Captions follow a single‑scorer policy: show [XGB] when trained; else [Ridge] if ‖w‖>0; else “n/a”.
+- Dim/prompt scoping is strict; rows from other prompts/dims are ignored. Sidebar shows the dataset folder and on‑disk rows to make this obvious.
+- Fragments remain off by default; buttons use stable keys; per‑tile z/img are cached in session.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:
