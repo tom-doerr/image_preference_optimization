@@ -153,3 +153,4 @@ Queue removal status (Nov 25, 2025)
 
 Async training removal (Nov 25, 2025)
 - We also removed async model training keys (`XGB_TRAIN_ASYNC`, `XGB_FIT_FUTURE`). Training is sync-only now. If a test still refers to these, it should be updated or skipped.
+ - The UI does not import `ensure_fitted` anymore. It only fits when you press the button; the `value_model.ensure_fitted` shim remains available for backend/tests.
