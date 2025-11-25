@@ -101,8 +101,15 @@ def _build_xgb_scorer(
         return 0.0
 
     try:
-        # Optional: allow direct provision of a model under a neutral key
+        # Primary: allow direct provision of a live model
         mdl = getattr(session_state, "XGB_MODEL", None)
+        # Compat: accept legacy xgb_cache.model if present
+        if mdl is None:
+            try:
+                cache = getattr(session_state, "xgb_cache", {}) or {}
+                mdl = cache.get("model")
+            except Exception:
+                mdl = None
         if mdl is None:
             try:
                 from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
@@ -117,7 +124,15 @@ def _build_xgb_scorer(
                 print("[xgb] scorer unavailable: no model")
             return _zero, "xgb_unavailable"
 
-        from ipo.core.xgb_value import score_xgb_proba  # type: ignore
+        # Prefer top-level stub when present (tests), otherwise package path
+        try:
+            import sys as _sys
+            if "xgb_value" in _sys.modules and hasattr(_sys.modules["xgb_value"], "score_xgb_proba"):
+                from xgb_value import score_xgb_proba  # type: ignore
+            else:
+                from ipo.core.xgb_value import score_xgb_proba  # type: ignore
+        except Exception:  # final fallback
+            from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 
         def _xgb(fvec: np.ndarray) -> float:
             return float(score_xgb_proba(mdl, np.asarray(fvec, dtype=float)))

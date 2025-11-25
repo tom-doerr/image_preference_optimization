@@ -1764,3 +1764,16 @@ Tests (Nov 24, 2025):
 - tests/test_batch_cooldown_recent.py: asserts cooldown True for recent timestamp and False for old.
 - tests/integration/test_integration_sidebar_tail.py: calls render_sidebar_tail with a stubbed streamlit + flux_local; asserts canonical lines render (Train score/CV/Optimization/XGBoost line).
 - tests/integration/test_integration_batch_flow_smoke.py: stubs streamlit, flux_local, latent_logic; runs batch_ui.run_batch_mode and asserts image captions were produced.
+Simplification + compat (Nov 25, 2025):
+- Reintroduced a tiny compatibility shim for XGBoost scoring/training:
+  - value_scorer prefers a live `session_state.XGB_MODEL`, but also accepts legacy `session_state.xgb_cache['model']` when present.
+  - value_model sync fit stores into both `XGB_MODEL` and `xgb_cache` to satisfy older tests/UI paths.
+  - ui_sidebar now always emits `Value model: …` early in the sidebar for stable strings.
+  - Dataset fetch in ui_sidebar tries package `ipo.core.persistence` first, then falls back to top‑level `persistence` (used by several tests).
+- Rationale: reduce flakiness and mixed status lines while we continue collapsing the scorer API and removing async remnants.
+- Radon scan identified remaining C‑grade hotspots in latent_logic, persistence, and flux_local. We will extract small, pure helpers (scheduler init, row‑load loop, trust‑radius math) without changing behavior.
+
+Keep in mind:
+- Minimize UI string churn — several tests assert exact ordering/labels.
+- Prefer explicit user actions (e.g., Train XGBoost now) over rerun‑time auto‑fits.
+- For XGBoost, ensure two‑class datasets; single‑class keeps scorer unavailable by design.

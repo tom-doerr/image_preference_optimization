@@ -112,7 +112,13 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
             t_x = _time.perf_counter()
             mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
             try:
+                # Primary: live model
                 session_state.XGB_MODEL = mdl
+                # Compat: mirror into legacy cache expected by older tests
+                cache = getattr(session_state, "xgb_cache", {}) or {}
+                cache["model"] = mdl
+                cache["n"] = int(n)
+                session_state.xgb_cache = cache
                 session_state["xgb_toast_ready"] = True
             except Exception:
                 pass

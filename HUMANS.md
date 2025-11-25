@@ -64,3 +64,23 @@ How to reproduce
 - Sidebar CV: refactored `_cv_on_demand` into small helpers (get K, dataset, compute CV, record cache). Function now A(3); UI strings unchanged ("CV folds", "Compute CV now").
 - Value model: split `fit_value_model` into tiny orchestrators `_train_optionals(...)` and `_record_train_summaries(...)`. Main `fit_value_model` now A(3) from C(20). Behavior unchanged; logging preserved.
   - Ran a targeted subset of tests earlier; avoided full suite due to unrelated test file indentation issues in `tests/test_tile_value_captions.py` (appears pre‑existing).
+Nov 25, 2025 — XGB simplification + test stability
+
+What changed (you asked for simpler, sync‑only training and more predictable captions):
+- XGBoost training is sync and records the trained model under both `session_state.XGB_MODEL` (new) and `session_state.xgb_cache['model']` (compat for older tests/UI).
+- The scorer prefers `XGB_MODEL` but also accepts the legacy cache. This removes the "unavailable despite data" symptom when a test only sets `xgb_cache`.
+- The sidebar always prints `Value model: <choice>` early so text‑only tests see it without waiting for the train‑results block.
+- Dataset lookup in the sidebar first tries `ipo.core.persistence`, then falls back to a stubbed top‑level `persistence` module (several tests rely on this name).
+
+Why XGBoost bugs felt sticky before:
+- Mixed contracts: some tests expected auto‑fit on selection; others expected a manual Train button. We are converging to manual, sync fits only.
+- Two cache names (old `xgb_cache` vs new live model) led to “scorer unavailable” even when a model existed. The tiny shim bridges both.
+- Single‑class datasets keep XGB explicitly unavailable by design; training requires both +1 and −1 labels.
+
+Open questions for you:
+1) Do we drop auto‑fit entirely and keep only the explicit "Train XGBoost now (sync)" button?
+2) OK to retire the legacy `xgb_cache` once tests are migrated (follow‑up PR)?
+3) Shall we extract a couple of pure helpers from `latent_logic` (trust‑radius, sigmoid, step accumulation) to lower Radon CC without changing behavior?
+
+Notes for later:
+- If you see only `xgb_unavailable`, check: (a) at least one +1 and one −1 in the dataset; (b) the current latent dim matches the dataset dim; (c) after a sync fit, a scorer tag `XGB` should appear under the images and in the sidebar.

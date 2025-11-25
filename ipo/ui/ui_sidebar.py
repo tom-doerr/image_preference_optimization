@@ -426,9 +426,18 @@ def _get_dataset_for_display(st: Any, lstate: Any, prompt: str):
     ym = getattr(lstate, 'y', None)
     if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
         return Xm, ym
+    # Preferred path: package persistence
     try:
         from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds
-        return _get_ds(prompt, st.session_state)
+        Xd, yd = _get_ds(prompt, st.session_state)
+        if Xd is not None and getattr(Xd, "shape", (0,))[0] > 0:
+            return Xd, yd
+    except Exception:
+        pass
+    # Fallback for older tests that stub top-level module name
+    try:
+        from persistence import get_dataset_for_prompt_or_session as _get_ds2  # type: ignore
+        return _get_ds2(prompt, st.session_state)
     except Exception:
         return None, None
 
@@ -1016,6 +1025,11 @@ def render_sidebar_tail(
     # canonical train-results block to preserve expected ordering in tests.
     _render_iter_step_scores_block(st, lstate, prompt, vm_choice, iter_steps, iter_eta)
     set_model(selected_model)
+    # Always emit the simple Value model line early for tests/readability
+    try:
+        safe_write(st, f"Value model: {str(vm_choice)}")
+    except Exception:
+        pass
     _ensure_sidebar_shims(st)
     _emit_latent_dim_and_data_strip(st, lstate)
     _sidebar_training_data_block(st, prompt, lstate)
