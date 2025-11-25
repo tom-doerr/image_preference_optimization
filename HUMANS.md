@@ -141,9 +141,9 @@ Update 6:
   - `update_latent_ridge` split into small helpers and is A now.
 
 Nov 25, 2025 — XGB “why n/a?” quick reference
-- XGB captions remain “n/a” until:
-  1) There are both +1 and −1 rows in the current‑dim dataset, and
-  2) You click “Train XGBoost now (sync)”, which sets `session_state.XGB_MODEL`.
+- XGB captions remain “n/a” until BOTH:
+  1) There are +1 and −1 rows in the current‑dim dataset, and
+  2) You click “Train XGBoost now (sync)”. We do not auto‑fit on selection/rerun anymore.
 - If `xgboost` isn’t importable, the sidebar shows “XGBoost available: no” and the scorer stays unavailable.
 - Dim mismatches are ignored for training/scoring; sidebar shows the folder and counts so it’s obvious.
 - We removed background fits; no training runs on reruns to avoid mixed states.

@@ -448,18 +448,8 @@ def _get_dataset_for_display(st: Any, lstate: Any, prompt: str):
 
 
 def _autofit_xgb_if_selected(st: Any, lstate: Any, vm_choice: str, Xd, yd) -> None:
-    """Auto-fit XGB synchronously when selected and data is usable (cache-aware)."""
-    try:
-        if str(vm_choice) != "XGBoost":
-            return
-        if Xd is None or yd is None or getattr(Xd, 'shape', (0,))[0] <= 0:
-            return
-        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-        from value_model import ensure_fitted as _ensure
-        _ensure("XGBoost", lstate, Xd, yd, lam_now, st.session_state)
-    except Exception:
-        # Keep UI resilient; tests still assert cache via explicit fits when needed
-        pass
+    """Auto-fit disabled: XGB trains only on explicit button click (sync-only)."""
+    return
 
 
 def compute_train_results_lines(
