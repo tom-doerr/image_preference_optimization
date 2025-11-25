@@ -241,21 +241,43 @@ def _autofit_xgb_if_selected(st: Any, lstate: Any, vm_choice: str, Xd, yd) -> No
 
 
 def compute_train_results_lines(st: Any, lstate: Any, prompt: str, vm_choice: str) -> list[str]:
-    """Delegate to ui_train_results to reduce this file’s complexity."""
+    """Small, self-contained train-results builder (keeps strings stable)."""
     try:
-        from .ui_train_results import compute_train_results_lines as _ctl
-        return _ctl(st, lstate, prompt, vm_choice)
+        import numpy as _np
+        from value_scorer import get_value_scorer as _gvs
     except Exception:
-        return [
-            "Train score: n/a",
-            "CV score: n/a",
-            "Last CV: n/a",
-            "Last train: n/a",
-            "Value scorer status: ridge_untrained",
-            "Value scorer: Ridge (ridge_untrained, rows=0)",
-            "XGBoost active: no",
-            "Optimization: Ridge only",
-        ]
+        _np = None
+        _gvs = None
+    # Resolve dataset (memory-first)
+    X = getattr(lstate, 'X', None)
+    y = getattr(lstate, 'y', None)
+    rows = int(getattr(X, 'shape', (0,))[0]) if X is not None else 0
+    vs_status = 'ridge_untrained'
+    tscore = 'n/a'
+    if _gvs is not None:
+        scorer, tag = _gvs(vm_choice, lstate, prompt, st.session_state)
+        if scorer is not None and X is not None and y is not None and rows > 0 and _np is not None:
+            scores = _np.asarray([scorer(x) for x in X], dtype=float)
+            thr = 0.5 if str(vm_choice) == 'XGBoost' else 0.0
+            yhat = scores >= thr
+            tscore = f"{float((yhat == (y > 0)).mean()) * 100:.0f}%"
+            vs_status = 'ok'
+        else:
+            vs_status = tag if isinstance(tag, str) else vs_status
+    last_train = str(st.session_state.get('last_train_at', 'n/a'))
+    last_cv = str(st.session_state.get('cv_last_at', 'n/a'))
+    active = 'yes' if (str(vm_choice) == 'XGBoost' and vs_status == 'ok') else 'no'
+    vs_line = f"{vm_choice or 'Ridge'} ({vs_status}, rows={rows})"
+    return [
+        f"Train score: {tscore}",
+        "CV score: n/a",
+        f"Last CV: {last_cv}",
+        f"Last train: {last_train}",
+        f"Value scorer status: {vs_status}",
+        f"Value scorer: {vs_line}",
+        f"XGBoost active: {active}",
+        "Optimization: Ridge only",
+    ]
 
 # Use shared helpers.safe_write to avoid duplication
 
@@ -484,30 +506,22 @@ def render_sidebar_tail(
     _predicted_values_block(st, vm_choice, lstate, prompt)
 
 
-from .ui_train_results import emit_train_result_lines as _emit_train_result_lines
-
-
-def _emit_images_status_block(st: Any) -> None:
+def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
+    """Minimal writer for Train results + ephemeral last action."""
+    target = getattr(st, "sidebar", st)
+    for ln in (lines or []):
+        try:
+            target.write(ln)
+        except Exception:
+            pass
     try:
-        imgs = getattr(st.session_state, Keys.IMAGES, None)
-        mu_img = getattr(st.session_state, Keys.MU_IMAGE, None)
-        status_panel(imgs, mu_img)
+        import time as _time
+        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
+        ts = st.session_state.get(Keys.LAST_ACTION_TS)
+        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
+            target.write(f"Last action: {txt}")
     except Exception:
         pass
-
-
-from .sidebar.misc import emit_step_readouts as _emit_step_readouts
-
-
-from .sidebar.misc import emit_debug_panel as _emit_debug_panel
-
-
-from .sidebar.debug import _lc_write_key, _lc_warn_std
-
-
-def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
-    from .ui_train_results import sidebar_emit_train_results as _emit_full
-    _emit_full(st, lines, sidebar_only)
 
 
 # Merged from ui_sidebar_extra
