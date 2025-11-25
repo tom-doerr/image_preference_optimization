@@ -41,28 +41,6 @@ from .ui_sidebar_modes import _select_value_model  # re-export
 
 
 from .ui_sidebar_modes import _toggle_random_anchor  # re-export
-
-def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rerun_cb):
-    # Minimal inline download control: export current state and offer a download button
-    try:
-        import streamlit as st  # use current stub in tests
-        try:
-            from ipo.core.persistence import export_state_bytes  # defer to avoid stub import errors
-
-            data = export_state_bytes(lstate, prompt)
-        except Exception:
-            data = b""
-    except Exception:
-        data = b""
-    try:
-        st.sidebar.download_button(
-            label="Download state (.npz)",
-            data=data,
-            file_name="latent_state.npz",
-            mime="application/octet-stream",
-        )
-    except Exception:
-        pass
 def sidebar_metric(label: str, value) -> None:
     """Plain text lines only; no Streamlit metric widgets."""
     import streamlit as st

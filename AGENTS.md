@@ -194,6 +194,12 @@ Nov 25, 2025 — Sidebar shim fix
 
 Nov 25, 2025 — Remove early sidebar block
 - Stopped writing the early sidebar lines (Log file / Value model / Step scores / Train score / CV score / Latent dim). We still set defaults and enable logging, but no UI lines are emitted at import.
+
+Nov 25, 2025 — Radon MI follow-up
+- After removing obsolete helpers and moving glue into leaf modules:
+  - `ipo/ui/ui_sidebar.py` improved to B (~12.1 MI).
+  - `ipo/ui/batch_ui.py` at B (~11.3 MI).
+- Next easy MI wins (if desired): move `_handle_train_section` into `ui_sidebar_panels` and split the fallback path in `_render_batch_ui` into a helper.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:
