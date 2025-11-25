@@ -1938,3 +1938,8 @@ Keep in mind:
 - When VM is XGBoost, do not fall back to Ridge/Logit for captions; keep `n/a` until ready.
 - Use `ipo.infra.pipeline_local` (renamed from `flux_local`) everywhere.
 - Keep code minimal; avoid hidden retries/auto‑fits; add tests instead.
+
+
+Update (Nov 25, 2025 – CV consolidation):
+- Consolidated CV helpers: removed `ipo/ui/sidebar/cv.py`; `_cached_cv_lines` and `_cv_on_demand` now live in `ipo.ui.ui_sidebar` (the latter is a no‑op).
+- CV values are cached-only; we no longer compute CV on button click to keep UI small. Tests still see the labels via `_cached_cv_lines`.
