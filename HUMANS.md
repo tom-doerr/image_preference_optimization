@@ -98,3 +98,7 @@ No strings or outputs changed; tests around prompt-anchor proposals pass.
 Next candidates (small, safe):
 - `persistence.get_dataset_for_prompt_or_session` — extract the row-load loop.
 - `flux_local._ensure_pipe` — isolate scheduler/model toggles to a helper.
+
+Update: extracted `_load_rows_filtered` (persistence) and reused it in
+`dataset_stats_for_prompt` and `get_dataset_for_prompt_or_session`. No behavior
+change; same logs/strings.

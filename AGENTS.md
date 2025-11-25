@@ -1783,5 +1783,8 @@ Keep in mind:
     `_emit_latent_dim_and_model` (complexity A now).
   - Extracted pure helpers in `ipo/core/latent_logic` used by both iterative and
     line-search proposers: `_accumulate_delta` and `_rand_orth_dir` (reduced CC; no behavior change).
+  - Persistence: extracted `_load_rows_filtered` and reused it from
+    `get_dataset_for_prompt_or_session` and `dataset_stats_for_prompt`.
+    Average complexity for persistence dropped to A.
   - Reran radon; average in changed files improved (A/B). Keep future extractions
     surgical and string-stable.

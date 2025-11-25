@@ -163,27 +163,9 @@ def _ensure_pipe(model_id: Optional[str] = None):
     _p(f"[pipe] loading model id={mid!r}", 1)
     PIPE = _load_pipeline(mid)
     _disable_safety(PIPE)
-    try:
-        if hasattr(PIPE, "enable_attention_slicing"):
-            PIPE.enable_attention_slicing()
-        if hasattr(PIPE, "enable_vae_slicing"):
-            PIPE.enable_vae_slicing()
-        if hasattr(PIPE, "enable_xformers_memory_efficient_attention"):
-            PIPE.enable_xformers_memory_efficient_attention()
-    except Exception:
-        pass
+    _post_load_toggles(PIPE)
     CURRENT_MODEL_ID = mid
-    # clear prompt cache on model switch
-    try:
-        PROMPT_CACHE.clear()
-    except Exception:
-        pass
-    try:
-        LAST_CALL.update({"event": "load_model", "model_id": mid})
-        if _lv() >= 1:
-            LOGGER.info("loaded model %s", mid)
-    except Exception:
-        pass
+    _after_model_switch(mid)
     return PIPE
 
 
@@ -335,6 +317,34 @@ def _run_pipe(**kwargs):
             raise
 
 
+def _post_load_toggles(pipe) -> None:
+    """Enable lightweight perf toggles on a freshly loaded pipeline."""
+    try:
+        if hasattr(pipe, "enable_attention_slicing"):
+            pipe.enable_attention_slicing()
+        if hasattr(pipe, "enable_vae_slicing"):
+            pipe.enable_vae_slicing()
+        if hasattr(pipe, "enable_xformers_memory_efficient_attention"):
+            pipe.enable_xformers_memory_efficient_attention()
+    except Exception:
+        pass
+
+
+def _after_model_switch(mid: str) -> None:
+    """Bookkeeping after switching models: clear caches, record logs."""
+    # clear prompt cache on model switch
+    try:
+        PROMPT_CACHE.clear()
+    except Exception:
+        pass
+    try:
+        LAST_CALL.update({"event": "load_model", "model_id": mid})
+        if _lv() >= 1:
+            LOGGER.info("loaded model %s", mid)
+    except Exception:
+        pass
+
+
 def _get_prompt_embeds(prompt: str, guidance: float):
     """Encode prompt once per model/prompt/guidance-mode and cache embeddings.
 
@@ -455,60 +465,7 @@ def generate_flux_image_latents(
     except TypeError:
         # test stubs may provide a 2-arg variant
         latents = _normalize_to_init_sigma(PIPE, latents)
-    # record basic stats for debugging
-    try:
-        std = float(latents.std().item()) if hasattr(latents, "std") else None
-    except Exception:
-        std = None
-    try:
-        mean = (
-            float(getattr(latents, "mean")().item())
-            if hasattr(latents, "mean")
-            else None
-        )
-    except Exception:
-        mean = None
-    try:
-        shp = None
-        try:
-            s = getattr(latents, "shape", None)
-            if s is not None:
-                shp = tuple(int(x) for x in s)
-        except Exception:
-            shp = None
-        guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
-        LAST_CALL.update(
-            {
-                "event": "latents_call",
-                "model_id": CURRENT_MODEL_ID,
-                "width": int(width),
-                "height": int(height),
-                "steps": int(steps),
-                "guidance": float(guidance_eff),
-                "latents_std": std,
-                "latents_mean": mean,
-                "latents_shape": shp,
-            }
-        )
-        try:
-            sched = getattr(PIPE, "scheduler", None)
-            init_sigma = getattr(sched, "init_noise_sigma", None)
-        except Exception:
-            init_sigma = None
-        if _lv() >= 2:
-            LOGGER.info(
-                "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
-                width,
-                height,
-                steps,
-                guidance_eff,
-                std,
-                mean,
-                shp,
-                init_sigma,
-            )
-    except Exception:
-        pass
+    _record_latents_meta(latents, width, height, steps, guidance)
     guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
     import sys as _sys
     _run = getattr(_sys.modules.get("flux_local"), "_run_pipe", _run_pipe)
@@ -532,6 +489,67 @@ def generate_flux_image_latents(
             height=int(height),
             latents=latents,
         )
+
+
+def _record_latents_meta(latents, width: int, height: int, steps: int, guidance: float) -> None:
+    """Record LAST_CALL + log a concise latents summary (pure helper)."""
+    try:
+        # basic stats
+        try:
+            std = float(latents.std().item()) if hasattr(latents, "std") else None
+        except Exception:
+            std = None
+        try:
+            mean = (
+                float(getattr(latents, "mean")().item())
+                if hasattr(latents, "mean")
+                else None
+            )
+        except Exception:
+            mean = None
+        try:
+            shp = None
+            try:
+                s = getattr(latents, "shape", None)
+                if s is not None:
+                    shp = tuple(int(x) for x in s)
+            except Exception:
+                shp = None
+            guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+            LAST_CALL.update(
+                {
+                    "event": "latents_call",
+                    "model_id": CURRENT_MODEL_ID,
+                    "width": int(width),
+                    "height": int(height),
+                    "steps": int(steps),
+                    "guidance": float(guidance_eff),
+                    "latents_std": std,
+                    "latents_mean": mean,
+                    "latents_shape": shp,
+                }
+            )
+            try:
+                sched = getattr(PIPE, "scheduler", None)
+                init_sigma = getattr(sched, "init_noise_sigma", None)
+            except Exception:
+                init_sigma = None
+            if _lv() >= 2:
+                LOGGER.info(
+                    "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
+                    width,
+                    height,
+                    steps,
+                    guidance_eff,
+                    std,
+                    mean,
+                    shp,
+                    init_sigma,
+                )
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def set_model(model_id: str):
