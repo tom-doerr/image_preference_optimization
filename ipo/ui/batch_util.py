@@ -55,6 +55,33 @@ def save_and_print(prompt: str, feat, label: float, img, st):
     except Exception:
         pass
     return row_idx, save_dir, msg
+
+
+def set_batch_item(st: Any, idx: int, zi) -> None:
+    """Set `cur_batch[idx] = zi` and clear its label safely.
+
+    Keeps logging minimal and avoids exceptions from missing structures.
+    """
+    try:
+        zs = getattr(st.session_state, "cur_batch", None) or []
+        if not zs:
+            return
+        i = int(idx) % len(zs)
+        try:
+            zs[i] = zi
+            st.session_state.cur_batch = zs
+        except Exception:
+            pass
+        try:
+            st.session_state.cur_labels[i] = None
+        except Exception:
+            pass
+        try:
+            print(f"[batch] replace_at idx={i}")
+        except Exception:
+            pass
+    except Exception:
+        pass
     try:
         st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
         try:

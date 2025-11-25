@@ -460,12 +460,9 @@ def _curation_replace_at(idx: int) -> None:
         except Exception:
             pass
         # Deterministic resample keyed on (batch_nonce, idx)
-        zs[i] = _resample_tile_at_index(i)
-        st.session_state.cur_batch = zs
-        try:
-            st.session_state.cur_labels[i] = None
-        except Exception:
-            pass
+        zi = _resample_tile_at_index(i)
+        from .batch_util import set_batch_item as _set_batch_item
+        _set_batch_item(st, i, zi)
     except Exception:
         try:
             _curation_new_batch()
