@@ -188,6 +188,9 @@ Nov 25, 2025 — Remove Debug mode
 
 Nov 25, 2025 — Remove Download state UI
 - Removed the "State persistence" download control ("Download state (.npz)") from the sidebar. The helper now no-ops; strings elsewhere unchanged.
+
+Nov 25, 2025 — Sidebar shim fix
+- Fixed an UnboundLocalError in `ensure_sidebar_shims`: we now always install a lightweight `sidebar.metric` shim for tests, even if the real widget exists/doesn’t. The app no longer uses metric widgets, but tests can still capture lines.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:

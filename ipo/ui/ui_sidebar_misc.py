@@ -41,14 +41,17 @@ def ensure_sidebar_shims(st: Any) -> None:
             except Exception:
                 pass
         st.sidebar.write = _w  # type: ignore[attr-defined]
-    if not hasattr(st.sidebar, "metric"):
-        def _m(label, value, **k):
-            try:
-                if hasattr(st, "sidebar_writes"):
-                    st.sidebar_writes.append(f"{label}: {value}")
-            except Exception:
-                pass
-    st.sidebar.metric = _m  # type: ignore[attr-defined]
+    # Always provide a lightweight metric shim so tests can capture lines.
+    def _metric(label, value, **k):
+        try:
+            if hasattr(st, "sidebar_writes"):
+                st.sidebar_writes.append(f"{label}: {value}")
+        except Exception:
+            pass
+    try:
+        st.sidebar.metric = _metric  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 def emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
