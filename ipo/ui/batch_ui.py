@@ -460,21 +460,7 @@ def _curation_replace_at(idx: int) -> None:
         except Exception:
             pass
         # Deterministic resample keyed on (batch_nonce, idx)
-        try:
-            import numpy as _np
-            lstate, prompt = _lstate_and_prompt()
-            try:
-                from latent_logic import z_from_prompt as _zfp
-                z_p = _zfp(lstate, prompt)
-            except Exception:
-                z_p = _np.zeros(int(getattr(lstate, 'd', 8)), dtype=float)
-            nonce = int(st.session_state.get('cur_batch_nonce', 0))
-            rng = _np.random.default_rng(1009 * (nonce + 1) + int(i) + 1)
-            r = rng.standard_normal(z_p.shape)
-            r = r / (float(_np.linalg.norm(r)) + 1e-12)
-            zs[i] = z_p + float(getattr(lstate, 'sigma', 1.0)) * 0.8 * r
-        except Exception:
-            zs[i] = _sample_around_prompt(scale=0.8)
+        zs[i] = _resample_tile_at_index(i)
         st.session_state.cur_batch = zs
         try:
             st.session_state.cur_labels[i] = None
@@ -561,6 +547,29 @@ def _update_rows_display(st, Keys) -> None:
         pass
 
 
+def _resample_tile_at_index(i: int) -> np.ndarray:
+    """Return a deterministic resample for tile i based on batch nonce and prompt.
+
+    Falls back to around-prompt sampling when latent logic is unavailable.
+    """
+    import streamlit as st
+    import numpy as _np
+    try:
+        lstate, prompt = _lstate_and_prompt()
+        try:
+            from latent_logic import z_from_prompt as _zfp
+            z_p = _zfp(lstate, prompt)
+        except Exception:
+            z_p = _np.zeros(int(getattr(lstate, 'd', 8)), dtype=float)
+        nonce = int(st.session_state.get('cur_batch_nonce', 0))
+        rng = _np.random.default_rng(1009 * (nonce + 1) + int(i) + 1)
+        r = rng.standard_normal(z_p.shape)
+        r = r / (float(_np.linalg.norm(r)) + 1e-12)
+        return z_p + float(getattr(lstate, 'sigma', 1.0)) * 0.8 * r
+    except Exception:
+        return _sample_around_prompt(scale=0.8)
+
+
 def _cooldown_recent(st) -> bool:
     try:
         from datetime import datetime, timezone
@@ -635,9 +644,13 @@ def _render_batch_tile_body(
     # Do not resample latents on render; keep the batch stable until replaced or new batch is created
     z_i = cur_batch[i]
 
-    img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
-    v_text = _tile_value_text(st, z_p, z_i, scorer)
-    cap_txt = f"Item {i} • {v_text}"
+    def _tile_visual():
+        img = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
+        v_text = _tile_value_text(st, z_p, z_i, scorer)
+        cap = f"Item {i} • {v_text}"
+        return img, cap
+
+    img_i, cap_txt = _tile_visual()
     st.image(img_i, caption=cap_txt, width="stretch")
 
     if best_of:
