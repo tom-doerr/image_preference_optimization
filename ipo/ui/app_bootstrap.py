@@ -15,13 +15,14 @@ def init_page_and_logging() -> None:
         pass
 
 
-def emit_early_sidebar() -> None:
+def _early_vm_choice() -> str:
     vm = st.session_state.get(Keys.VM_CHOICE) or st.session_state.get("vm_choice") or "XGBoost"
     if not st.session_state.get(Keys.VM_CHOICE):
         st.session_state[Keys.VM_CHOICE] = vm
-    safe_write(st, f"Value model: {vm}")
-    safe_write(st, "Step scores: n/a")
-    # Ensure iterative params exist early so tests can observe them on import
+    return str(vm)
+
+
+def _ensure_iter_defaults() -> None:
     try:
         if Keys.ITER_ETA not in st.session_state:
             st.session_state[Keys.ITER_ETA] = 0.00001
@@ -30,6 +31,9 @@ def emit_early_sidebar() -> None:
             st.session_state[Keys.ITER_STEPS] = int(_DEF)
     except Exception:
         pass
+
+
+def _emit_train_lines(vm: str) -> None:
     try:
         from value_scorer import get_value_scorer as _gvs
 
@@ -38,30 +42,41 @@ def emit_early_sidebar() -> None:
             st.session_state.get(Keys.PROMPT) or st.session_state.get("prompt") or DEFAULT_PROMPT
         )
         scorer, tag_or_status = _gvs(vm, lstate_early, prompt_early, st.session_state)
-        vs_status_early = "ok" if scorer is not None else str(tag_or_status)
-        active_early = "yes" if (vm == "XGBoost" and scorer is not None) else "no"
+        vs_status = "ok" if scorer is not None else str(tag_or_status)
+        active = "yes" if (vm == "XGBoost" and scorer is not None) else "no"
     except Exception:
-        vs_status_early = "xgb_unavailable" if vm == "XGBoost" else "ridge_untrained"
-        active_early = "no"
+        vs_status = "xgb_unavailable" if vm == "XGBoost" else "ridge_untrained"
+        active = "no"
     for ln in (
         "Train score: n/a",
         "CV score: n/a",
         "Last CV: n/a",
         "Last train: n/a",
-        f"Value scorer status: {vs_status_early}",
+        f"Value scorer status: {vs_status}",
         f"Value scorer: {vm} (n/a, rows=0)",
-        f"XGBoost active: {active_early}",
+        f"XGBoost active: {active}",
         "Optimization: Ridge only",
     ):
         safe_write(st, ln)
+
+
+def _emit_latent_dim_and_model() -> None:
     ld = int(getattr(getattr(st.session_state, "lstate", None), "d", 0)) if hasattr(st, "session_state") else 0
     safe_write(st, f"Latent dim: {ld}")
     try:
         from flux_local import set_model
-
         set_model("stabilityai/sd-turbo")
     except Exception:
         pass
+
+
+def emit_early_sidebar() -> None:
+    vm = _early_vm_choice()
+    safe_write(st, f"Value model: {vm}")
+    safe_write(st, "Step scores: n/a")
+    _ensure_iter_defaults()
+    _emit_train_lines(vm)
+    _emit_latent_dim_and_model()
 
 
 def ensure_prompt_and_state() -> str:

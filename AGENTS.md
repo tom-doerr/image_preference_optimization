@@ -1777,3 +1777,11 @@ Keep in mind:
 - Minimize UI string churn — several tests assert exact ordering/labels.
 - Prefer explicit user actions (e.g., Train XGBoost now) over rerun‑time auto‑fits.
 - For XGBoost, ensure two‑class datasets; single‑class keeps scorer unavailable by design.
+- Radon-driven tidy ups (Nov 25, 2025):
+  - Split `ipo/ui/app_bootstrap.emit_early_sidebar` into tiny helpers:
+    `_early_vm_choice`, `_ensure_iter_defaults`, `_emit_train_lines`,
+    `_emit_latent_dim_and_model` (complexity A now).
+  - Extracted pure helpers in `ipo/core/latent_logic` used by both iterative and
+    line-search proposers: `_accumulate_delta` and `_rand_orth_dir` (reduced CC; no behavior change).
+  - Reran radon; average in changed files improved (A/B). Keep future extractions
+    surgical and string-stable.

@@ -84,3 +84,17 @@ Open questions for you:
 
 Notes for later:
 - If you see only `xgb_unavailable`, check: (a) at least one +1 and one −1 in the dataset; (b) the current latent dim matches the dataset dim; (c) after a sync fit, a scorer tag `XGB` should appear under the images and in the sidebar.
+Nov 25, 2025 — Radon/maintainability pass
+
+What I did (no behavior change):
+- Split early sidebar bootstrap into small helpers so it’s easier to read and test.
+- Extracted two tiny math helpers in `latent_logic` to remove in-function branching:
+  `_accumulate_delta` (trust-radius clamped step accumulation) and `_rand_orth_dir`
+  (random unit vector ⟂ d1). The two proposal functions call these now.
+
+Why: These were the top C-grade hotspots in radon that were safe to factor mechanically.
+No strings or outputs changed; tests around prompt-anchor proposals pass.
+
+Next candidates (small, safe):
+- `persistence.get_dataset_for_prompt_or_session` — extract the row-load loop.
+- `flux_local._ensure_pipe` — isolate scheduler/model toggles to a helper.

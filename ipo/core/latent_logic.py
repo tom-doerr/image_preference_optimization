@@ -246,14 +246,8 @@ def propose_pair_prompt_anchor_iterative(
     - Returns symmetric pair (z_p+Δ, z_p−Δ).
     """
     z_p = z_from_prompt(state, prompt)
-    w = state.w[: state.d]
-    n = float(np.linalg.norm(w))
-    if n < 1e-12:
-        d1 = state.rng.standard_normal(state.d)
-        n = float(np.linalg.norm(d1)) + 1e-12
-    else:
-        d1 = w
-    d1 = d1 / n
+    d1 = _dir_w(state)
+    # choose step size
     step = (
         (float(trust_r) / max(1, int(steps)))
         if (trust_r is not None and trust_r > 0)
@@ -261,33 +255,16 @@ def propose_pair_prompt_anchor_iterative(
     )
     if eta is not None:
         step = float(eta)
-    delta = np.zeros(state.d, dtype=float)
-    for _ in range(max(1, int(steps))):
-        delta = delta + step * d1
-        if trust_r is not None and trust_r > 0:
-            nn = float(np.linalg.norm(delta))
-            if nn > trust_r and nn > 0.0:
-                delta = delta * (trust_r / nn)
-    if gamma and gamma != 0.0:
-        r = state.rng.standard_normal(state.d)
-        # make r orthogonal to d1
-        r = r - float(np.dot(r, d1)) * d1
-        nr = float(np.linalg.norm(r))
-        d2 = (
-            (r / nr)
-            if nr > 1e-12
-            else _clamp_norm(state.rng.standard_normal(state.d), 1.0)
-        )
-        d2 = d2 / (float(np.linalg.norm(d2)) + 1e-12)
+    # accumulate delta with optional trust clamp
+    delta = _accumulate_delta(state.d, d1, int(max(1, int(steps))), float(step), trust_r)
+    if gamma and float(gamma) != 0.0:
+        d2 = _rand_orth_dir(state, d1)
         delta_plus = delta + float(gamma) * d2
         delta_minus = -delta - float(gamma) * d2
     else:
         delta_plus = delta
         delta_minus = -delta
-
-    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(
-        delta_minus, trust_r
-    )
+    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(delta_minus, trust_r)
 
 
 def propose_pair_prompt_anchor_linesearch(
@@ -323,10 +300,8 @@ def propose_pair_prompt_anchor_linesearch(
     # value is proportional to m for linear ridge; pick largest
     m_best = max(mm) if mm else 0.0
     delta = m_best * d1
-    if gamma and gamma != 0.0:
-        r = state.rng.standard_normal(state.d)
-        d2 = _orth_component(r, d1)
-        d2 = _unit(d2) if float(np.linalg.norm(d2)) > 1e-12 else d1
+    if gamma and float(gamma) != 0.0:
+        d2 = _rand_orth_dir(state, d1)
         delta_plus = delta + float(gamma) * d2
         delta_minus = -delta - float(gamma) * d2
     else:
@@ -337,6 +312,28 @@ def propose_pair_prompt_anchor_linesearch(
     return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(
         delta_minus, trust_r
     )
+
+
+def _accumulate_delta(d: int, d1: np.ndarray, steps: int, step: float, trust_r: Optional[float]) -> np.ndarray:
+    """Accumulate steps along d1 with optional trust‑radius clamp (pure helper)."""
+    delta = np.zeros(d, dtype=float)
+    for _ in range(max(1, int(steps))):
+        delta = delta + float(step) * d1
+        if trust_r is not None and trust_r > 0:
+            nn = float(np.linalg.norm(delta))
+            if nn > trust_r and nn > 0.0:
+                delta = delta * (trust_r / nn)
+    return delta
+
+
+def _rand_orth_dir(state: LatentState, d1: np.ndarray) -> np.ndarray:
+    """Random unit direction orthogonal to d1 (pure helper)."""
+    r = state.rng.standard_normal(state.d)
+    d2 = _orth_component(r, d1)
+    n = float(np.linalg.norm(d2))
+    if n <= 1e-12:
+        return _unit(d1)
+    return d2 / n
 
 
 # propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration
