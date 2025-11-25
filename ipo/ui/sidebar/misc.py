@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ipo.infra.util import SAFE_EXC
 
 
 def status_panel(st: Any, images: tuple, mu_image) -> None:
@@ -36,14 +37,14 @@ def ensure_sidebar_shims(st: Any) -> None:
         st.sidebar.write = _w  # type: ignore[attr-defined]
     # Always provide a lightweight metric shim so tests can capture lines.
     def _metric(label, value, **k):
-        try:
-            if hasattr(st, "sidebar_writes"):
-                st.sidebar_writes.append(f"{label}: {value}")
-        except Exception:
-            pass
+    try:
+        if hasattr(st, "sidebar_writes"):
+            st.sidebar_writes.append(f"{label}: {value}")
+    except SAFE_EXC:
+        pass
     try:
         st.sidebar.metric = _metric  # type: ignore[attr-defined]
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -54,10 +55,10 @@ def emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
         if hasattr(st, "sidebar_writes"):
             try:
                 st.sidebar_writes.append(line)
-            except Exception:
+            except SAFE_EXC:
                 pass
         st.sidebar.write(line)
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -79,11 +80,11 @@ def emit_step_readouts(st: Any, lstate: Any) -> None:
             sa = sb = 0.0
         st.sidebar.write(f"step(A): {sa:.3f}")
         st.sidebar.write(f"step(B): {sb:.3f}")
-    except Exception:
+    except SAFE_EXC:
         try:
             st.sidebar.write("step(A): 0.000")
             st.sidebar.write("step(B): 0.000")
-        except Exception:
+        except SAFE_EXC:
             pass
 
 
@@ -100,7 +101,7 @@ def emit_dim_mismatch(st: Any) -> None:
             st.sidebar.write(
                 f"Dataset recorded at d={mismatch[0]} (ignored); current latent dim d={mismatch[1]}"
             )
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -111,26 +112,26 @@ def emit_last_action_recent(st: Any) -> None:
         ts = st.session_state.get('last_action_ts') or st.session_state.get('LAST_ACTION_TS')
         if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
             st.sidebar.write(f"Last action: {txt}")
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
 def rows_refresh_tick(st: Any) -> None:
     try:
         rows_live = int(len(st.session_state.get('DATASET_Y', []) or st.session_state.get('dataset_y', []) or []))
-    except Exception:
+    except SAFE_EXC:
         rows_live = 0
     st.session_state['ROWS_DISPLAY'] = str(rows_live)
     try:
         from ipo.infra.util import get_log_verbosity as _gv
         if int(_gv(st)) >= 1:
             print(f"[rows] live={rows_live} disp={rows_live}")
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         from latent_opt import state_summary  # type: ignore
         from ipo.ui.ui import sidebar_metric_rows
         info = state_summary(lstate)
         sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
-    except Exception:
+    except SAFE_EXC:
         pass

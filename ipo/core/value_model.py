@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 from ipo.infra.constants import Keys
+from ipo.infra.util import SAFE_EXC
 
 __all__ = [
     "fit_value_model",
@@ -43,11 +44,11 @@ def _log(msg: str, level: str = "info") -> None:
     """Log to stdout (tests) and ipo logger."""
     try:
         print(msg)
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         getattr(LOGGER, level, LOGGER.info)(msg)
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -119,7 +120,7 @@ def _xgb_hparams(session_state: Any) -> tuple[int, int]:
     try:
         from ipo.core.xgb_value import get_params as _gp
         return _gp(session_state)
-    except Exception:
+    except SAFE_EXC:
         return 50, 3
 
 
@@ -127,7 +128,7 @@ def _store_xgb_model(session_state: Any, mdl: Any, n_rows: int) -> None:
     try:
         from ipo.core.xgb_value import set_live_model as _slm
         _slm(session_state, mdl, int(n_rows))
-    except Exception:
+    except SAFE_EXC:
         return None
 
 

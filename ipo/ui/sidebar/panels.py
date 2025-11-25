@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ipo.infra.util import SAFE_EXC
 
 
 def sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
@@ -43,14 +44,14 @@ def sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str,
     def _render_details() -> None:
         try:
             rows_n = int((cache or {}).get("n") or 0)
-        except Exception:
+        except SAFE_EXC:
             rows_n = 0
         status = "ok" if rows_n > 0 else "unavailable"
         try:
             xst = st.session_state.get(Keys.XGB_TRAIN_STATUS)
             if isinstance(xst, dict) and isinstance(xst.get("state"), str):
                 status = str(xst.get("state"))
-        except Exception:
+        except SAFE_EXC:
             pass
         _xgb_status_line(st, rows_n, status)
         if vm == "Ridge":
@@ -82,7 +83,7 @@ def handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> N
         elif str(vm_choice) == "Logistic" and button("Train Logistic now (sync)"):
             from ipo.ui.ui_sidebar import _logit_train_controls
             _logit_train_controls(st, lstate, Xd, yd)
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -160,14 +161,14 @@ def _vm_details_xgb(st: Any, cache: dict) -> None:
         try:
             import xgboost  # type: ignore
             avail = "yes"
-        except Exception:
+        except SAFE_EXC:
             avail = "no"
         st.sidebar.write(f"XGBoost available: {avail}")
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         from ipo.infra.util import safe_sidebar_num as _num
-    except Exception:
+    except SAFE_EXC:
         _num = None
     n_fit = cache.get("n") or 0
     try:
@@ -181,7 +182,7 @@ def _vm_details_xgb(st: Any, cache: dict) -> None:
             max_depth = int(_num(st, "XGB max_depth", value=max_depth, step=1))
             st.session_state["xgb_n_estimators"] = n_estim
             st.session_state["xgb_max_depth"] = max_depth
-    except Exception:
+    except SAFE_EXC:
         pass
     st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
 

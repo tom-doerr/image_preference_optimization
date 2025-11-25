@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Callable, Any, Tuple
+from ipo.infra.util import SAFE_EXC
 import numpy as np
 
 __all__ = [
@@ -17,7 +18,7 @@ def _snapshot_w(lstate: Any) -> np.ndarray | None:
             return None
         d = int(getattr(lstate, "d", len(_w_raw)))
         return np.asarray(_w_raw[:d], dtype=float).copy()
-    except Exception:
+    except SAFE_EXC:
         return None
 
 
@@ -33,10 +34,10 @@ def _build_ridge_scorer(lstate: Any) -> Tuple[Callable[[np.ndarray], float], str
         nrm = float(np.linalg.norm(w)) if w is not None else 0.0
         try:
             print(f"[ridge-scorer] ||w||={nrm:.3f} status={'ok' if nrm>0 else 'ridge_untrained'}")
-        except Exception:
+        except SAFE_EXC:
             pass
         return _ridge, ("ok" if nrm > 0.0 else "ridge_untrained")
-    except Exception:
+    except SAFE_EXC:
         return _ridge, "ridge_untrained"
 
 
@@ -45,7 +46,7 @@ def _build_distance_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], f
         from ipo.infra.constants import Keys as _K
 
         p = float(getattr(session_state, _K.DIST_EXP, session_state.get(_K.DIST_EXP, 2.0)))
-    except Exception:
+    except SAFE_EXC:
         p = 2.0
 
     def _dist(fvec: np.ndarray) -> float:
@@ -56,12 +57,12 @@ def _build_distance_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], f
             if p == 1.0:
                 return float(-np.sum(np.abs(fv)))
             return float(-np.sum(np.abs(fv) ** p))
-        except Exception:
+        except SAFE_EXC:
             return float(-np.sum(fv * fv))
 
     try:
         print(f"[dist] exponent p={p}")
-    except Exception:
+    except SAFE_EXC:
         pass
     return _dist, "Distance"
 
@@ -85,7 +86,7 @@ def _build_logit_scorer(session_state: Any) -> Tuple[Callable[[np.ndarray], floa
         except Exception:
             pass
         return _logit, "Logit"
-    except Exception:
+    except SAFE_EXC:
         return None, "logit_error"
 
 
@@ -113,14 +114,14 @@ def _build_xgb_scorer(
                 from xgb_value import score_xgb_proba  # type: ignore
             else:
                 from ipo.core.xgb_value import score_xgb_proba  # type: ignore
-        except Exception:  # final fallback
+        except SAFE_EXC:  # final fallback
             from ipo.core.xgb_value import score_xgb_proba  # type: ignore
 
         def _xgb(fvec: np.ndarray) -> float:
             return float(score_xgb_proba(mdl, np.asarray(fvec, dtype=float)))
 
         return _xgb, "ok"
-    except Exception:
+    except SAFE_EXC:
         print("[xgb] scorer error; returning 0 for all scores")
         return _zero, "xgb_error"
 
@@ -130,7 +131,7 @@ def _get_live_xgb_model(session_state: Any):
     try:
         from ipo.core.xgb_value import get_live_model  # type: ignore
         return get_live_model(session_state)
-    except Exception:
+    except SAFE_EXC:
         return None
 
 
@@ -145,7 +146,7 @@ def _print_xgb_unavailable(vm_choice: str, lstate: Any, prompt: str, session_sta
         print(
             f"[xgb] scorer unavailable: no model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
         )
-    except Exception:
+    except SAFE_EXC:
         print("[xgb] scorer unavailable: no model")
 
 

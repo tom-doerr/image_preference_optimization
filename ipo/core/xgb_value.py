@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Optional
+from ipo.infra.util import SAFE_EXC
 
 
 def fit_xgb_classifier(X, y, n_estimators: int = 50, max_depth: int = 3):
@@ -27,7 +28,7 @@ def score_xgb_proba(model, fvec):
     nrm = float(np.linalg.norm(fv))
     try:
         print(f"[xgb] eval d={fv.shape[1]} ‖f‖={nrm:.3f} proba={proba:.4f}")
-    except Exception:
+    except SAFE_EXC:
         pass
     return proba
 
@@ -55,7 +56,7 @@ def set_live_model(session_state, model, n_rows: int) -> None:
         cache["n"] = int(n_rows)
         session_state.xgb_cache = cache
         session_state["xgb_toast_ready"] = True
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -65,10 +66,10 @@ def get_live_model(session_state):
         mdl = getattr(session_state, "XGB_MODEL", None)
         if mdl is not None:
             return mdl
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         cache = getattr(session_state, "xgb_cache", {}) or {}
         return cache.get("model")
-    except Exception:
+    except SAFE_EXC:
         return None

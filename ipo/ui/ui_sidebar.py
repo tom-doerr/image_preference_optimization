@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ipo.infra.util import SAFE_EXC, safe_write
 
 import numpy as np
 
@@ -68,7 +69,7 @@ def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
             else:
                 for label, value in row:
                     sidebar_metric(label, value)
-    except Exception:
+    except SAFE_EXC:
         for label, value in pairs:
             sidebar_metric(label, value)
 
@@ -95,7 +96,7 @@ def perf_panel(last_call: dict, last_train_ms) -> None:
     if last_train_ms is not None:
         try:
             pairs.append(("train_ms", f"{float(last_train_ms):.1f}"))
-        except Exception:
+        except SAFE_EXC:
             pass
     if not pairs:
         return

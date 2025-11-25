@@ -11,10 +11,10 @@ def safe_set(ns: Any, key: str, value: Any) -> None:
     """
     try:
         ns[key] = value
-    except Exception:
+    except SAFE_EXC:
         try:
             setattr(ns, key, value)  # fallback for attr-style stubs
-        except Exception:
+        except SAFE_EXC:
             pass
 
 
@@ -34,7 +34,7 @@ def safe_sidebar_num(
     if callable(num):
         try:
             return num(label, value=value, step=step, format=format)
-        except Exception:
+        except SAFE_EXC:
             return value
     return value
 
@@ -47,14 +47,14 @@ def safe_write(st: Any, line: Any) -> None:
     try:
         if hasattr(st, "sidebar_writes"):
             st.sidebar_writes.append(str(line))
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         sb = getattr(st, "sidebar", None)
         w = getattr(sb, "write", None)
         if callable(w):
             w(str(line))
-    except Exception:
+    except SAFE_EXC:
         pass
 
 
@@ -70,11 +70,11 @@ def get_log_verbosity(st: Any | None = None) -> int:
                 v = getattr(st, "log_verbosity", None)
             if v is not None:
                 return int(v)
-    except Exception:
+    except SAFE_EXC:
         pass
     try:
         return int(os.getenv("LOG_VERBOSITY", "0"))
-    except Exception:
+    except SAFE_EXC:
         return 0
 
 
@@ -102,14 +102,15 @@ def enable_file_logging(path: str | None = None) -> str:
                 logger.removeHandler(h)
                 try:
                     h.close()
-                except Exception:
+                except SAFE_EXC:
                     pass
-        except Exception:
+        except SAFE_EXC:
             pass
     try:
         fh = logging.FileHandler(log_path)
         fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
         logger.addHandler(fh)
-    except Exception:
+    except SAFE_EXC:
         pass
     return log_path
+SAFE_EXC = (AttributeError, ImportError, TypeError, ValueError, KeyError, FileNotFoundError)
