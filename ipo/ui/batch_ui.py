@@ -27,28 +27,13 @@ except Exception:
 
 
 def _log(msg: str, level: str = "info") -> None:
-    # Gate noncritical logs behind LOG_VERBOSITY (0/1/2). Default 0 is quiet.
-    try:
-        from ipo.infra.util import get_log_verbosity  # local import to avoid cycles
-
-        lv = int(get_log_verbosity(__import__("streamlit")))
-    except Exception:
-        try:
-            import os as _os
-
-            lv = int(_os.getenv("LOG_VERBOSITY", "0"))
-        except Exception:
-            lv = 0
+    """Minimal gated log: respects LOG_VERBOSITY env (0/1/2)."""
+    import os as _os
+    lv = int((_os.getenv("LOG_VERBOSITY") or "0") or "0")
     if lv <= 0:
         return
-    try:
-        print(msg)
-    except Exception:
-        pass
-    try:
-        getattr(LOGGER, level, LOGGER.info)(msg)
-    except Exception:
-        pass
+    print(msg)
+    getattr(LOGGER, level, LOGGER.info)(msg)
 
 
 __all__ = [
@@ -200,34 +185,12 @@ def _vm_tag(st) -> str:
 
 
 def _tile_value_text(st, z_p, z_i, scorer) -> str:
-    """Compute the caption value text with model tag; falls back to Logit if set.
-
-    Returns a string like "Value: 0.123 [XGB]" or "Value: n/a".
-    """
+    """Return "Value: … [TAG]" from the active scorer or Logit, else n/a."""
     v = _predict_value(scorer, z_p, z_i)
     if v is not None:
-        v_text = f"Value: {v:.3f} [{_vm_tag(st)}]"
-        # gated debug print
-        try:
-            _val = getattr(st.session_state, "log_verbosity", None)
-            _lv = 0 if (_val is None) else int(_val)
-        except Exception:
-            _lv = 0
-        if _lv > 0:
-            try:
-                vmn = st.session_state.get("vm_choice")
-                _log(f"[scorer] tile vm={vmn} v={v:.3f}")
-            except Exception:
-                pass
-        return v_text
-    # Fallback: explicit logit caption if available
-    try:
-        alt = _maybe_logit_value(z_p, z_i, st)
-        if alt:
-            return alt
-    except Exception:
-        pass
-    return "Value: n/a"
+        return f"Value: {v:.3f} [{_vm_tag(st)}]"
+    alt = _maybe_logit_value(z_p, z_i, st)
+    return alt or "Value: n/a"
 
 
 def _render_tiles_row(
@@ -357,28 +320,14 @@ def _sample_one_for_batch(
 
 
 def _curation_params():
-    """Read once: VM choice, steps, lr_mu, trust_r, use_xgb."""
+    """Thin wrapper around batch_util.read_curation_params."""
     import streamlit as st
-
     try:
-        vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
+        from .batch_util import read_curation_params as _rcp
+        return _rcp(st, Keys, default_steps=10, default_lr_mu=0.3)
     except Exception:
-        vm_choice = ""
-    use_xgb = vm_choice == "XGBoost"
-    try:
-        steps = int(st.session_state.get(Keys.ITER_STEPS, 10))
-    except Exception:
-        steps = 10
-    try:
-        lr_mu = float(st.session_state.get(Keys.LR_MU_UI, 0.3))
-    except Exception:
-        lr_mu = 0.3
-    try:
-        trust = st.session_state.get(Keys.TRUST_R, None)
-        trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
-    except Exception:
-        trust_r = None
-    return vm_choice, use_xgb, steps, lr_mu, trust_r
+        # Deterministic fallback
+        return (str(st.session_state.get(Keys.VM_CHOICE) or ""), False, 10, 0.3, None)
 
 
 def _curation_init_batch() -> None:
@@ -415,20 +364,9 @@ def _curation_new_batch() -> None:
         )
     st.session_state.cur_batch = z_list
     st.session_state.cur_labels = [None] * len(z_list)
-    try:
-        st.session_state["cur_batch_nonce"] = (
-            int(st.session_state.get("cur_batch_nonce", 0)) + 1
-        )
-    except Exception:
-        pass
-    try:
-        dt_ms = (_time.perf_counter() - t0) * 1000.0
-    except Exception:
-        dt_ms = -1.0
-    try:
-        vm_choice = st.session_state.get(Keys.VM_CHOICE)
-    except Exception:
-        vm_choice = None
+    st.session_state["cur_batch_nonce"] = int(st.session_state.get("cur_batch_nonce", 0)) + 1
+    dt_ms = (_time.perf_counter() - t0) * 1000.0
+    vm_choice = st.session_state.get(Keys.VM_CHOICE)
     _log(
         f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} vm={vm_choice} in {dt_ms:.1f} ms"
     )
@@ -442,32 +380,19 @@ def _curation_replace_at(idx: int) -> None:
     """
     import streamlit as st
 
-    try:
-        zs = getattr(st.session_state, "cur_batch", None) or []
-        if not zs:
-            _curation_new_batch();
-            zs = getattr(st.session_state, "cur_batch", None) or []
+    zs = list(getattr(st.session_state, "cur_batch", []) or [])
+    if not zs:
+        _curation_new_batch()
+        zs = list(getattr(st.session_state, "cur_batch", []) or [])
         if not zs:
             return
-        i = int(idx) % len(zs)
-        try:
-            _log(f"[batch] replace_at idx={i} nonce={int(st.session_state.get('cur_batch_nonce', 0))}")
-        except Exception:
-            pass
-        # Unconditional short debug for tests capturing stdout
-        try:
-            print(f"[batch] replace_at idx={i}")
-        except Exception:
-            pass
-        # Deterministic resample keyed on (batch_nonce, idx)
-        zi = _resample_tile_at_index(i)
-        from .batch_util import set_batch_item as _set_batch_item
-        _set_batch_item(st, i, zi)
-    except Exception:
-        try:
-            _curation_new_batch()
-        except Exception:
-            pass
+    i = int(idx) % len(zs)
+    _log(f"[batch] replace_at idx={i} nonce={int(st.session_state.get('cur_batch_nonce', 0))}")
+    print(f"[batch] replace_at idx={i}")
+    # Deterministic resample keyed on (batch_nonce, idx)
+    zi = _resample_tile_at_index(i)
+    from .batch_util import set_batch_item as _set_batch_item
+    _set_batch_item(st, i, zi)
 
 
 def _append_mem_dataset(st, Keys, feat: np.ndarray, label: float) -> None:
@@ -540,18 +465,10 @@ def _resample_tile_at_index(i: int) -> np.ndarray:
 
 def _cooldown_recent(st) -> bool:
     try:
-        from datetime import datetime, timezone
-        last_at = st.session_state.get(Keys.LAST_TRAIN_AT)  # type: ignore[name-defined]
-        min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
-        if last_at and min_wait > 0.0:
-            try:
-                dt = datetime.fromisoformat(last_at)
-                return (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
-            except Exception:
-                return False
+        from .batch_util import cooldown_recent as _cd
+        return _cd(st, Keys)
     except Exception:
         return False
-    return False
 
 
 def _fit_ridge_once(lstate, X, y, lam_now, st) -> None:
@@ -871,20 +788,11 @@ def _batch_init(st):
     (getattr(st, "subheader", lambda *a, **k: None))("Curation batch")
     _prep_render_counters(st)
     lstate, prompt = _lstate_and_prompt()
-    try:
-        steps = int(getattr(st.session_state, "steps", 6) or 6)
-    except Exception:
-        steps = 6
-    try:
-        guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0)
-    except Exception:
-        guidance_eff = 0.0
-    cur_batch = st.session_state.cur_batch or []
+    steps = int(getattr(st.session_state, "steps", 6) or 6)
+    guidance_eff = float(getattr(st.session_state, "guidance_eff", 0.0) or 0.0)
+    cur_batch = getattr(st.session_state, "cur_batch", []) or []
     if not cur_batch:
-        try:
-            _curation_init_batch()
-        except Exception:
-            pass
-        cur_batch = st.session_state.cur_batch or []
+        _curation_init_batch()
+        cur_batch = getattr(st.session_state, "cur_batch", []) or []
     scorer, _scorer_tag, z_p = _choose_scorer(st, lstate, prompt)
     return lstate, prompt, steps, guidance_eff, cur_batch, scorer, z_p

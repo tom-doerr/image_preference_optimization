@@ -1897,3 +1897,9 @@ Keep in mind (ongoing):
 Next simplifications under consideration:
 - Remove remaining async remnants and wrapper modules (background, pages/, extra UI shims) after tests are green on the sync‑only path.
 - Collapse UI helpers into one small ui_sidebar module; keep batch_ui slim by pushing shared helpers to tiny files (batch_decode, batch_buttons, batch_util).
+
+Maintainability (Nov 25, 2025 – late, MI pass):
+- Ran radon MI/CC and targeted only the worst hotspots.
+- batch_ui.py: removed an unused fragment/caching path and a stray block; extracted tiny param/cooldown helpers to batch_util; simplified logging and nonce math. MI → A (19.43) without changing visible strings.
+- ui_sidebar.py: moved train controls and XGB details into ui_sidebar_panels; delegated “Train results” emission to ui_train_results. MI → A (22.27).
+- All ipo/* modules now grade A by radon MI; remaining B‑grade functions were split or simplified until modules crossed the threshold.

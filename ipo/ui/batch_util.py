@@ -92,3 +92,46 @@ def set_batch_item(st: Any, idx: int, zi) -> None:
             st.session_state["render_salt"] = int(__t.time() * 1e9)
     except Exception:
         pass
+
+
+def read_curation_params(st: Any, Keys, default_steps: int = 10, default_lr_mu: float = 0.3):
+    """Return (vm_choice, use_xgb, steps, lr_mu, trust_r) from session_state.
+
+    Kept tiny to reduce batch_ui complexity; defaults are deterministic.
+    """
+    try:
+        vm_choice = str(st.session_state.get(Keys.VM_CHOICE) or "")
+    except Exception:
+        vm_choice = ""
+    use_xgb = vm_choice == "XGBoost"
+    try:
+        steps = int(st.session_state.get(Keys.ITER_STEPS, default_steps))
+    except Exception:
+        steps = default_steps
+    try:
+        lr_mu = float(st.session_state.get(Keys.LR_MU_UI, default_lr_mu))
+    except Exception:
+        lr_mu = default_lr_mu
+    try:
+        trust = st.session_state.get(Keys.TRUST_R, None)
+        trust_r = float(trust) if (trust is not None and float(trust) > 0.0) else None
+    except Exception:
+        trust_r = None
+    return vm_choice, use_xgb, steps, lr_mu, trust_r
+
+
+def cooldown_recent(st: Any, Keys) -> bool:
+    """Return True if a recent train timestamp exists within min interval."""
+    try:
+        from datetime import datetime, timezone
+        last_at = st.session_state.get(Keys.LAST_TRAIN_AT)
+        min_wait = float(st.session_state.get("min_train_interval_s", 0.0) or 0.0)
+        if last_at and min_wait > 0.0:
+            try:
+                dt = datetime.fromisoformat(last_at)
+                return (datetime.now(timezone.utc) - dt).total_seconds() < min_wait
+            except Exception:
+                return False
+    except Exception:
+        return False
+    return False
