@@ -312,25 +312,8 @@ def render_iter_step_scores(
     iter_eta: float | None,
     trust_r: float | None,
 ) -> None:
-    scores = compute_step_scores(
-        lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state
-    )
-    if scores is None:
-        try:
-            st.sidebar.write("Step scores: n/a")
-            sidebar_metric_rows([("Step scores", "n/a")], per_row=1)
-        except Exception:
-            pass
-        return
-    try:
-        st.sidebar.write("Step scores: " + ", ".join(f"{v:.3f}" for v in scores[:8]))
-    except Exception:
-        pass
-    try:
-        pairs = [(f"Step {i}", f"{v:.3f}") for i, v in enumerate(scores[:4], 1)]
-        sidebar_metric_rows(pairs, per_row=2)
-    except Exception:
-        pass
+    from .ui_step_scores_render import render_iter_step_scores as _render
+    _render(st, lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r)
 
 
 def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
@@ -484,24 +467,8 @@ def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice:
 
 
 def _ensure_sidebar_shims(st: Any) -> None:
-    st.sidebar.subheader("Latent state")
-    # Ensure write/metric exist and append to st.sidebar_writes when available
-    if not hasattr(st.sidebar, "write"):
-        def _w(x):
-            try:
-                if hasattr(st, "sidebar_writes"):
-                    st.sidebar_writes.append(str(x))
-            except Exception:
-                pass
-        st.sidebar.write = _w  # type: ignore[attr-defined]
-    if not hasattr(st.sidebar, "metric"):
-        def _m(label, value, **k):
-            try:
-                if hasattr(st, "sidebar_writes"):
-                    st.sidebar_writes.append(f"{label}: {value}")
-            except Exception:
-                pass
-        st.sidebar.metric = _m  # type: ignore[attr-defined]
+    from .ui_sidebar_misc import ensure_sidebar_shims as _ens
+    _ens(st)
 
 
 def _labels_pos_neg(y) -> tuple[int, int]:
@@ -684,23 +651,8 @@ def _render_metadata_panel_inline(st: Any, lstate: Any, prompt: str, state_path:
 
 
 def _emit_latent_dim_and_data_strip(st: Any, lstate: Any) -> None:
-    """Write latent dim and compact pairs/choices strip."""
-    try:
-        line = f"Latent dim: {int(getattr(lstate, 'd', 0))}"
-        if hasattr(st, "sidebar_writes"):
-            try:
-                st.sidebar_writes.append(line)
-            except Exception:
-                pass
-        st.sidebar.write(line)
-    except Exception:
-        pass
-    try:
-        from latent_opt import state_summary  # type: ignore
-        info = state_summary(lstate)
-        sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
-    except Exception:
-        pass
+    from .ui_sidebar_misc import emit_latent_dim_and_data_strip as _emit
+    _emit(st, lstate)
 
 
 def _ensure_train_results_expander_label(st: Any) -> None:
