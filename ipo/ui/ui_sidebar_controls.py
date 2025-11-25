@@ -18,26 +18,8 @@ def _render_rows_counters(st: Any, lstate: Any | None, base_prompt: str) -> None
 
 
 def _debug_saves_section(st: Any, base_prompt: str, lstate: Any | None) -> None:
-    try:
-        dbg = getattr(st.sidebar, "checkbox", lambda *a, **k: False)("Debug (saves)", value=False)
-        if not dbg:
-            return
-        if getattr(st.sidebar, "button", lambda *a, **k: False)("Append +1 (debug)"):
-            import numpy as _np
-            from ipo.core.persistence import append_dataset_row
-            d_now = int(getattr(lstate, 'd', 0)) if lstate is not None else 0
-            if d_now > 0:
-                z = _np.zeros((1, d_now), dtype=float)
-                append_dataset_row(base_prompt, z, +1.0)
-                st.sidebar.write("Appended +1 (debug)")
-                try:
-                    _ar = getattr(st, "autorefresh", None)
-                    if callable(_ar):
-                        _ar(interval=1, key="rows_auto_refresh_debug")
-                except Exception:
-                    pass
-    except Exception:
-        pass
+    """Debug (saves) removed: no-op to keep call sites stable."""
+    return
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:

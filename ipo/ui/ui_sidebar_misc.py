@@ -92,14 +92,8 @@ def emit_step_readouts(st: Any, lstate: Any) -> None:
 
 
 def emit_debug_panel(st: Any) -> None:
-    """Optional Debug panel showing last call and log tail (guarded by checkbox)."""
-    try:
-        if getattr(st.sidebar, 'checkbox', lambda *a, **k: False)("Debug", value=False):
-            from .ui_sidebar_debug import _emit_last_call_info, _emit_log_tail
-            _emit_last_call_info(st)
-            _emit_log_tail(st)
-    except Exception:
-        pass
+    """Debug mode removed: no-op (keeps call sites intact)."""
+    return
 
 
 def emit_dim_mismatch(st: Any) -> None:

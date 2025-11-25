@@ -181,6 +181,10 @@ Nov 25, 2025 — Radon MI pass (sidebar)
   - `emit_train_result_lines` → `ui_train_results`.
   - Rows counters and debug‑saves block → `ui_sidebar_controls`.
 - Result: `ui_sidebar.py` improved C→B (≈3.5→10.4). No behavior/strings changed.
+
+Nov 25, 2025 — Remove Debug mode
+- Removed the sidebar Debug panels and the "Debug (saves)" block. All debug checkboxes are now no-ops; no UI is rendered.
+- Logging remains enabled (ipo.debug.log) for field diagnosis, but the UI no longer exposes Debug controls.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:
