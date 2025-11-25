@@ -957,7 +957,7 @@ def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
         lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
         _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
         try:
-            getattr(st, "toast", lambda *a, **k: None)("XGBoost training: sync fit complete")
+            getattr(st, "toast", lambda *a, **k: None)("XGBoost: trained (sync)")
         except Exception:
             pass
 
