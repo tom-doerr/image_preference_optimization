@@ -169,49 +169,66 @@ def _train_optionals(vm_choice: str, lstate: Any, X: np.ndarray, y: np.ndarray, 
         _maybe_fit_logit(X, y, float(lam), session_state)
 
 
-def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+def _ridge_summary(lstate: Any, X: np.ndarray, yy: np.ndarray, lam: float) -> None:
     try:
         n = int(X.shape[0])
         d = int(X.shape[1]) if X.ndim == 2 else 0
+        wv = getattr(lstate, "w", None)
+        if wv is not None and n > 0:
+            yhat = (np.dot(X, wv) >= 0.0)
+            acc = float((yhat == (yy > 0)).mean())
+            pos = int((yy > 0).sum())
+            neg = int((yy < 0).sum())
+            _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")
+    except Exception:
+        pass
+
+
+def _logit_summary(X: np.ndarray, yy: np.ndarray, lam: float, session_state: Any) -> None:
+    try:
+        from ipo.infra.constants import Keys as _K
+
+        n = int(X.shape[0])
+        d = int(X.shape[1]) if X.ndim == 2 else 0
+        W = session_state.get(_K.LOGIT_W)
+        if W is not None and n > 0:
+            z = np.dot(X, np.asarray(W, dtype=float))
+            p = 1.0 / (1.0 + np.exp(-z))
+            yhat = (p >= 0.5)
+            acc = float((yhat == (yy > 0)).mean())
+            steps = int(session_state.get(_K.LOGIT_STEPS) or 0)
+            lam_eff = float(session_state.get(_K.LOGIT_L2) or lam)
+            pos = int((yy > 0).sum())
+            neg = int((yy < 0).sum())
+            _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")
+    except Exception:
+        pass
+
+
+def _xgb_summary(X: np.ndarray, yy: np.ndarray, session_state: Any) -> None:
+    try:
+        mdl = getattr(session_state, "XGB_MODEL", None)
+        if mdl is not None and int(X.shape[0]) > 0:
+            from ipo.core.xgb_value import score_xgb_proba  # type: ignore
+
+            p = np.asarray([score_xgb_proba(mdl, x) for x in X], dtype=float)
+            yhat = (p >= 0.5)
+            acc = float((yhat == (yy > 0)).mean())
+            n = int(X.shape[0])
+            d = int(X.shape[1]) if X.ndim == 2 else 0
+            pos = int((yy > 0).sum())
+            neg = int((yy < 0).sum())
+            _log(f"[train-summary] xgb rows={n} d={d} acc={acc*100:.0f}% pos={pos} neg={neg}")
+    except Exception:
+        pass
+
+
+def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    try:
         yy = np.asarray(y).astype(float)
-        pos = int((yy > 0).sum())
-        neg = int((yy < 0).sum())
-        # Ridge summary (always fitted)
-        try:
-            wv = getattr(lstate, "w", None)
-            if wv is not None and n > 0:
-                yhat = (np.dot(X, wv) >= 0.0)
-                acc = float((yhat == (yy > 0)).mean())
-                _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")
-        except Exception:
-            pass
-        # Logistic summary
-        try:
-            from ipo.infra.constants import Keys as _K
-
-            W = session_state.get(_K.LOGIT_W)
-            if W is not None and n > 0:
-                z = np.dot(X, np.asarray(W, dtype=float))
-                p = 1.0 / (1.0 + np.exp(-z))
-                yhat = (p >= 0.5)
-                acc = float((yhat == (yy > 0)).mean())
-                steps = int(session_state.get(_K.LOGIT_STEPS) or 0)
-                lam_eff = float(session_state.get(_K.LOGIT_L2) or lam)
-                _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")
-        except Exception:
-            pass
-        # XGB summary
-        try:
-            mdl = getattr(session_state, "XGB_MODEL", None)
-            if mdl is not None and n > 0:
-                from ipo.core.xgb_value import score_xgb_proba  # type: ignore
-
-                p = np.asarray([score_xgb_proba(mdl, x) for x in X], dtype=float)
-                yhat = (p >= 0.5)
-                acc = float((yhat == (yy > 0)).mean())
-                _log(f"[train-summary] xgb rows={n} d={d} acc={acc*100:.0f}% pos={pos} neg={neg}")
-        except Exception:
-            pass
+        _ridge_summary(lstate, X, yy, lam)
+        _logit_summary(X, yy, lam, session_state)
+        _xgb_summary(X, yy, session_state)
     except Exception:
         pass
 
