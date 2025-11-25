@@ -84,3 +84,128 @@ def handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> N
             _logit_train_controls(st, lstate, Xd, yd)
     except Exception:
         pass
+
+
+# Moved from ui_sidebar.py to reduce that module's complexity.
+def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
+    from value_model import fit_value_model as _fit_vm
+    def _select_dataset():
+        Xm = getattr(lstate, 'X', None)
+        ym = getattr(lstate, 'y', None)
+        has_mem = (
+            Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
+        )
+        return (Xm, ym) if has_mem else (Xd, yd)
+
+    def _count_pos_neg(Ys) -> tuple[int, int]:
+        try:
+            yy = [int(v) for v in list(Ys)] if Ys is not None else []
+            p = sum(1 for v in yy if v > 0)
+            n = sum(1 for v in yy if v < 0)
+            return int(p), int(n)
+        except Exception:
+            return (0, 0)
+
+    def _train_now(Xs, Ys) -> None:
+        from ipo.infra.constants import Keys
+        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+        _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
+        try:
+            getattr(st, "toast", lambda *a, **k: None)("XGBoost: trained (sync)")
+        except Exception:
+            pass
+        try:
+            print("[xgb] trained (sync)")
+        except Exception:
+            pass
+        # Record ephemeral last action for sidebar Train results
+        try:
+            import time as _time
+            st.session_state[Keys.LAST_ACTION_TEXT] = "XGBoost: trained (sync)"
+            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+        except Exception:
+            pass
+
+    Xs, Ys = _select_dataset()
+    pos, neg = _count_pos_neg(Ys)
+    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1 and pos > 0 and neg > 0:
+        _train_now(Xs, Ys)
+
+
+def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
+    from value_model import fit_value_model as _fit_vm
+    Xm = getattr(lstate, 'X', None)
+    ym = getattr(lstate, 'y', None)
+    Xs, Ys = (Xm, ym) if (
+        Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
+    ) else (Xd, yd)
+    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
+        from ipo.infra.constants import Keys
+        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
+        _fit_vm("Logistic", lstate, Xs, Ys, lam_now, st.session_state)
+        try:
+            getattr(st, "toast", lambda *a, **k: None)("Logit: trained (sync)")
+        except Exception:
+            pass
+        try:
+            import time as _time
+            st.session_state[Keys.LAST_ACTION_TEXT] = "Logit: trained (sync)"
+            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
+        except Exception:
+            pass
+
+
+def _vm_details_xgb(st: Any, cache: dict) -> None:
+    try:
+        try:
+            import xgboost  # type: ignore
+            avail = "yes"
+        except Exception:
+            avail = "no"
+        st.sidebar.write(f"XGBoost available: {avail}")
+    except Exception:
+        pass
+    try:
+        from ipo.infra.util import safe_sidebar_num as _num
+    except Exception:
+        _num = None
+    n_fit = cache.get("n") or 0
+    try:
+        n_estim = int(st.session_state.get("xgb_n_estimators", 50))
+        max_depth = int(st.session_state.get("xgb_max_depth", 3))
+    except Exception:
+        n_estim, max_depth = 50, 3
+    try:
+        if callable(_num):
+            n_estim = int(_num(st, "XGB n_estimators", value=n_estim, step=1))
+            max_depth = int(_num(st, "XGB max_depth", value=max_depth, step=1))
+            st.session_state["xgb_n_estimators"] = n_estim
+            st.session_state["xgb_max_depth"] = max_depth
+    except Exception:
+        pass
+    st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
+
+
+def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
+    try:
+        exp = getattr(st.sidebar, "expander", None)
+        if callable(exp):
+            with exp("Training data", expanded=False):
+                st.sidebar.write("Pos")
+                st.sidebar.write("Neg")
+                st.sidebar.write("Feat dim")
+                st.sidebar.write("Pairs:")
+                st.sidebar.write("Choices:")
+        # Always also emit a compact strip on the sidebar root
+        try:
+            from ipo.ui.ui_sidebar import _mem_dataset_stats
+            stats = _mem_dataset_stats(st, lstate)
+        except Exception:
+            stats = {"rows": 0, "pos": 0, "neg": 0, "d": int(getattr(lstate, 'd', 0))}
+        st.sidebar.write("Training data & scores")
+        st.sidebar.write(f"Dataset rows: {stats.get('rows', 0)}")
+        st.sidebar.write(f"Rows (disk): 0")  # disk scan removed in simplified path
+        st.sidebar.write("Pairs:: 0")
+        st.sidebar.write("Choices:: 0")
+    except Exception:
+        pass

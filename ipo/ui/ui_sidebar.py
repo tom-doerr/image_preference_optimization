@@ -453,34 +453,8 @@ def _vm_details_distance(st: Any) -> None:
 
 
 def _vm_details_xgb(st: Any, cache: dict) -> None:
-    try:
-        try:
-            import xgboost  # type: ignore
-            avail = "yes"
-        except Exception:
-            avail = "no"
-        st.sidebar.write(f"XGBoost available: {avail}")
-    except Exception:
-        pass
-    try:
-        from ipo.infra.util import safe_sidebar_num as _num
-    except Exception:
-        _num = None
-    n_fit = cache.get("n") or 0
-    try:
-        n_estim = int(st.session_state.get("xgb_n_estimators", 50))
-        max_depth = int(st.session_state.get("xgb_max_depth", 3))
-    except Exception:
-        n_estim, max_depth = 50, 3
-    try:
-        if callable(_num):
-            n_estim = int(_num(st, "XGB n_estimators", value=n_estim, step=1))
-            max_depth = int(_num(st, "XGB max_depth", value=max_depth, step=1))
-            st.session_state["xgb_n_estimators"] = n_estim
-            st.session_state["xgb_max_depth"] = max_depth
-    except Exception:
-        pass
-    st.sidebar.write(f"fit_rows={int(n_fit)}, n_estimators={n_estim}, depth={max_depth}")
+    from .ui_sidebar_panels import _vm_details_xgb as _impl
+    return _impl(st, cache)
 
 
 def _emit_cv_metrics(st: Any, xgb_line: str, ridge_line: str) -> None:
@@ -531,69 +505,13 @@ def _ensure_train_results_expander_label(st: Any) -> None:
 
 
 def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
-    from value_model import fit_value_model as _fit_vm
-    def _select_dataset():
-        Xm = getattr(lstate, 'X', None)
-        ym = getattr(lstate, 'y', None)
-        has_mem = (
-            Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
-        )
-        return (Xm, ym) if has_mem else (Xd, yd)
-
-    def _count_pos_neg(Ys) -> tuple[int, int]:
-        try:
-            yy = [int(v) for v in list(Ys)] if Ys is not None else []
-            p = sum(1 for v in yy if v > 0)
-            n = sum(1 for v in yy if v < 0)
-            return int(p), int(n)
-        except Exception:
-            return (0, 0)
-
-    def _train_now(Xs, Ys) -> None:
-        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-        _fit_vm("XGBoost", lstate, Xs, Ys, lam_now, st.session_state)
-        try:
-            getattr(st, "toast", lambda *a, **k: None)("XGBoost: trained (sync)")
-        except Exception:
-            pass
-        try:
-            print("[xgb] trained (sync)")
-        except Exception:
-            pass
-        # Record ephemeral last action for sidebar Train results
-        try:
-            import time as _time
-            st.session_state[Keys.LAST_ACTION_TEXT] = "XGBoost: trained (sync)"
-            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
-        except Exception:
-            pass
-
-    Xs, Ys = _select_dataset()
-    pos, neg = _count_pos_neg(Ys)
-    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1 and pos > 0 and neg > 0:
-        _train_now(Xs, Ys)
+    from .ui_sidebar_panels import _xgb_train_controls as _impl
+    return _impl(st, lstate, Xd, yd)
 
 
 def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
-    from value_model import fit_value_model as _fit_vm
-    Xm = getattr(lstate, 'X', None)
-    ym = getattr(lstate, 'y', None)
-    Xs, Ys = (Xm, ym) if (
-        Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
-    ) else (Xd, yd)
-    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
-        lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))
-        _fit_vm("Logistic", lstate, Xs, Ys, lam_now, st.session_state)
-        try:
-            getattr(st, "toast", lambda *a, **k: None)("Logit: trained (sync)")
-        except Exception:
-            pass
-        try:
-            import time as _time
-            st.session_state[Keys.LAST_ACTION_TEXT] = "Logit: trained (sync)"
-            st.session_state[Keys.LAST_ACTION_TS] = float(_time.time())
-        except Exception:
-            pass
+    from .ui_sidebar_panels import _logit_train_controls as _impl
+    return _impl(st, lstate, Xd, yd)
 
 
 from .ui_sidebar_panels import handle_train_section as _handle_train_section
@@ -708,25 +626,8 @@ from .ui_sidebar_debug import _lc_write_key, _lc_warn_std
 
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
-    _emit_train_result_lines(st, lines, sidebar_only)
-    # Ephemeral last-action echo inside Train results (e.g., XGBoost: trained (sync))
-    try:
-        import time as _time
-        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
-        ts = st.session_state.get(Keys.LAST_ACTION_TS)
-        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
-            st.sidebar.write(f"Last action: {txt}")
-    except Exception:
-        pass
-    _emit_images_status_block(st)
-    # Do not recurse into the value-model block from here; caller is responsible
-    try:
-        lstate = getattr(st.session_state, 'lstate', None)
-    except Exception:
-        lstate = None
-    if lstate is not None:
-        _emit_step_readouts(st, lstate)
-    _emit_debug_panel(st)
+    from .ui_train_results import sidebar_emit_train_results as _emit_full
+    _emit_full(st, lines, sidebar_only)
 
 
 # Merged from ui_sidebar_extra

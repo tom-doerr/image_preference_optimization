@@ -89,3 +89,36 @@ def emit_train_result_lines(st: Any, lines: list[str], sidebar_only: bool = Fals
                     st.sidebar.write(ln)
                 except Exception:
                     pass
+
+
+def sidebar_emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
+    """Full sidebar writer: lines + ephemeral last action + images status + step readouts.
+
+    Kept here to reduce complexity in ui_sidebar while preserving behavior.
+    """
+    emit_train_result_lines(st, lines, sidebar_only)
+    # Ephemeral last-action echo inside Train results (e.g., XGBoost: trained (sync))
+    try:
+        import time as _time
+        from ipo.infra.constants import Keys
+        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
+        ts = st.session_state.get(Keys.LAST_ACTION_TS)
+        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
+            st.sidebar.write(f"Last action: {txt}")
+    except Exception:
+        pass
+    # Images status and step readouts live in ui_sidebar_misc; import lazily
+    try:
+        from .ui_sidebar_misc import status_panel as _status
+        imgs = getattr(st.session_state, 'IMAGES', None)
+        mu_img = getattr(st.session_state, 'MU_IMAGE', None)
+        _status(st, imgs, mu_img)
+    except Exception:
+        pass
+    try:
+        from .ui_sidebar_misc import emit_step_readouts as _emit_step
+        lstate = getattr(st.session_state, 'lstate', None)
+        if lstate is not None:
+            _emit_step(st, lstate)
+    except Exception:
+        pass
