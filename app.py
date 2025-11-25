@@ -51,7 +51,7 @@ st_rerun = getattr(st, "rerun", getattr(st, "experimental_rerun", None))
 
 # Controls
 lstate = st.session_state.lstate
-vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, _async = _build_controls(
+vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, _ = _build_controls(
     st, lstate, base_prompt
 )
 
@@ -98,13 +98,12 @@ def _curation_train_and_next() -> None:
     return _curation_train_and_next_impl()
 
 
-def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
-    return _run_app_impl(_st, _vm_choice, _selected_gen_mode, _async_queue_mode)
+def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None) -> None:
+    return _run_app_impl(_st, _vm_choice, _selected_gen_mode)
 
 
-# Drive the app (batch-only)
-print("[mode] dispatch async_queue_mode=False (queue removed)")
-run_app(st, vm_choice, selected_gen_mode, False)
+# Drive the app (batch-only, sync-only)
+run_app(st, vm_choice, selected_gen_mode)
 
 st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
 from latent_state import save_state  # local import to reduce global surface

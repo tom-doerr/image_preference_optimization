@@ -93,11 +93,7 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         yy = np.asarray(y).astype(int)
         pos = int((yy > 0).sum())
         neg = int((yy < 0).sum())
-        # Clear stale future handles (sync-only path)
-        try:
-            session_state.pop(Keys.XGB_FIT_FUTURE, None)
-        except Exception:
-            pass
+        # Async futures removed; no future bookkeeping
         n_estim, max_depth = _xgb_hparams(session_state)
         _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
         _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")

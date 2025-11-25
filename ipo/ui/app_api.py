@@ -261,5 +261,5 @@ def _curation_train_and_next() -> None:
         return None
 
 
-def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None, _async_queue_mode: bool) -> None:
+def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None) -> None:
     _batch_ui.run_batch_mode()

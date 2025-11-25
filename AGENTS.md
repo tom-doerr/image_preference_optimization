@@ -36,6 +36,13 @@ Eta input (Nov 22, 2025):
 - Sidebar numeric for “Iterative step (eta)” now defaults to 1e‑5 and allows 12 decimal places (step=1e‑12, format=%.12f). No min bound is set.
 - Test: `tests/test_iter_eta_tiny.py` confirms 1e‑12 persists in session_state.
 
+New learnings (Nov 25, 2025 — sync-only + unified scorer):
+- Training is sync-only across the app. No auto‑fit on reruns. XGBoost trains only on the explicit button; Ridge updates on label clicks.
+- Unified `value_scorer.get_value_scorer` API simplifies caption logic and makes the producing model explicit: `[XGB]`, `[Ridge]`, or `[Logit]`.
+- A live XGB model is stored at `session_state.XGB_MODEL` (also mirrored into `xgb_cache` for older paths). If missing or only one label class exists, XGB stays unavailable by design.
+- Early sidebar lines are deterministic at import: Value model, Step scores (n/a), Train/CV/Last, Latent dim, hardcoded model. Keeps text‑only tests stable.
+- Dataset is memory‑first and folder‑only. Rows with mismatched feature dims are ignored; the sidebar shows the folder path and counts.
+
 What we learned today:
 - Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
 - Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.
@@ -682,9 +689,9 @@ Refactor (Nov 20, 2025, later):
 - Controls: removed min/max constraints from common number inputs (Ridge λ, eta/steps, XGB params, Tail lines). Tests updated accordingly.
 - Training toggle: `Train on new data` checkbox (default on) gates refits after labeling.
 - Ruff clean and small fixes (e.g., missing import in `queue_ui.py`). Radon checked; larger refactors postponed to keep code minimal.
-- XGBoost training is now launched via `fit_value_model` only; `_curation_train_and_next` no longer submits its own executor. Async/sync is controlled solely by `xgb_train_async`, so training no longer triggers page reloads and keeps the prior scorer active until the new model lands.
+- XGBoost training is launched via `fit_value_model` only (sync-only). No background futures are used.
 - Batch Good/Bad keys include the batch nonce to avoid Streamlit duplicate key errors under fragments. Test `tests/test_batch_keys_unique.py` stays green.
-- Added regression test `tests/test_train_async_single_submit.py` to ensure a single training submission per click when async mode is on.
+// Legacy: async submission tests are historical; code is sync-only now.
 - Added tests: `tests/test_batch_nonce_in_keys.py` (nonce in button keys), `tests/test_fit_value_model_async_status.py` (async status/cache set), `tests/test_dataset_rows_dim_mismatch_reset.py` (dataset append resets on dim mismatch).
 - Consolidated value model selection: training now follows the single “Value model” dropdown (no separate “Train value model” picker). Sidebar stays simpler; tests updated.
 - Training now shows a toast immediately when it starts so users see work kicked off without a rerun. Test: `tests/test_train_toast_on_start.py`.
@@ -695,7 +702,7 @@ Refactor (Nov 20, 2025, later):
 
 Refactor + perf (Nov 20, 2025, late):
 - Completed app split: `app_main.build_controls` and `app_run.run_app` now drive dispatch; `app.py` trimmed under ~400 lines and delegates helpers to `app_api` and state ops to `app_state`.
-- Async training: Ridge/XGB fits run on background executors by default. We simplified `background.get_executor/get_train_executor` to single‑worker pools without Streamlit context to keep return‑latency <150 ms (fixes UI stalls and test threshold).
+// Background executors removed; training paths are synchronous to keep code minimal.
 - Flux default model: `flux_local._get_model_id()` now falls back to `constants.DEFAULT_MODEL` when `FLUX_LOCAL_MODEL` is unset; tiny unit test `tests/test_flux_local_current_model.py` added.
 - Keys: continued consolidation in `constants.Keys`; batch/queue/button keys include a render nonce + batch nonce + index + seq to avoid duplicate‑key crashes.
 - Rows metric: auto‑refresh implemented via a tiny fragment that updates a display value, then writes to the sidebar outside the fragment (avoids Streamlit sidebar‑in‑fragment errors).
@@ -814,8 +821,7 @@ Paths panel (Nov 18, 2025):
 
 Dataset Viewer (Nov 18, 2025):
 - Sidebar „Datasets” mit Dropdown über alle `dataset_*.npz` und Kurzüberblick (Rows/Dim/Pos/Neg, Labels‑Head). Test: `tests/test_dataset_viewer_panel.py`.
-- Async Queue stabilisiert: füllt bis `queue_size`; Executor auf 2 Worker. Test: `tests/test_async_queue_multiple_items.py`.
-- Only-one-visible (Nov 18, 2025): In Async Queue wird nur noch das erste Warteschlangen‑Element angezeigt; Accept/Reject arbeiten auf Index 0. Test: `tests/test_async_queue_single_visible.py`.
+// Async queue UI removed; batch-only remains.
 - Batch: „Train on dataset (keep batch)“ refittet ohne Batch neu zu laden. Test: `tests/test_batch_keep_train.py`.
 - Data panel update (Nov 18, 2025):
 - Zeigt jetzt „Last train“ (UTC‑ISO, Sekundengenauigkeit) in der Sidebar an, sobald das Value‑Modell trainiert wurde (Ridge‑Refit, Online‑Update oder XGB‑Fit). Test: `tests/test_sidebar_last_train.py`.
@@ -859,7 +865,7 @@ Further consolidation (Nov 18, 2025, night):
 - Centralized training in `value_model.fit_value_model(...)`: always fits Ridge for `w`; optionally refreshes XGBoost cache when selected. Updates `last_train_at`/`last_train_ms`. Replaced duplicate fit/time bookkeeping in `app.py` with this helper.
 
 UI modularization (Nov 18, 2025, late):
-- Extracted Batch UI into `batch_ui.py` and Async Queue UI into `queue_ui.py`. `app.py` delegates to `run_batch_mode()` / `run_queue_mode()` and re-exports batch helpers used in tests.
+// Async queue removed; only batch_ui is used.
 - Sidebar control values that other modules need (`queue_size`, `steps`, `guidance`, `guidance_eff`, `alpha`) are written to `st.session_state` to avoid threading values through many function calls.
 - Timeout constant moved to `constants.DECODE_TIMEOUT_S`.
 
@@ -948,7 +954,7 @@ Dataset logging (Nov 19, 2025, later):
 
 New learnings (Nov 20, 2025):
 - Batch sampling in XGBoost mode now auto-fits the XGB cache from the on-disk dataset before sampling, and we only run the XGB hill-climb when the scorer status is `ok`. This removes the repeated `[xgb-hill-batch] step=... score=0.0000` spam when no model is cached. Test added: `tests/test_batch_xgb_autofit.py`.
-- XGBoost training now defaults to the background executor (`xgb_train_async=True` by default) to keep UI clicks responsive; ridge stays synchronous. Tests added: `tests/test_xgb_train_async_default.py` to lock the default.
+// xgb_train_async removed; training is sync-only.
 - Sidebar clarity: added “XGBoost active: yes/no” derived from the scorer status so users can see when XGB is actually in use. Test: `tests/test_xgb_active_note.py`.
 - UI tweak: Batch size controls were moved near the top of the sidebar (right after the mode/value selectors) for quicker access. Imports cleaned accordingly.
 - Async XGB training now tracks its Future in session_state; while running we show “XGBoost active: training…”. We no longer auto-rerun on completion; the sidebar shows the update info.
@@ -961,7 +967,7 @@ New learnings (Nov 20, 2025):
 - Debug panel now shows `RETRY_ON_OOM` and includes a checkbox to toggle it (sets the env var live).
 - New "Upload latents" mode: sidebar file uploader maps images to latents, decodes them, and lets you label Good/Bad into the dataset without reloads.
   - Uploaded originals are saved under `data/<prompt_hash>/uploads/upload_<nonce>_<idx>.png`.
-- Streamlit stub now returns the requested default for `checkbox` so async XGB stays on by default in tests; avoids false negatives in `test_xgb_train_async_default`.
+// Async toggle removed from UI; tests updated elsewhere to expect sync-only.
 - Upload mode now has a per-image weight slider (0.1–2.0); Good/Bad applies ±weight to the stored label so stronger/weaker votes are possible without extra clicks.
 - Added a “Train value model” selector (XGBoost or Ridge) so you can choose the training backend independently of the active scorer; fit calls honor this choice across batch/auto-fit paths.
 - Scores are always shown under each batch and upload image; even during async fits we keep the cached scorer values (or display “n/a” when unavailable).
@@ -1015,10 +1021,10 @@ Training data source (Nov 20, 2025):
 - Updated tests `tests/test_persistence_get_dataset_helper.py` and `tests/test_train_from_saved_dataset.py` continue to pass; the latter now forces Ridge mode and patches `latent_logic.ridge_fit` for a robust row‑count assertion.
 
 Training/UI block fix (Nov 20, 2025, later):
-- Root cause: Ridge training still ran synchronously and solved a d×d system where d is the full latent dim (e.g., d≈12,544–16,384 at 448–512px). Even with `xgb_train_async=True`, Ridge ran first and blocked the render thread.
+// Design: Ridge/XGB are both sync-only.
 - Change: switched `latent_logic.ridge_fit` to the dual closed‑form `w = X^T (XX^T + λI)^{-1} y`. This reduces the solve to n×n (n = dataset rows) and removes long UI stalls without adding fallbacks.
 - Notes: CV already used the dual form and capped rows; training now matches that approach. If n becomes very large, we can add an explicit “Fast ridge (cap rows)” toggle later.
-- Follow‑up (optional): If fully non‑blocking Ridge is desired, wire Ridge fits through `background.get_executor()` behind a small `ridge_train_async` toggle. Kept out to stay minimal.
+// Not planned: we intentionally keep no async toggles.
 
 Step scores (Nov 20, 2025, later):
 - Some users didn’t see per‑step values due to an uninitialized `iter_eta/iter_steps` access that prevented the sidebar tail from rendering. We now default these to `0.1` and `DEFAULT_ITER_STEPS` when missing in `session_state` so `ui_metrics.render_iter_step_scores(...)` always runs.
@@ -1174,7 +1180,7 @@ New subpage (Nov 20, 2025): Image match (latents)
 - Uses `flux_local.generate_flux_image_latents` directly (no noise blend); auto-loads `DEFAULT_MODEL` if needed. Prints `[imatch] step mse=…`.
 Updates (Nov 20, 2025 — refactor follow‑up)
 - App modularized: app_main/app_run/app_state/app_api; app.py kept thin.
-- Async training: Ridge/XGB fit on background executors; futures recorded.
+// Removed: all async training paths and futures.
 - Tests isolate data under IPO_DATA_ROOT; persistence respects this root and writes sample rows atomically per folder.
 - Sidebar: rows auto‑refresh is fragment‑safe; concise Train/CV/Last/Scorer lines; “XGBoost active: yes/no”.
 - Queue path: pop head on label; mirror legacy 'queue'; write “Queue remaining: N”.
@@ -1182,7 +1188,7 @@ Updates (Nov 20, 2025 — refactor follow‑up)
 - Next: import‑time sidebar tail emission to satisfy text‑order tests; tiny Ridge fast‑path print trim to meet non‑blocking threshold consistently.
 Fixes and notes (Nov 20, 2025 — refactor sweep)
 - value_model: fixed indentation/syntax in the XGBoost async submit block to eliminate rare UI stalls and ruff invalid-syntax. The async path now submits to `get_train_executor()` (fallback to `get_executor()`), stores `Keys.XGB_FIT_FUTURE`, and logs a concise "(async submit)" line.
-- app: initialize `xgb_train_async` using dict-style `session_state['xgb_train_async']=True` for better compatibility with test stubs; `Keys.RIDGE_TRAIN_ASYNC` default also set via dict style.
+// Removed: no async flags are set.
 - Sidebar fragment constraint: we keep writes to the sidebar outside fragments. The auto-refreshing rows metric runs inside a fragment and writes the display string via `ui_sidebar_extra.render_rows_and_last_action` afterwards. Also logs `[rows] live=… disk=… disp=…`.
 - Defaults: batch size defaults to 4 (`constants.DEFAULT_BATCH_SIZE=4`), wired through `ui_controls.build_batch_controls`.
 - Subpage: added `pages/03_image_match.py` — upload an image and hill‑climb latents to reduce RGB MSE; always shows Original vs Last attempt. Minimal and local.
@@ -1207,7 +1213,7 @@ New learnings (Nov 20, 2025, evening):
 - Batch tile buttons use unique keys derived from a render nonce + batch nonce + sequence to avoid `StreamlitDuplicateElementKey` under reruns.
  - Per‑prompt dataset append lock added in `persistence.py` to eliminate rare races when many samples are saved quickly. Tests: `tests/test_dataset_append_lock.py`.
 - Loader stability: in `flux_local._ensure_pipe`, we now catch the meta‑tensor `NotImplementedError` and reload with `device_map='cuda'` (`low_cpu_mem_usage=False`). Default model is still `stabilityai/sd-turbo` when `FLUX_LOCAL_MODEL` is unset.
-- Decode executor now uses 2 workers (`background.get_executor`), while `PIPE_LOCK` still serializes pipeline calls. This overlaps CPU latents prep/Streamlit render with scheduling, improving perceived latency in Async Queue. Logs show `[background] created decode executor max_workers=2` and submit lines.
+// Removed: background decode executor; all decode paths run synchronously under PIPE_LOCK.
 - App thin (176c): moved `generate_pair`/`_queue_fill_up_to`/mode dispatch into `app_run.py`. `app.py` is now 323 lines (<400), serving as orchestrator only. Tests still call `app.generate_pair()` and `app._queue_fill_up_to()` via tiny wrappers that delegate to `app_run`.
 - Prompt-first bootstrap (182c): moved import-time prompt initialization into `app_bootstrap.prompt_first_bootstrap`. It only sets placeholders (`images=(None,None)`, `prompt_image=None`) and avoids any decode on import to keep UI responsive and tests deterministic.
 - Loader compatibility: when we hit the meta-tensor path and reload with `device_map='cuda'`, we must set `low_cpu_mem_usage=True` to satisfy diffusers’ validator. Added a small test to pin this (`tests/test_flux_local_meta_to_fix.py`).
@@ -1233,7 +1239,7 @@ New learnings (Nov 20, 2025, evening):
 - Sample image persistence: `save_sample_image` writes `image.png` next to each `sample.npz`; verified by `tests/test_save_sample_image_writes_png.py`.
 - Value captions: batch tiles now show `Value: …` inside the image caption; tests `tests/test_batch_value_caption.py` ensure the scorer value renders.
 - Scheduler guard for None steps: `generate_flux_image_latents` defaults `steps=None` to 20 and sets scheduler timesteps; covered by `tests/test_flux_latents_steps_default.py`.
-- Queue captions: async queue images now include the value estimate; test `tests/test_async_queue_value_caption.py` pins the caption text via stubbed scorer.
+// Async queue captions removed with the queue UI.
 - Consolidation status (Nov 20, 2025): main is clean and pushed at `15ac70a` with the above UI/tests updates. Temporary `.tmp_test*` artifacts were removed.
 - Consolidation check (Nov 20, 2025, later): main still clean and pushed (HEAD `dc81006`, tags clean).
 - Scheduler timesteps: `_run_pipe` now has focused coverage to ensure it sets timesteps and `_step_index` even when steps are provided; test `tests/test_run_pipe_sets_timesteps.py`.
