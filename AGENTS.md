@@ -1923,3 +1923,18 @@ Runtime log takeaway (Nov 25, 2025):
 - "[xgb] scorer unavailable: no model (… dataset_rows=0 …)" means no labeled rows yet for this prompt/dimension. Label at least one Good (+1) and one Bad (−1), then click "Train XGBoost now (sync)"; captions switch to "[XGB]" when ready.
 - "[data] no dataset for prompt=…" is expected until the first label is saved; we append rows on Good/Bad and write folder data at that time.
 - LCMScheduler "config attributes … ignored" lines are harmless warnings from Diffusers and do not prevent decoding.
+
+
+New learnings (Nov 25, 2025 – simplification checkpoint):
+- Sidebar modules moved under `ipo/ui/sidebar/` (controls, panels, cv, misc, debug, step_scores, step_scores_render). Update imports; avoid `ui_sidebar_*` names.
+- XGBoost is sync‑only now. No auto‑fit/futures. Captions show `Value: n/a` until a model exists with both classes. No Ridge fallback when VM=XGBoost.
+- Dataset for sidebar/training is memory‑only (session_state.dataset_X/Y). We write to disk on label but never re‑scan folders during renders.
+- A/B pair UI and verbose Train/Images panels were removed from the sidebar; batch is the only path.
+- Model is hardcoded to sd‑turbo; keep explicit set_model call for tests.
+- Logging: gate noncritical prints with `LOG_VERBOSITY` (0/1/2); CLI prints short train summaries.
+- Tests: several legacy tests assert removed strings/modules. Prefer updating tests to new behavior rather than adding fallbacks.
+
+Keep in mind:
+- When VM is XGBoost, do not fall back to Ridge/Logit for captions; keep `n/a` until ready.
+- Use `ipo.infra.pipeline_local` (renamed from `flux_local`) everywhere.
+- Keep code minimal; avoid hidden retries/auto‑fits; add tests instead.
