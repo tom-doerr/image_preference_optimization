@@ -139,23 +139,15 @@ def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
 
 def status_panel(images: tuple, mu_image) -> None:
     import streamlit as st
-
-    st.sidebar.subheader("Images status")
-    left_ready = "ready" if images and images[0] is not None else "empty"
-    right_ready = "ready" if images and images[1] is not None else "empty"
-    sidebar_metric_rows([("Left", left_ready), ("Right", right_ready)], per_row=2)
+    from .ui_sidebar_misc import status_panel as _sp
+    _sp(st, images, mu_image)
 
 
 def env_panel(env: dict) -> None:
     """Compact Environment panel (Python/torch/CUDA/Streamlit)."""
     import streamlit as st
-    pairs = [("Python", f"{env.get('python')}")]
-    cuda = env.get("cuda", "unknown")
-    pairs.append(("torch/CUDA", f"{env.get('torch')} | {cuda}"))
-    if env.get("streamlit") and env["streamlit"] not in ("unknown", "not imported"):
-        pairs.append(("Streamlit", f"{env['streamlit']}") )
-    st.sidebar.subheader("Environment")
-    sidebar_metric_rows(pairs, per_row=2)
+    from .ui_sidebar_misc import env_panel as _ep
+    _ep(st, env)
 
 
 def perf_panel(last_call: dict, last_train_ms) -> None:
@@ -1024,40 +1016,13 @@ def _debug_saves_section(st: Any, base_prompt: str, lstate: Any | None) -> None:
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
-    st.sidebar.subheader("Training data & scores")
-    _emit_dim_mismatch(st)
-    _emit_last_action_recent(st)
-    _rows_refresh_tick(st)
-    _render_rows_counters(st, lstate, base_prompt)
-    _debug_saves_section(st, base_prompt, lstate)
+    from .ui_sidebar_controls import render_rows_and_last_action as _rows
+    _rows(st, base_prompt, lstate)
 
 
 def render_model_decode_settings(st: Any, lstate: Any):
-    st.sidebar.header("Model & decode settings")
-    # 195g: fragments option removed; always use non-fragment rendering
-    try:
-        st.session_state.pop(Keys.USE_FRAGMENTS, None)
-    except Exception:
-        pass
-    try:
-        width, height, steps, guidance, apply_clicked = _build_size_controls(st, lstate)
-    except Exception:
-        width = getattr(lstate, "width", 512)
-        height = getattr(lstate, "height", 512)
-        steps = 6
-        guidance = 0.0
-        apply_clicked = False
-    # 215d: Hardcode model to sd-turbo; no selector/choices
-    selected_model = "stabilityai/sd-turbo"
-    try:
-        from ipo.infra.util import safe_set
-
-        eff_guidance = 0.0 if isinstance(selected_model, str) and "turbo" in selected_model else float(guidance)
-        safe_set(st.session_state, K.GUIDANCE_EFF, eff_guidance)
-        safe_write(st, f"Effective guidance: {eff_guidance:.2f}")
-    except Exception:
-        pass
-    return selected_model, int(width), int(height), int(steps), float(guidance), bool(apply_clicked)
+    from .ui_sidebar_controls import render_model_decode_settings as _ctl
+    return _ctl(st, lstate)
 
 
 # Merged from ui_sidebar_modes

@@ -1097,36 +1097,13 @@ def _render_good_bad_buttons(st, i: int, z_i: np.ndarray, img_i, nonce: int, gco
     _rgb(st, i, z_i, img_i, nonce, gcol, bcol)
 
 def _ensure_model_ready() -> None:
-    """Ensure a decode model is loaded before any image generation."""
-    try:
-        from flux_local import CURRENT_MODEL_ID, set_model  # type: ignore
-        if CURRENT_MODEL_ID is None:
-            from ipo.infra.constants import DEFAULT_MODEL
-            set_model(DEFAULT_MODEL)
-    except Exception:
-        pass
+    from .batch_util import ensure_model_ready as _emr
+    _emr()
 
 
 def _prep_render_counters(st) -> None:
-    """Bump simple counters/nonces used to keep Streamlit keys stable."""
-    try:
-        globals()["GLOBAL_RENDER_COUNTER"] = int(globals().get("GLOBAL_RENDER_COUNTER", 0)) + 1
-    except Exception:
-        globals()["GLOBAL_RENDER_COUNTER"] = 1
-    try:
-        st.session_state["render_count"] = int(st.session_state.get("render_count", 0)) + 1
-    except Exception:
-        pass
-    try:
-        st.session_state["render_nonce"] = int(st.session_state.get("render_nonce", 0)) + 1
-        try:
-            import secrets as __sec
-            st.session_state["render_salt"] = int(__sec.randbits(32))
-        except Exception:
-            import time as __t
-            st.session_state["render_salt"] = int(__t.time() * 1e9)
-    except Exception:
-        pass
+    from .batch_util import prep_render_counters as _prc
+    _prc(st)
 
 def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
     from .batch_buttons import _button_key as _bk

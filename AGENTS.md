@@ -1848,3 +1848,4 @@ Async training removal (Nov 25, 2025):
   - Moved on‑demand CV to `ipo/ui/ui_sidebar_cv.py` (A MI).
   - Moved metadata helpers to `ipo/ui/ui_sidebar_meta.py` (A MI).
   - `ui_sidebar.py` delegates to these modules; public names/strings/order preserved for tests.
+  - Moved rows/last‑action + decode settings to `ipo/ui/ui_sidebar_controls.py` (A MI) and delegated wrappers from `ui_sidebar.py`.
