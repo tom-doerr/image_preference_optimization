@@ -157,24 +157,34 @@ def _maybe_fit_logit(X: np.ndarray, y: np.ndarray, lam: float, session_state: An
         yy = np.asarray(y).astype(float)
         y01 = (yy > 0).astype(float)
         W = np.asarray(session_state.get(Keys.LOGIT_W) or np.zeros(d), dtype=float)
-        try:
-            steps = int(session_state.get(Keys.LOGIT_STEPS) or 120)
-        except Exception:
-            steps = 120
-        try:
-            lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam)
-        except Exception:
-            lam_eff = float(lam)
-        lr = 0.1
-        for _ in range(steps):
-            z = X @ W
-            p = 1.0 / (1.0 + np.exp(-z))
-            g = (X.T @ (p - y01)) / float(n) + float(lam_eff) * W
-            W -= lr * g
+        steps, lam_eff = _logit_params(session_state, lam)
+        W = _logit_train_loop(X, y01, W, n, steps, lam_eff)
         session_state[Keys.LOGIT_W] = W
         _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")
     except Exception:
         pass
+
+
+def _logit_params(session_state: Any, lam_fallback: float) -> tuple[int, float]:
+    try:
+        steps = int(session_state.get(Keys.LOGIT_STEPS) or 120)
+    except Exception:
+        steps = 120
+    try:
+        lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam_fallback)
+    except Exception:
+        lam_eff = float(lam_fallback)
+    return steps, lam_eff
+
+
+def _logit_train_loop(X: np.ndarray, y01: np.ndarray, W: np.ndarray, n: int, steps: int, lam_eff: float) -> np.ndarray:
+    lr = 0.1
+    for _ in range(int(steps)):
+        z = X @ W
+        p = 1.0 / (1.0 + np.exp(-z))
+        g = (X.T @ (p - y01)) / float(n) + float(lam_eff) * W
+        W = W - lr * g
+    return W
 
 
 def _train_optionals(vm_choice: str, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:

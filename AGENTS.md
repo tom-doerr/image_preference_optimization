@@ -1801,6 +1801,8 @@ Keep in mind:
   - Value model: `_maybe_fit_xgb` factored into `_xgb_hparams`, `_store_xgb_model`,
     and `_has_two_classes` (C→B). Behavior unchanged; still sync-only training
     and legacy cache mirrored for compat.
+  - Value model (follow-up): `_maybe_fit_logit` factored into `_logit_params`
+    and `_logit_train_loop` (C→B). Logging and behavior unchanged.
   - Flux utils: `_scheduler_init_sigma` split into `_ensure_timesteps` and
     `_sigma_from_sigmas_attr` (C→A). No behavior/log changes.
   - Reran radon; average in changed files improved (A/B). Keep future extractions

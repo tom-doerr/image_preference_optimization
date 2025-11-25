@@ -125,3 +125,8 @@ Update 4:
   `_ensure_timesteps` and `_sigma_from_sigmas_attr` (C→A). Behavior is identical;
   we still set timesteps if available and fall back to `sigmas.max()` when the
   scheduler lacks `init_noise_sigma`.
+
+Update 5:
+- Value-model `_maybe_fit_logit` reduced from C→B by factoring tiny helpers
+  `_logit_params` (read steps/λ) and `_logit_train_loop` (SGD loop). The CLI
+  log remains `[logit] fit rows=…` with the same fields.
