@@ -655,20 +655,7 @@ def _render_batch_tile_body(
 
     if best_of:
         if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
-            t0b = _time.perf_counter()
-            for j, z_j in enumerate(cur_batch):
-                lbl = 1 if j == i else -1
-                img_j = img_i if j == i else None
-                _curation_add(lbl, z_j, img_j)
-                st.session_state.cur_labels[j] = lbl
-            _curation_train_and_next()
-            try:
-                getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
-            except Exception:
-                pass
-            _log(
-                f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms"
-            )
+            _handle_best_of(st, i, img_i, cur_batch)
     else:
         btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
         gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
@@ -1257,6 +1244,24 @@ def _toast_and_record(st, msg: str) -> None:
         st.session_state[_K.LAST_ACTION_TS] = float(__t.time())
     except Exception:
         pass
+
+
+def _handle_best_of(st, i: int, img_i, cur_batch) -> None:
+    import time as _time
+    t0b = _time.perf_counter()
+    for j, z_j in enumerate(cur_batch):
+        lbl = 1 if j == i else -1
+        img_j = img_i if j == i else None
+        _curation_add(lbl, z_j, img_j)
+        st.session_state.cur_labels[j] = lbl
+    _curation_train_and_next()
+    try:
+        getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
+    except Exception:
+        pass
+    _log(
+        f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms"
+    )
 
 
 def _batch_init(st):
