@@ -40,6 +40,24 @@ Update (same day): I split `_curation_add` into four tiny helpers (append memory
 Extra: Reduced `_refit_from_dataset_keep_batch` to B with `_cooldown_recent` and `_fit_ridge_once`. Sidebar metadata panel now uses `_resolve_meta_pairs` + `_emit_meta_pairs` (same strings, clearer flow).
 Latest: `_pick_scorer` is now A (split into four tiny try_* helpers), and `_curation_train_and_next` dropped to B by reusing the cooldown/fit helpers. Batch UI file average is A; strings remain unchanged.
 
+Q: Why don’t I see XGBoost values under the images?
+- XGBoost needs both classes in the dataset (at least one +1 and one −1). If you only saved one label or if all labels are identical, the status stays xgb_unavailable and captions remain “Value: n/a”.
+- We removed auto‑fit. Train XGBoost explicitly via the “Train XGBoost now (sync)” action. When it finishes, captions switch to “Value: … [XGB]”.
+- If xgboost isn’t importable in this environment, the sidebar shows “XGBoost available: no” and the scorer remains unavailable.
+
+Q: Will page reruns interrupt training?
+- No. Training is sync‑only and happens on the button click path; there’s no background future to be interrupted. We also gate re‑submissions so repeated reruns don’t queue duplicate fits.
+
+Q: Where do scores print?
+- Captions include the model tag: [XGB], [Ridge], or [Logit]. We also print brief CLI lines (e.g., “[xgb] trained (sync)”) and keep a compact log in ipo.debug.log.
+
+Q: How are new rows decided?
+- Batch sampling draws around the prompt anchor; if XGBoost is selected and trained, a tiny hill‑climb along its direction proposes each latent. Otherwise, it falls back to around‑prompt sampling.
+
+Open questions for you
+- Should we delete the remaining legacy tests that still refer to async queue/auto‑fit, or keep them but mark skipped?
+- Do you want the model hardcoded to sd‑turbo everywhere now (removing any last selector remnants), or keep a tiny hook for local overrides?
+
 New tests (Nov 24, 2025):
 - Sidebar regression: `_emit_train_results` with no `lstate` in session must not crash and must write the provided lines.
 - Cooldown helper: `_cooldown_recent` returns True for a recent timestamp and False for an old one.

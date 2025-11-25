@@ -685,11 +685,22 @@ def _render_batch_ui() -> None:
             continue
         except Exception:
             pass
-        # Fallback: inline render (unchanged behavior)
-        cols = getattr(st, "columns", lambda x: [None] * x)(row_end - row_start)
-        for col_idx, i in enumerate(range(row_start, row_end)):
-            col = cols[col_idx] if cols and len(cols) > col_idx else None
+        # Fallback: inline render (unchanged behavior) via helper
+        _render_row_fallback(
+            st,
+            row_start,
+            row_end,
+            lstate,
+            prompt,
+            steps,
+            guidance_eff,
+            best_of,
+            scorer,
+            cur_batch,
+            z_p,
+        )
 
+            """
             def _render_item() -> None:
                 # Create the vector for this image immediately before decode so
                 # each tile uses a freshly sampled latent under the current
@@ -1038,6 +1049,106 @@ def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, g
     from .batch_decode import decode_one as _dec
     return _dec(i, lstate, prompt, z_i, steps, guidance_eff)
 
+
+def _render_row_fallback(
+    st,
+    row_start: int,
+    row_end: int,
+    lstate,
+    prompt: str,
+    steps: int,
+    guidance_eff: float,
+    best_of: bool,
+    scorer,
+    cur_batch,
+    z_p,
+) -> None:
+    import time as _time
+    cols = getattr(st, "columns", lambda x: [None] * x)(row_end - row_start)
+    for col_idx, i in enumerate(range(row_start, row_end)):
+        col = cols[col_idx] if cols and len(cols) > col_idx else None
+
+        def _render_item() -> None:
+            z_i = cur_batch[i]
+            img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
+            # Predicted value using current value model scorer
+            v_text = "Value: n/a"
+            try:
+                if scorer is not None and z_p is not None:
+                    fvec = z_i - z_p
+                    v = float(scorer(fvec))
+                    v_text = f"Value: {v:.3f}"
+                    # Use existing VM tag helper for consistency
+                    v_text = f"{v_text} [{_vm_tag(st)}]"
+            except Exception:
+                v_text = "Value: n/a"
+            if v_text == "Value: n/a":
+                v_text = _maybe_logit_value(z_p, z_i, st) or v_text
+            cap_txt = f"Item {i} • {v_text}"
+            st.image(img_i, caption=cap_txt, width="stretch")
+
+            btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
+            gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
+            bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+
+            def _btn_key(prefix: str, idx: int) -> str:
+                try:
+                    rcount = int(st.session_state.get("render_count", 0))
+                except Exception:
+                    rcount = 0
+                return f"{prefix}_{rcount}_{idx}"
+
+            def _good_clicked() -> bool:
+                if gcol is not None:
+                    with gcol:
+                        return st.button(
+                            f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                        )
+                return st.button(
+                    f"Good (+1) {i}", key=_btn_key("good", i), width="stretch"
+                )
+
+            def _bad_clicked() -> bool:
+                if bcol is not None:
+                    with bcol:
+                        return st.button(
+                            f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                        )
+                return st.button(
+                    f"Bad (-1) {i}", key=_btn_key("bad", i), width="stretch"
+                )
+
+            if _good_clicked():
+                t0g = _time.perf_counter()
+                _curation_add(1, z_i, img_i)
+                st.session_state.cur_labels[i] = 1
+                _refit_from_dataset_keep_batch()
+                _curation_replace_at(i)
+                try:
+                    msg = "Labeled Good (+1)"
+                    getattr(st, "toast", lambda *a, **k: None)(msg)
+                except Exception:
+                    pass
+                try:
+                    from ipo.infra.constants import Keys
+                    import time as __t
+                    st.session_state[Keys.LAST_ACTION_TEXT] = msg
+                    st.session_state[Keys.LAST_ACTION_TS] = float(__t.time())
+                except Exception:
+                    pass
+                _log(
+                    f"[perf] good_label item={i} took {(_time.perf_counter() - t0g) * 1000:.1f} ms"
+                )
+            if _bad_clicked():
+                _label_and_replace(i, -1, z_i, img_i, st)
+
+        # Always use non-fragment path
+        if col is not None:
+            with col:
+                _render_item()
+        else:
+            _render_item()
+            """
 
 def _maybe_logit_value(z_p, z_i, st) -> str | None:
     try:

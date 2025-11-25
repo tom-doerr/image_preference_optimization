@@ -1881,3 +1881,19 @@ Async training removal (Nov 25, 2025):
   - Moved metadata helpers to `ipo/ui/ui_sidebar_meta.py` (A MI).
   - `ui_sidebar.py` delegates to these modules; public names/strings/order preserved for tests.
   - Moved rows/last‑action + decode settings to `ipo/ui/ui_sidebar_controls.py` (A MI) and delegated wrappers from `ui_sidebar.py`.
+
+Simplify further (Nov 25, 2025):
+- Tests are temporarily noisy: several older tests contain indentation/merge artifacts and reference removed async features. We will prune/repair them as we converge on the simplified design (batch‑only, sync‑only training).
+- One scorer, explicit fits: captions show [XGB] only after an explicit sync fit; otherwise [Ridge] when ‖w‖>0; else “Value: n/a”. No background futures or auto‑fit.
+- Dataset is memory‑first; we append on each Good/Bad and mirror to folder storage. Dim mismatches are ignored for training. Sidebar counters read from memory; we only touch disk at label time.
+- Hardcode model to sd‑turbo. Removed image‑server and fragments toggles to keep a single, stable path.
+- Minimal sidebar: plain text lines only (no st.metric). Early “log file …” and debug panels were removed; we keep IPO logs in ipo.debug.log for CLI debugging.
+
+Keep in mind (ongoing):
+- XGBoost requires both classes (>0 pos and >0 neg). Until then, the scorer remains “xgb_unavailable” and captions should stay “Value: n/a”.
+- Do not auto‑train on reruns. The only training entry points are the explicit “Train XGBoost now (sync)” and “Logit: trained (sync)”.
+- When simplifying further, prefer removing options over adding fallbacks. If a feature is useful, keep it behind one place in the codebase, not multiple wrappers.
+
+Next simplifications under consideration:
+- Remove remaining async remnants and wrapper modules (background, pages/, extra UI shims) after tests are green on the sync‑only path.
+- Collapse UI helpers into one small ui_sidebar module; keep batch_ui slim by pushing shared helpers to tiny files (batch_decode, batch_buttons, batch_util).
