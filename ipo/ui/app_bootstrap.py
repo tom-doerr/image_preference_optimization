@@ -9,8 +9,7 @@ from ipo.infra.util import enable_file_logging, safe_write
 def init_page_and_logging() -> None:
     st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
     try:
-        log_path = enable_file_logging()
-        st.sidebar.write(f"Log file: {log_path}")
+        _ = enable_file_logging()  # keep logging, no sidebar line
     except Exception:
         pass
 
@@ -71,12 +70,12 @@ def _emit_latent_dim_and_model() -> None:
 
 
 def emit_early_sidebar() -> None:
-    vm = _early_vm_choice()
-    safe_write(st, f"Value model: {vm}")
-    safe_write(st, "Step scores: n/a")
+    """Keep early defaults, but do not emit sidebar lines.
+
+    This removes the initial block (Log file / Value model / Step scores / Train/CV / Latent dim).
+    """
+    _early_vm_choice()
     _ensure_iter_defaults()
-    _emit_train_lines(vm)
-    _emit_latent_dim_and_model()
 
 
 def ensure_prompt_and_state() -> str:
