@@ -159,6 +159,14 @@ Maintainability splits (Nov 25, 2025, later)
 - Sidebar logic has been split into small helpers: `ui_sidebar_panels`, `ui_sidebar_cv`, `ui_sidebar_meta`, `ui_sidebar_controls`, and `ui_step_scores_render`. The main `ui_sidebar` file delegates to them; behavior and strings are identical.
 - Batch UI splits: `batch_decode`, `batch_tiles`, `batch_buttons`, and `batch_util`. The orchestrator `batch_ui` delegates; keys/labels stayed the same.
 
+Nov 25, 2025 — Radon MI run and quick refactor
+- Ran `radon mi -s ipo`. Lowest files: `ipo/ui/ui_sidebar.py` (C ~3.5), `ipo/ui/batch_ui.py` (B ~9.6). Others were A.
+- Refactor (no visible string/behavior changes):
+  - Moved sidebar “emit” helpers to leaf modules: `ui_sidebar_misc` (step readouts, debug, dim mismatch, last action, rows tick), `ui_train_results` (emit lines), and `ui_sidebar_controls` (rows counters + debug saves block).
+  - Extracted two tiny helpers in `ui_sidebar`: `_early_persistence_and_meta` and `_predicted_values_block` to shrink `render_sidebar_tail`.
+- Result: `ui_sidebar.py` improved to B ~10.3 MI. `batch_ui.py` remains B ~9.6 (next candidate if we pursue more).
+- Why this path: keeps UI strings/ordering identical (tests are string‑sensitive), but reduces per‑function complexity and file length.
+
 Nov 25, 2025 — quick clarifications
 - XGBoost shows “xgb_unavailable” until the current prompt+dim has at least one +1 and one −1 row AND you click “Train XGBoost now (sync)”. We removed auto‑fit on reruns.
 - With the new default prompt, older rows from a different prompt/dim are ignored by design; the sidebar shows the folder and row count to make this explicit.

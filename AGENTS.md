@@ -173,6 +173,14 @@ Nov 25, 2025 — This request
 - Captions follow a single‑scorer policy: show [XGB] when trained; else [Ridge] if ‖w‖>0; else “n/a”.
 - Dim/prompt scoping is strict; rows from other prompts/dims are ignored. Sidebar shows the dataset folder and on‑disk rows to make this obvious.
 - Fragments remain off by default; buttons use stable keys; per‑tile z/img are cached in session.
+
+Nov 25, 2025 — Radon MI pass (sidebar)
+- Ran `radon mi -s ipo` and targeted the lowest MI file `ipo/ui/ui_sidebar.py` (C).
+- Moved tiny emit helpers to leaf modules to reduce complexity without changing strings/ordering:
+  - `emit_step_readouts`, `emit_debug_panel`, `emit_dim_mismatch`, `emit_last_action_recent`, `rows_refresh_tick` → `ui_sidebar_misc`.
+  - `emit_train_result_lines` → `ui_train_results`.
+  - Rows counters and debug‑saves block → `ui_sidebar_controls`.
+- Result: `ui_sidebar.py` improved C→B (≈3.5→10.4). No behavior/strings changed.
 Performance + UX (Nov 18, 2025, late):
 - Optimization steps (latent): default set to 100; UI no longer enforces a max. Min in the slider is now 0, but the iterative proposer only activates when steps >1 or eta>0. Iterative step (eta) now defaults to 0.01 (was 0.1) to allow finer updates.
 - Added lightweight performance telemetry:

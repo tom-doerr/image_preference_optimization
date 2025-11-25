@@ -70,3 +70,22 @@ def compute_train_results_lines(
         "Optimization: Ridge only",
     ]
 
+
+def emit_train_result_lines(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
+    """Write canonical Train results lines to sidebar and/or capture sink."""
+    if sidebar_only:
+        for ln in lines:
+            try:
+                st.sidebar.write(ln)
+            except Exception:
+                pass
+    else:
+        for ln in lines:
+            try:
+                from ipo.infra.util import safe_write
+                safe_write(st, ln)
+            except Exception:
+                try:
+                    st.sidebar.write(ln)
+                except Exception:
+                    pass

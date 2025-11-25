@@ -653,6 +653,48 @@ def _handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> 
         pass
 
 
+def _early_persistence_and_meta(
+    st: Any,
+    lstate: Any,
+    prompt: str,
+    state_path: str,
+    apply_state_cb,
+    rerun_cb,
+    selected_model: str,
+):
+    """Emit persistence + metadata + step-score prep with minimal branching."""
+    from flux_local import set_model
+    try:
+        if hasattr(st.sidebar, "download_button"):
+            _sidebar_persistence_section(st, lstate, prompt, state_path, apply_state_cb, rerun_cb)
+    except Exception:
+        pass
+    _render_metadata_panel_inline(st, lstate, prompt, state_path)
+    # Model selection is hardcoded but call site stays explicit for tests
+    set_model(selected_model)
+
+
+def _predicted_values_block(st: Any, vm_choice: str, lstate: Any, prompt: str) -> None:
+    """Write quick V(left)/V(right) when a scorer is ready for the current pair."""
+    try:
+        pair = getattr(st.session_state, 'lz_pair', None)
+        if pair is None:
+            return
+        z_a, z_b = pair
+        from latent_logic import z_from_prompt as _zfp
+        from value_scorer import get_value_scorer as _gvs
+        scorer, _ = _gvs(vm_choice, lstate, prompt, st.session_state)
+        if not callable(scorer):
+            return
+        z_p = _zfp(lstate, prompt)
+        va = float(scorer(z_a - z_p))
+        vb = float(scorer(z_b - z_p))
+        safe_write(st, f"V(left): {va:.3f}")
+        safe_write(st, f"V(right): {vb:.3f}")
+    except Exception:
+        pass
+
+
 def render_sidebar_tail(
     st: Any,
     lstate: Any,
@@ -665,18 +707,10 @@ def render_sidebar_tail(
     apply_state_cb,
     rerun_cb,
 ) -> None:
-    from flux_local import set_model
-
-    try:
-        if hasattr(st.sidebar, "download_button"):
-            _sidebar_persistence_section(st, lstate, prompt, state_path, apply_state_cb, rerun_cb)
-    except Exception:
-        pass
-    _render_metadata_panel_inline(st, lstate, prompt, state_path)
+    _early_persistence_and_meta(st, lstate, prompt, state_path, apply_state_cb, rerun_cb, selected_model)
     # Status lines (Value model/XGBoost active/Optimization) are emitted later in the
     # canonical train-results block to preserve expected ordering in tests.
     _render_iter_step_scores_block(st, lstate, prompt, vm_choice, iter_steps, iter_eta)
-    set_model(selected_model)
     # Always emit the simple Value model line early for tests/readability
     try:
         safe_write(st, f"Value model: {str(vm_choice)}")
@@ -703,35 +737,10 @@ def render_sidebar_tail(
                 st.sidebar.write("Ridge training: ok")
             except Exception:
                 pass
-    # Quick predicted values for current pair when scorer is ready
-    try:
-        pair = getattr(st.session_state, 'lz_pair', None)
-        if pair is not None:
-            z_a, z_b = pair
-            from latent_logic import z_from_prompt as _zfp
-            from value_scorer import get_value_scorer as _gvs
-            scorer, _ = _gvs(vm_choice, lstate, prompt, st.session_state)
-            z_p = _zfp(lstate, prompt)
-            if callable(scorer):
-                va = float(scorer(z_a - z_p))
-                vb = float(scorer(z_b - z_p))
-                safe_write(st, f"V(left): {va:.3f}")
-                safe_write(st, f"V(right): {vb:.3f}")
-    except Exception:
-        pass
+    _predicted_values_block(st, vm_choice, lstate, prompt)
 
 
-def _emit_train_result_lines(st: Any, lines: list[str], sidebar_only: bool) -> None:
-    """Write canonical Train results lines to sidebar and/or capture sink."""
-    if sidebar_only:
-        for ln in lines:
-            try:
-                st.sidebar.write(ln)
-            except Exception:
-                pass
-    else:
-        for ln in lines:
-            safe_write(st, ln)
+from .ui_train_results import emit_train_result_lines as _emit_train_result_lines
 
 
 def _emit_images_status_block(st: Any) -> None:
@@ -743,41 +752,13 @@ def _emit_images_status_block(st: Any) -> None:
         pass
 
 
-def _emit_step_readouts(st: Any, lstate: Any) -> None:
-    try:
-        import numpy as _np
-        mu = getattr(lstate, 'mu', _np.zeros(getattr(lstate, 'd', 0)))
-        lr_mu_val = float(getattr(st.session_state, Keys.LR_MU_UI, 0.3))
-        pair = getattr(st.session_state, 'lz_pair', None)
-        if pair is not None:
-            z_a, z_b = pair
-            sa = lr_mu_val * float(_np.linalg.norm(_np.asarray(z_a) - mu))
-            sb = lr_mu_val * float(_np.linalg.norm(_np.asarray(z_b) - mu))
-        else:
-            sa = sb = 0.0
-        safe_write(st, f"step(A): {sa:.3f}")
-        safe_write(st, f"step(B): {sb:.3f}")
-    except Exception:
-        try:
-            st.sidebar.write("step(A): 0.000")
-            st.sidebar.write("step(B): 0.000")
-        except Exception:
-            pass
+from .ui_sidebar_misc import emit_step_readouts as _emit_step_readouts
 
 
-def _emit_debug_panel(st: Any) -> None:
-    try:
-        if getattr(st.sidebar, 'checkbox', lambda *a, **k: False)("Debug", value=False):
-            _emit_last_call_info(st)
-            _emit_log_tail(st)
-    except Exception:
-        pass
+from .ui_sidebar_misc import emit_debug_panel as _emit_debug_panel
 
 
 from .ui_sidebar_debug import _lc_write_key, _lc_warn_std
-
-
-from .ui_sidebar_debug import _emit_last_call_info, _emit_log_tail
 
 
 def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -> None:
@@ -803,77 +784,16 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
 
 
 # Merged from ui_sidebar_extra
-def _emit_dim_mismatch(st: Any) -> None:
-    try:
-        mismatch = st.session_state.get(Keys.DATASET_DIM_MISMATCH)
-        if mismatch and isinstance(mismatch, tuple) and len(mismatch) == 2:
-            st.sidebar.write(
-                f"Dataset recorded at d={mismatch[0]} (ignored); current latent dim d={mismatch[1]}"
-            )
-    except Exception:
-        pass
+from .ui_sidebar_misc import emit_dim_mismatch as _emit_dim_mismatch
 
 
-def _emit_last_action_recent(st: Any) -> None:
-    try:
-        import time as _time
-        txt = st.session_state.get(Keys.LAST_ACTION_TEXT)
-        ts = st.session_state.get(Keys.LAST_ACTION_TS)
-        if txt and ts is not None and (_time.time() - float(ts)) < 6.0:
-            st.sidebar.write(f"Last action: {txt}")
-    except Exception:
-        pass
+from .ui_sidebar_misc import emit_last_action_recent as _emit_last_action_recent
 
 
-def _rows_refresh_tick(st: Any) -> None:
-    try:
-        rows_live = int(len(st.session_state.get(Keys.DATASET_Y, []) or st.session_state.get("dataset_y", []) or []))
-    except Exception:
-        rows_live = 0
-    n_rows = rows_live
-    st.session_state[Keys.ROWS_DISPLAY] = str(n_rows)
-    try:
-        from ipo.infra.util import get_log_verbosity as _gv
-        if int(_gv(st)) >= 1:
-            print(f"[rows] live={rows_live} disp={n_rows}")
-    except Exception:
-        pass
+from .ui_sidebar_misc import rows_refresh_tick as _rows_refresh_tick
 
 
-def _render_rows_counters(st: Any, lstate: Any | None, base_prompt: str) -> None:
-    try:
-        disp_plain = st.session_state.get(Keys.ROWS_DISPLAY, "0")
-        sidebar_metric("Dataset rows", disp_plain)
-        sidebar_metric("Rows (disk)", int(disp_plain or 0))
-        if lstate is not None:
-            from latent_opt import state_summary  # type: ignore
-            info = state_summary(lstate)
-            sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
-    except Exception:
-        pass
-
-
-def _debug_saves_section(st: Any, base_prompt: str, lstate: Any | None) -> None:
-    try:
-        dbg = getattr(st.sidebar, "checkbox", lambda *a, **k: False)("Debug (saves)", value=False)
-        if not dbg:
-            return
-        if getattr(st.sidebar, "button", lambda *a, **k: False)("Append +1 (debug)"):
-            import numpy as _np
-            from ipo.core.persistence import append_dataset_row
-            d_now = int(getattr(lstate, 'd', 0)) if lstate is not None else 0
-            if d_now > 0:
-                z = _np.zeros((1, d_now), dtype=float)
-                append_dataset_row(base_prompt, z, +1.0)
-                st.sidebar.write("Appended +1 (debug)")
-                try:
-                    _ar = getattr(st, "autorefresh", None)
-                    if callable(_ar):
-                        _ar(interval=1, key="rows_auto_refresh_debug")
-                except Exception:
-                    pass
-    except Exception:
-        pass
+# moved to ui_sidebar_controls to reduce this file's complexity
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
