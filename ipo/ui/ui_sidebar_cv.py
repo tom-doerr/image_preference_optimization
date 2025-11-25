@@ -81,3 +81,24 @@ def sidebar_cv_on_demand(st: Any, lstate: Any, prompt: str, vm: str) -> None:
     except Exception:
         return
 
+
+def cached_cv_lines(st: Any) -> tuple[str, str]:
+    """Return the cached CV lines for XGBoost and Ridge as sidebar text lines.
+
+    Mirrors the exact formatting used elsewhere: "CV (XGBoost): …", "CV (Ridge): …".
+    """
+    ridge_line = "CV (Ridge): n/a"
+    xgb_line = "CV (XGBoost): n/a"
+    try:
+        from ipo.infra.constants import Keys
+        cv_cache = st.session_state.get(Keys.CV_CACHE) or {}
+        if isinstance(cv_cache, dict):
+            r = cv_cache.get("Ridge") or {}
+            x = cv_cache.get("XGBoost") or {}
+            if "acc" in r and "k" in r:
+                ridge_line = f"CV (Ridge): {float(r['acc']) * 100:.0f}% (k={int(r['k'])})"
+            if "acc" in x and "k" in x:
+                xgb_line = f"CV (XGBoost): {float(x['acc']) * 100:.0f}% (k={int(x['k'])})"
+    except Exception:
+        pass
+    return xgb_line, ridge_line

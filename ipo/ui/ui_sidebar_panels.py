@@ -63,3 +63,24 @@ def sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str,
     _with_details_expander(_render_details)
     _cv_on_demand(st, lstate, prompt, vm)
 
+
+def handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> None:
+    """Render the small train-controls section (sync-only fits).
+
+    Delegates dataset selection and the actual train handlers back to ui_sidebar
+    to avoid duplicating logic and to keep strings/behavior identical.
+    """
+    try:
+        # Resolve dataset (prefers in-memory, falls back to folder dataset)
+        from ipo.ui.ui_sidebar import _get_dataset_for_display, _autofit_xgb_if_selected
+        Xd, yd = _get_dataset_for_display(st, lstate, prompt)
+        _autofit_xgb_if_selected(st, lstate, vm_choice, Xd, yd)  # no-op by design
+        button = getattr(st.sidebar, "button", lambda *a, **k: False)
+        if str(vm_choice) == "XGBoost" and button("Train XGBoost now (sync)"):
+            from ipo.ui.ui_sidebar import _xgb_train_controls
+            _xgb_train_controls(st, lstate, Xd, yd)
+        elif str(vm_choice) == "Logistic" and button("Train Logistic now (sync)"):
+            from ipo.ui.ui_sidebar import _logit_train_controls
+            _logit_train_controls(st, lstate, Xd, yd)
+    except Exception:
+        pass

@@ -414,21 +414,7 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
         pass
 
 
-def _cached_cv_lines(st: Any) -> tuple[str, str]:
-    ridge_line = "CV (Ridge): n/a"
-    xgb_line = "CV (XGBoost): n/a"
-    try:
-        cv_cache = st.session_state.get(K.CV_CACHE) or {}
-        if isinstance(cv_cache, dict):
-            r = cv_cache.get("Ridge") or {}
-            x = cv_cache.get("XGBoost") or {}
-            if "acc" in r and "k" in r:
-                ridge_line = f"CV (Ridge): {float(r['acc']) * 100:.0f}% (k={int(r['k'])})"
-            if "acc" in x and "k" in x:
-                xgb_line = f"CV (XGBoost): {float(x['acc']) * 100:.0f}% (k={int(x['k'])})"
-    except Exception:
-        pass
-    return xgb_line, ridge_line
+from .ui_sidebar_cv import cached_cv_lines as _cached_cv_lines
 def _xgb_status_line(st: Any, rows_n: int, status: str) -> None:
     try:
         line = f"XGBoost model rows: {rows_n} (status: {status})"
@@ -610,17 +596,7 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
             pass
 
 
-def _handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> None:
-    try:
-        Xd, yd = _get_dataset_for_display(st, lstate, prompt)
-        _autofit_xgb_if_selected(st, lstate, vm_choice, Xd, yd)
-        button = getattr(st.sidebar, "button", lambda *a, **k: False)
-        if str(vm_choice) == "XGBoost" and button("Train XGBoost now (sync)"):
-            _xgb_train_controls(st, lstate, Xd, yd)
-        elif str(vm_choice) == "Logistic" and button("Train Logistic now (sync)"):
-            _logit_train_controls(st, lstate, Xd, yd)
-    except Exception:
-        pass
+from .ui_sidebar_panels import handle_train_section as _handle_train_section
 
 
 def _early_persistence_and_meta(

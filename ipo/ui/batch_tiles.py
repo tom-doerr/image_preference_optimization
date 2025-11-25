@@ -35,14 +35,27 @@ def render_batch_tile_body(
     img_i, cap_txt = _tile_visual()
     st.image(img_i, caption=cap_txt, width="stretch")
 
-    if best_of:
-        if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
-            # Use batch_ui's dedicated best-of handler to apply labels once
-            from .batch_ui import _handle_best_of  # type: ignore
-            _handle_best_of(st, i, img_i, cur_batch)
-    else:
-        btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
-        gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
-        bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
-        nonce = int(st.session_state.get("cur_batch_nonce", 0))
-        _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
+    # Best-of path removed in app; always render Good/Bad buttons
+    btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
+    gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
+    bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
+    nonce = int(st.session_state.get("cur_batch_nonce", 0))
+    _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
+
+
+def render_row_inline(st, idxs, lstate, prompt: str, steps: int, guidance_eff: float, best_of: bool, scorer, cur_batch, z_p) -> None:
+    """Minimal inline row renderer used as a fallback in batch UI.
+
+    It renders each tile via render_batch_tile_body inside column containers.
+    """
+    try:
+        rn = int(st.session_state.get("render_nonce", 0))
+    except Exception:
+        rn = 0
+    cols = getattr(st, "columns", lambda x: [None] * x)(len(idxs))
+    for col, i in zip(cols, idxs):
+        if col is not None:
+            with col:
+                render_batch_tile_body(i, rn, lstate, prompt, steps, guidance_eff, best_of, scorer, False, cur_batch, z_p)
+        else:
+            render_batch_tile_body(i, rn, lstate, prompt, steps, guidance_eff, best_of, scorer, False, cur_batch, z_p)
