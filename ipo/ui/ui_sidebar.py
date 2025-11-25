@@ -64,15 +64,12 @@ def _render_persistence_controls(lstate, prompt, state_path, apply_state_cb, rer
     except Exception:
         pass
 def sidebar_metric(label: str, value) -> None:
+    """Plain text lines only; no Streamlit metric widgets."""
     import streamlit as st
-
     try:
-        if hasattr(st.sidebar, "metric") and callable(getattr(st.sidebar, "metric", None)):
-            st.sidebar.metric(label, str(value))
-        else:
-            st.sidebar.write(f"{label}: {value}")
-    except Exception:
         st.sidebar.write(f"{label}: {value}")
+    except Exception:
+        pass
 
 
 def sidebar_metric_rows(pairs, per_row: int = 2) -> None:
@@ -523,13 +520,8 @@ def _vm_details_xgb(st: Any, cache: dict) -> None:
 
 
 def _emit_cv_metrics(st: Any, xgb_line: str, ridge_line: str) -> None:
-    try:
-        def _val(line: str) -> str:
-            return line.split(": ", 1)[1] if ": " in line else line
-        st.sidebar.metric("CV (XGBoost)", _val(xgb_line))
-        st.sidebar.metric("CV (Ridge)", _val(ridge_line))
-    except Exception:
-        pass
+    """No-op: we only emit plain text lines (see safe_write calls)."""
+    return
 
 
 def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
