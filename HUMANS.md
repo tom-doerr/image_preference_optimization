@@ -195,3 +195,22 @@ Questions for you
 1) Keep Distance‑based scorer visible, or hide it for now?
 2) Keep 512×512 at 6 steps as default, or bump back to 640×640?
 3) OK to make CV strictly on‑demand (button only) and drop the always‑visible CV lines?
+
+
+Q: Why are XGBoost captions still "n/a"?
+A: In the simplified flow we never auto‑fit. Captions show "n/a" until an XGB model exists and both classes are present. Do this:
+- Label at least one Good (+1) and one Bad (−1).
+- Click "Train XGBoost now (sync)" in the sidebar.
+- You should then see "XGBoost model rows: N (status: ok)" and captions include "[XGB]" with a numeric value.
+If xgboost isn’t installed, install it in the venv or switch Value model to Ridge.
+
+Q: Can we always force XGB?
+A: Yes, but only after a sync fit. We intentionally removed all fallbacks/auto‑fit to keep behavior obvious. Before a fit, using XGB would silently produce zeros; we prefer explicit "n/a".
+
+Q: Why does disk “Rows (disk)” lag or show 0?
+A: Sidebar counters are memory‑only by design (no folder re‑scans on rerun). Disk writes still happen on label for durability; the sidebar doesn’t read them each render.
+
+Open questions for you:
+- Do you want Ridge captions to appear when VM=XGBoost but no XGB is trained yet? (Current stance: no.)
+- Should we keep the lightweight debug lines in CLI, or make them verbosity‑1 only?
+- Do you want us to delete the remaining legacy sidebar widgets entirely (CV lines), or keep the placeholders?
