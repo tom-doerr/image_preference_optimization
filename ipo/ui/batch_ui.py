@@ -633,37 +633,8 @@ def _render_batch_tile_body(
     cur_batch,
     z_p,
 ) -> None:
-    import streamlit as st
-    try:
-        from latent_logic import z_to_latents
-    except Exception:
-        from latent_opt import z_to_latents  # tests may stub here
-    from flux_local import generate_flux_image_latents
-    import time as _time
-
-    # Do not resample latents on render; keep the batch stable until replaced or new batch is created
-    z_i = cur_batch[i]
-
-    def _tile_visual():
-        img = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
-        v_text = _tile_value_text(st, z_p, z_i, scorer)
-        cap = f"Item {i} • {v_text}"
-        return img, cap
-
-    img_i, cap_txt = _tile_visual()
-    st.image(img_i, caption=cap_txt, width="stretch")
-
-    if best_of:
-        if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
-            _handle_best_of(st, i, img_i, cur_batch)
-    else:
-        btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
-        gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
-        bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
-
-        nonce = int(st.session_state.get("cur_batch_nonce", 0))
-
-        _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
+    from .batch_tiles import render_batch_tile_body as _rb
+    _rb(i, render_nonce, lstate, prompt, steps, guidance_eff, best_of, scorer, fut_running, cur_batch, z_p)
 
 
 def _curation_train_and_next() -> None:
@@ -1096,39 +1067,8 @@ def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
 def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, guidance_eff: float):
-    import time as _time
-    try:
-        from latent_logic import z_to_latents
-    except Exception:
-        from latent_opt import z_to_latents  # tests may stub here
-    try:
-        from flux_local import generate_flux_image_latents
-    except Exception:
-        # Allow tests that inject a stub module to satisfy this import
-        from sys import modules as _modules
-        generate_flux_image_latents = getattr(_modules.get("flux_local"), "generate_flux_image_latents")  # type: ignore
-
-    t0 = _time.perf_counter()
-    try:
-        la = z_to_latents(lstate, z_i)
-    except Exception:
-        la = z_to_latents(z_i, lstate)
-    img_i = generate_flux_image_latents(
-        prompt,
-        latents=la,
-        width=lstate.width,
-        height=lstate.height,
-        steps=steps,
-        guidance=guidance_eff,
-    )
-    try:
-        dt_ms = (_time.perf_counter() - t0) * 1000.0
-    except Exception:
-        dt_ms = -1.0
-    _log(
-        f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})"
-    )
-    return img_i
+    from .batch_decode import decode_one as _dec
+    return _dec(i, lstate, prompt, z_i, steps, guidance_eff)
 
 
 def _maybe_logit_value(z_p, z_i, st) -> str | None:

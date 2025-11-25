@@ -1360,6 +1360,12 @@ Maintainability (Nov 25, 2025 — MI split):
   - `ipo/ui/ui_train_results.py` (A MI) for train‑results lines.
 - `ui_sidebar.py` delegates to these modules; public names/strings stay the same.
 
+Batch UI (Nov 25, 2025 — MI split):
+- Extracted decode and tile rendering:
+  - `ipo/ui/batch_decode.py` (A MI) — contains `decode_one(...)` used by batch tiles.
+  - `ipo/ui/batch_tiles.py` (A MI) — contains `render_batch_tile_body(...)` and is called from `batch_ui`.
+- `batch_ui.py` now delegates to these helpers; logs/strings/keys unchanged.
+
 New learnings (Nov 21, 2025 — 138a finish):
 - Early sidebar text now includes "Step scores: n/a" at import so text-only tests pass without importing heavier modules.
 - Autorun is gated by `IPO_AUTORUN=1`; default import is deterministic. Tests that expect autorun set the env explicitly.
