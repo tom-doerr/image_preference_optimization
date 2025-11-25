@@ -1789,6 +1789,9 @@ Keep in mind:
   - Flux local: split `_ensure_pipe` tail into `_post_load_toggles` and
     `_after_model_switch`; moved latents meta logging to `_record_latents_meta`.
     `_ensure_pipe` C→B; latents path A.
+  - Flux local (follow-up): `_record_latents_meta` split into
+    `_latents_basic_stats`, `_update_last_call_latents`, and `_get_init_sigma`.
+    Now A; overall module average dropped further while keeping logs identical.
   - App bootstrap: factored `ensure_prompt_and_state` into `_resolve_state_path`
     and `_apply_or_init_state` (C→B; strings unchanged).
   - Value scorer: split XGB model fetch/print helpers (`_get_live_xgb_model`,

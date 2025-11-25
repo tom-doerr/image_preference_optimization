@@ -107,3 +107,9 @@ Follow-up (done):
 Next (still safe and tiny):
 - Consider trimming `_run_pipe` by hoisting OOM-retry decision into a helper;
   keep text identical. Low risk.
+
+Update 2:
+- `_run_pipe` trimmed: hoisted logging, perf, image extraction, and OOM-retry
+  into helpers. Function is B now (was C), messages unchanged.
+- `_record_latents_meta` was split into three helpers and is A now. Overall
+  flux_local average improved; diagnostics remain the same.

@@ -78,62 +78,72 @@ def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
 
 
 def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
-    """Sync XGB fit with minimal side effects; no session-state cache.
-
-    If a usable model is trained, we place it under session_state.XGB_MODEL so
-    callers can use it immediately. We do not maintain any separate cache dict.
-    """
+    """Sync XGB fit with minimal side effects; also updates legacy cache for compat."""
     try:
         from ipo.core.xgb_value import fit_xgb_classifier  # type: ignore
 
         n = int(X.shape[0])
         d = int(X.shape[1]) if X.ndim == 2 else 0
-        classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
-        if n > 0 and len(classes) > 1:
-            yy = np.asarray(y).astype(int)
-            pos = int((yy > 0).sum())
-            neg = int((yy < 0).sum())
-            # Clear stale future handles (sync-only path)
-            try:
-                session_state.pop(Keys.XGB_FIT_FUTURE, None)
-            except Exception:
-                pass
-            # Read tiny hyperparams from session
-            try:
-                n_estim = int(session_state.get("xgb_n_estimators", 50))
-            except Exception:
-                n_estim = 50
-            try:
-                max_depth = int(session_state.get("xgb_max_depth", 3))
-            except Exception:
-                max_depth = 3
-            _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-            _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
-            t_x = _time.perf_counter()
-            mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
-            try:
-                # Primary: live model
-                session_state.XGB_MODEL = mdl
-                # Compat: mirror into legacy cache expected by older tests
-                cache = getattr(session_state, "xgb_cache", {}) or {}
-                cache["model"] = mdl
-                cache["n"] = int(n)
-                session_state.xgb_cache = cache
-                session_state["xgb_toast_ready"] = True
-            except Exception:
-                pass
-            dt_ms = (_time.perf_counter() - t_x) * 1000.0
-            _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
-            try:
-                session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
-            except Exception:
-                pass
-        else:
+        if n <= 0 or not _has_two_classes(y):
+            classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
             _log(
-                f"[xgb] skip: insufficient classes rows={int(X.shape[0])} classes={sorted(list(classes)) if classes else []}"
+                f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}"
             )
+            return
+        yy = np.asarray(y).astype(int)
+        pos = int((yy > 0).sum())
+        neg = int((yy < 0).sum())
+        # Clear stale future handles (sync-only path)
+        try:
+            session_state.pop(Keys.XGB_FIT_FUTURE, None)
+        except Exception:
+            pass
+        n_estim, max_depth = _xgb_hparams(session_state)
+        _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
+        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+        t_x = _time.perf_counter()
+        mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+        _store_xgb_model(session_state, mdl, n)
+        dt_ms = (_time.perf_counter() - t_x) * 1000.0
+        _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
+        try:
+            session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+        except Exception:
+            pass
     except Exception:
         pass
+
+
+def _xgb_hparams(session_state: Any) -> tuple[int, int]:
+    try:
+        n_estim = int(session_state.get("xgb_n_estimators", 50))
+    except Exception:
+        n_estim = 50
+    try:
+        max_depth = int(session_state.get("xgb_max_depth", 3))
+    except Exception:
+        max_depth = 3
+    return n_estim, max_depth
+
+
+def _store_xgb_model(session_state: Any, mdl: Any, n_rows: int) -> None:
+    try:
+        session_state.XGB_MODEL = mdl
+        cache = getattr(session_state, "xgb_cache", {}) or {}
+        cache["model"] = mdl
+        cache["n"] = int(n_rows)
+        session_state.xgb_cache = cache
+        session_state["xgb_toast_ready"] = True
+    except Exception:
+        pass
+
+
+def _has_two_classes(y: np.ndarray) -> bool:
+    try:
+        classes = set(np.asarray(y).astype(int).tolist())
+        return len(classes) > 1
+    except Exception:
+        return False
 
 
 def _maybe_fit_logit(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
