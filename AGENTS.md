@@ -41,6 +41,7 @@ New learnings (Nov 25, 2025 — sync-only + unified scorer):
 - Toasts: after a blocking fit we now show concise messages:
   - XGBoost: "XGBoost: trained (sync)" (test added)
   - Logistic: "Logit: trained (sync)" (test added)
+  - Also emit a CLI line after XGB fit: "[xgb] trained (sync)" (easy to grep); test added.
 - Unified `value_scorer.get_value_scorer` API simplifies caption logic and makes the producing model explicit: `[XGB]`, `[Ridge]`, or `[Logit]`.
 - A live XGB model is stored at `session_state.XGB_MODEL` (also mirrored into `xgb_cache` for older paths). If missing or only one label class exists, XGB stays unavailable by design.
 - Early sidebar lines are deterministic at import: Value model, Step scores (n/a), Train/CV/Last, Latent dim, hardcoded model. Keeps text‑only tests stable.

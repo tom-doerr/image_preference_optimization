@@ -891,6 +891,10 @@ def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
             getattr(st, "toast", lambda *a, **k: None)("XGBoost: trained (sync)")
         except Exception:
             pass
+        try:
+            print("[xgb] trained (sync)")
+        except Exception:
+            pass
 
     Xs, Ys = _select_dataset()
     pos, neg = _count_pos_neg(Ys)
