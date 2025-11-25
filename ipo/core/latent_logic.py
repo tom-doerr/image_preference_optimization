@@ -450,26 +450,7 @@ def hill_climb_mu_xgb(
         base_step = 0.2
     for t in range(n_steps):
         step_t = base_step / float(1 + t)
-        candidates = []
-        for sgn in (1.0, -1.0):
-            z_cand = mu + sgn * step_t * d1
-            delta = z_cand - z_p
-            if trust_r is not None and float(trust_r) > 0.0:
-                r = float(np.linalg.norm(delta))
-                if r > float(trust_r) and r > 0.0:
-                    z_cand = z_p + delta * (float(trust_r) / r)
-                    delta = z_cand - z_p
-            fvec = delta
-            try:
-                score = float(scorer(fvec))
-            except Exception:
-                score = 0.0
-            candidates.append((score, z_cand))
-        try:
-            best_score, best_z = max(candidates, key=lambda x: x[0])
-        except ValueError:
-            break
-        mu = best_z
+        mu, best_score = _best_of_along_d1(mu, z_p, d1, step_t, trust_r, scorer)
         try:
             print(f"[xgb-hill] step={t + 1} best_score={best_score:.4f}")
         except Exception:
@@ -539,28 +520,41 @@ def sample_z_xgb_hill(
 
     for t in range(n_steps):
         step_t = base_step / float(1 + t)
-        best_score = None
-        best_z = None
-        for sgn in (1.0, -1.0):
-            z_cand = mu + sgn * step_t * d1
-            delta = z_cand - z_p
-            if trust_r is not None and float(trust_r) > 0.0:
-                rdelta = float(np.linalg.norm(delta))
-                if rdelta > float(trust_r) and rdelta > 0.0:
-                    z_cand = z_p + delta * (float(trust_r) / rdelta)
-                    delta = z_cand - z_p
-            s = _score(delta)
-            if best_score is None or s > best_score:
-                best_score = s
-                best_z = z_cand
-        if best_z is None:
-            break
-        mu = best_z
+        mu, best_score = _best_of_along_d1(mu, z_p, d1, step_t, trust_r, _score)
         try:
             print(f"[xgb-hill-batch] step={t + 1} score={best_score:.4f}")
         except Exception:
             pass
     return mu
+
+
+def _best_of_along_d1(mu: np.ndarray, z_p: np.ndarray, d1: np.ndarray, step: float, trust_r: Optional[float], scorer) -> tuple[np.ndarray, float]:
+    """Evaluate ±step along d1 around mu and return (best_mu, best_score)."""
+    candidates: list[tuple[float, np.ndarray]] = []
+    for sgn in (1.0, -1.0):
+        z_cand = mu + float(sgn) * float(step) * d1
+        z_cand = _trust_clamp(z_cand, z_p, trust_r)
+        delta = z_cand - z_p
+        try:
+            s = float(scorer(delta))
+        except Exception:
+            s = 0.0
+        candidates.append((s, z_cand))
+    try:
+        best_score, best_z = max(candidates, key=lambda x: x[0])
+    except ValueError:
+        return mu, 0.0
+    return best_z, float(best_score)
+
+
+def _trust_clamp(z_cand: np.ndarray, z_p: np.ndarray, trust_r: Optional[float]) -> np.ndarray:
+    if trust_r is None or float(trust_r) <= 0.0:
+        return z_cand
+    delta = z_cand - z_p
+    r = float(np.linalg.norm(delta))
+    if r > float(trust_r) and r > 0.0:
+        return z_p + delta * (float(trust_r) / r)
+    return z_cand
 
 
 
