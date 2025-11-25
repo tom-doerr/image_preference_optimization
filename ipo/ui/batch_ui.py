@@ -486,36 +486,7 @@ def _append_mem_dataset(st, Keys, feat: np.ndarray, label: float) -> None:
         pass
 
 
-def _save_and_print(prompt: str, feat: np.ndarray, label: float, img, st):
-    from ipo.core import persistence as p
-    try:
-        row_idx = p.append_sample(prompt, feat, float(label), img)
-    except Exception:
-        row_idx = None
-    try:
-        save_dir = getattr(p, "data_root_for_prompt", lambda pr: "data")(prompt)
-    except Exception:
-        save_dir = "data"
-    msg = (
-        f"Saved sample #{row_idx} → {save_dir}/{row_idx:06d}"
-        if row_idx is not None
-        else "Saved sample #n/a"
-    )
-    try:
-        _log(
-            f"[data] saved row={row_idx if row_idx is not None else 'n/a'} path={save_dir}/{row_idx:06d}"  # type: ignore[str-format]
-        )
-    except Exception:
-        pass
-    try:
-        print(f"[data] saved row={row_idx if row_idx is not None else 'n/a'}")
-    except Exception:
-        pass
-    try:
-        st.sidebar.write(msg)
-    except Exception:
-        pass
-    return row_idx, save_dir, msg
+from .batch_util import save_and_print as _save_and_print
 
 
 def _record_last_action_and_step(st, Keys, lstate, msg: str) -> None:
