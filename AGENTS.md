@@ -1843,3 +1843,8 @@ Async training removal (Nov 25, 2025):
 - Fully removed async model training keys from `constants.Keys` (`XGB_TRAIN_ASYNC`, `XGB_FIT_FUTURE`). Training is sync-only via explicit actions.
 - UI has no async toggles; value_model has no futures; status uses `XGB_TRAIN_STATUS` only for simple reporting.
  - UI no longer imports or calls `ensure_fitted`; the shim remains in `value_model` for backend/test compatibility only. The sidebar trains XGBoost solely on the “Train XGBoost now (sync)” button.
+- Sidebar (Nov 25, 2025 — MI split 2):
+  - Moved the Value model block to `ipo/ui/ui_sidebar_panels.py` (A MI).
+  - Moved on‑demand CV to `ipo/ui/ui_sidebar_cv.py` (A MI).
+  - Moved metadata helpers to `ipo/ui/ui_sidebar_meta.py` (A MI).
+  - `ui_sidebar.py` delegates to these modules; public names/strings/order preserved for tests.

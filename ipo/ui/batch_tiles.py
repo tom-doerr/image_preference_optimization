@@ -37,17 +37,12 @@ def render_batch_tile_body(
 
     if best_of:
         if st.button(f"Choose {i}", key=f"choose_{i}", width="stretch"):
-            # Delegate to batch_ui's handler via _render_good_bad_buttons semantics
-            for j, z_j in enumerate(cur_batch):
-                lbl = 1 if j == i else -1
-                img_j = img_i if j == i else None
-                # Reuse the good/bad path to record/save and replace
-                # (batch_ui._render_good_bad_buttons calls internal helpers)
-                _render_good_bad_buttons(st, j, z_j, img_j, int(st.session_state.get("cur_batch_nonce", 0)), None, None)
+            # Use batch_ui's dedicated best-of handler to apply labels once
+            from .batch_ui import _handle_best_of  # type: ignore
+            _handle_best_of(st, i, img_i, cur_batch)
     else:
         btn_cols = getattr(st, "columns", lambda x: [None] * x)(2)
         gcol = btn_cols[0] if btn_cols and len(btn_cols) > 0 else None
         bcol = btn_cols[1] if btn_cols and len(btn_cols) > 1 else None
         nonce = int(st.session_state.get("cur_batch_nonce", 0))
         _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
-

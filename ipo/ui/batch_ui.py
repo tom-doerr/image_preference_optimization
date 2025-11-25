@@ -1088,43 +1088,13 @@ def _maybe_logit_value(z_p, z_i, st) -> str | None:
 
 
 def _label_and_replace(i: int, lbl: int, z_i: np.ndarray, img_i, st) -> None:
-    t0b2 = _time.perf_counter()
-    _curation_add(lbl, z_i, img_i)
-    st.session_state.cur_labels[i] = lbl
-    _refit_from_dataset_keep_batch()
-    _curation_replace_at(i)
-    _log(f"[perf] {'good' if lbl>0 else 'bad'}_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms")
-    try:
-        rr = getattr(st, "rerun", None)
-        if callable(rr):
-            rr()
-    except Exception:
-        pass
+    from .batch_buttons import _label_and_replace as _lr
+    _lr(i, lbl, z_i, img_i, st)
 
 
 def _render_good_bad_buttons(st, i: int, z_i: np.ndarray, img_i, nonce: int, gcol, bcol) -> None:
-    gkey = _button_key(st, "good", nonce, i)
-    bkey = _button_key(st, "bad", nonce, i)
-    # Good (+1)
-    if gcol is not None:
-        with gcol:
-            if st.button(f"Good (+1) {i}", key=gkey, width="stretch"):
-                _label_and_replace(i, 1, z_i, img_i, st)
-                _toast_and_record(st, "Labeled Good (+1)")
-    else:
-        if st.button(f"Good (+1) {i}", key=gkey, width="stretch"):
-            _label_and_replace(i, 1, z_i, img_i, st)
-            _toast_and_record(st, "Labeled Good (+1)")
-    # Bad (-1)
-    if bcol is not None:
-        with bcol:
-            if st.button(f"Bad (-1) {i}", key=bkey, width="stretch"):
-                _label_and_replace(i, -1, z_i, img_i, st)
-                _toast_and_record(st, "Labeled Bad (-1)")
-    else:
-        if st.button(f"Bad (-1) {i}", key=bkey, width="stretch"):
-            _label_and_replace(i, -1, z_i, img_i, st)
-            _toast_and_record(st, "Labeled Bad (-1)")
+    from .batch_buttons import render_good_bad_buttons as _rgb
+    _rgb(st, i, z_i, img_i, nonce, gcol, bcol)
 
 def _ensure_model_ready() -> None:
     """Ensure a decode model is loaded before any image generation."""
@@ -1159,49 +1129,18 @@ def _prep_render_counters(st) -> None:
         pass
 
 def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
-    try:
-        rnd = int(st.session_state.get("render_nonce", 0))
-    except Exception:
-        rnd = 0
-    try:
-        rcount = int(st.session_state.get("render_count", 0))
-    except Exception:
-        rcount = 0
-    try:
-        seq = int(st.session_state.get("btn_seq", 0)) + 1
-    except Exception:
-        seq = 1
-    st.session_state["btn_seq"] = seq
-    return f"{prefix}_{rcount}_{rnd}_{nonce}_{idx}_{seq}"
+    from .batch_buttons import _button_key as _bk
+    return _bk(st, prefix, nonce, idx)
 
 
 def _toast_and_record(st, msg: str) -> None:
-    try:
-        getattr(st, "toast", lambda *a, **k: None)(msg)
-        from ipo.infra.constants import Keys as _K
-        import time as __t
-        st.session_state[_K.LAST_ACTION_TEXT] = msg
-        st.session_state[_K.LAST_ACTION_TS] = float(__t.time())
-    except Exception:
-        pass
+    from .batch_buttons import _toast_and_record as _tr
+    _tr(st, msg)
 
 
 def _handle_best_of(st, i: int, img_i, cur_batch) -> None:
-    import time as _time
-    t0b = _time.perf_counter()
-    for j, z_j in enumerate(cur_batch):
-        lbl = 1 if j == i else -1
-        img_j = img_i if j == i else None
-        _curation_add(lbl, z_j, img_j)
-        st.session_state.cur_labels[j] = lbl
-    _curation_train_and_next()
-    try:
-        getattr(st, "toast", lambda *a, **k: None)(f"Best-of: chose {i}")
-    except Exception:
-        pass
-    _log(
-        f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms"
-    )
+    from .batch_buttons import handle_best_of as _hb
+    _hb(st, i, img_i, cur_batch)
 
 
 def _batch_init(st):
