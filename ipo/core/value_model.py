@@ -11,6 +11,11 @@ from ipo.infra.constants import Keys
 __all__ = [
     "fit_value_model",
     "ensure_fitted",  # compat shim; sync-only
+    "ValueModel",
+    "RidgeVM",
+    "XGBVM",
+    "LogisticVM",
+    "get_vm",
 ]
 
 LOGGER = _logging.getLogger("ipo")
@@ -266,15 +271,16 @@ def fit_value_model(
     t0 = _time.perf_counter()
     choice = str(vm_choice)
 
-    # Ridge fits are always synchronous now; ignore any async toggles.
+    # Synchronous fit via minimal OO facade (keeps behavior centralized)
     _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
-
-    # Optional XGB/Logistic refresh via helpers
-    _train_optionals(choice, lstate, X, y, lam, session_state)
-
-    # Update ridge weights for w only when Ridge-like modes are active.
-    if _uses_ridge(choice):
-        _fit_ridge(lstate, X, y, float(lam))
+    try:
+        vm = get_vm(choice)
+        vm.fit(lstate, X, y, float(lam), session_state)
+    except Exception:
+        # Fall back to previous procedural path if something goes wrong
+        _train_optionals(choice, lstate, X, y, lam, session_state)
+        if _uses_ridge(choice):
+            _fit_ridge(lstate, X, y, float(lam))
 
     # Training bookkeeping
     try:
@@ -284,8 +290,56 @@ def fit_value_model(
     except Exception:
         pass
 
-    # Print compact train summaries to CLI
+    # Print compact train summaries to CLI (OO fit already recorded, but cheap)
     _record_train_summaries(lstate, X, y, lam, session_state)
+
+
+# --- Minimal OO API (kept in this module to avoid import churn) ---
+class ValueModel:
+    name = "ValueModel"
+
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: D401
+        """Fit/update model artifacts in place. Subclasses implement behavior."""
+        raise NotImplementedError
+
+
+class RidgeVM(ValueModel):
+    name = "Ridge"
+
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+        # Always refresh ridge weights; record summaries via shared helper
+        _fit_ridge(lstate, X, y, float(lam))
+        _record_train_summaries(lstate, X, y, lam, session_state)
+
+
+class XGBVM(ValueModel):
+    name = "XGBoost"
+
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+        # Train XGB when data/classes are usable, then refresh ridge weights
+        _train_optionals("XGBoost", lstate, X, y, lam, session_state)
+        if _uses_ridge("XGBoost"):
+            _fit_ridge(lstate, X, y, float(lam))
+        _record_train_summaries(lstate, X, y, lam, session_state)
+
+
+class LogisticVM(ValueModel):
+    name = "Logistic"
+
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+        _train_optionals("Logistic", lstate, X, y, lam, session_state)
+        if _uses_ridge("Logistic"):
+            _fit_ridge(lstate, X, y, float(lam))
+        _record_train_summaries(lstate, X, y, lam, session_state)
+
+
+def get_vm(choice: str) -> ValueModel:
+    c = str(choice)
+    if c == "XGBoost":
+        return XGBVM()
+    if c == "Logistic":
+        return LogisticVM()
+    return RidgeVM()
 
 
 def ensure_fitted(
