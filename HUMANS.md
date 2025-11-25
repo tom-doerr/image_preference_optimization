@@ -147,3 +147,6 @@ Nov 25, 2025 — XGB “why n/a?” quick reference
 - If `xgboost` isn’t importable, the sidebar shows “XGBoost available: no” and the scorer stays unavailable.
 - Dim mismatches are ignored for training/scoring; sidebar shows the folder and counts so it’s obvious.
 - We removed background fits; no training runs on reruns to avoid mixed states.
+
+Queue removal status (Nov 25, 2025)
+- Async queue mode is gone end‑to‑end. Only Batch curation remains. Any tests that referenced the queue path are marked skipped; no runtime code references remain and we removed queue keys from `constants.Keys`.

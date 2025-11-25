@@ -49,12 +49,10 @@ class Keys:
     DATASET_DIM_MISMATCH = "dataset_dim_mismatch"
     CV_CACHE = "cv_cache"
     CV_LAST_AT = "cv_last_at"
-    # Common app/queue keys
+    # Common app keys (queue removed)
     PROMPT = "prompt"
     STATE_PATH = "state_path"
     VM_TRAIN_CHOICE = "vm_train_choice"
-    QUEUE = "queue"
-    QUEUE_SIZE = "queue_size"
     BATCH_SIZE = "batch_size"
     STEPS = "steps"
     GUIDANCE = "guidance"

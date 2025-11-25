@@ -1818,3 +1818,7 @@ Keep in mind:
     `_sigma_from_sigmas_attr` (C→A). No behavior/log changes.
   - Reran radon; average in changed files improved (A/B). Keep future extractions
     surgical and string-stable.
+Queue removal (Nov 25, 2025):
+- Fully removed async queue mode. No queue UI, no queue helpers, and no queue keys in `constants.Keys` (deleted `QUEUE`/`QUEUE_SIZE`).
+- Tests that formerly targeted the queue path now call `skipTest("Async queue removed: test skipped")` and remain in the tree as historical references.
+- Generation mode dropdown shows only “Batch curation”.
