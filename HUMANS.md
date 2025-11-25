@@ -95,10 +95,15 @@ What I did (no behavior change):
 Why: These were the top C-grade hotspots in radon that were safe to factor mechanically.
 No strings or outputs changed; tests around prompt-anchor proposals pass.
 
-Next candidates (small, safe):
-- `persistence.get_dataset_for_prompt_or_session` — extract the row-load loop.
-- `flux_local._ensure_pipe` — isolate scheduler/model toggles to a helper.
+Follow-up (done):
+- Extracted `_load_rows_filtered` in persistence and reused it for stats and
+  loader (no behavior change).
+- Split flux-local toggles/logging into `_post_load_toggles`, `_after_model_switch`,
+  and `_record_latents_meta` (same logs/strings; cleaner functions).
+- Broke out `ensure_prompt_and_state` into `_resolve_state_path` + `_apply_or_init_state`.
+- Reduced complexity in value_scorer’s XGB path via `_get_live_xgb_model` and
+  `_print_xgb_unavailable` while preserving the exact unavailable log line.
 
-Update: extracted `_load_rows_filtered` (persistence) and reused it in
-`dataset_stats_for_prompt` and `get_dataset_for_prompt_or_session`. No behavior
-change; same logs/strings.
+Next (still safe and tiny):
+- Consider trimming `_run_pipe` by hoisting OOM-retry decision into a helper;
+  keep text identical. Low risk.

@@ -1786,5 +1786,14 @@ Keep in mind:
   - Persistence: extracted `_load_rows_filtered` and reused it from
     `get_dataset_for_prompt_or_session` and `dataset_stats_for_prompt`.
     Average complexity for persistence dropped to A.
+  - Flux local: split `_ensure_pipe` tail into `_post_load_toggles` and
+    `_after_model_switch`; moved latents meta logging to `_record_latents_meta`.
+    `_ensure_pipe` C→B; latents path A.
+  - App bootstrap: factored `ensure_prompt_and_state` into `_resolve_state_path`
+    and `_apply_or_init_state` (C→B; strings unchanged).
+  - Value scorer: split XGB model fetch/print helpers (`_get_live_xgb_model`,
+    `_print_xgb_unavailable`) reducing `_build_xgb_scorer` C→B.
+  - Latent logic: line-search candidates moved to `_linesearch_mags`; function
+    C→B without changing behavior.
   - Reran radon; average in changed files improved (A/B). Keep future extractions
     surgical and string-stable.

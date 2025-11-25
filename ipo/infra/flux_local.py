@@ -210,59 +210,6 @@ def _run_pipe(**kwargs):
 
     import time as _time
 
-    def _log_call_begin(_steps: int) -> None:
-        try:
-            mid = CURRENT_MODEL_ID
-            ev = LAST_CALL.get("event")
-            lat_std = LAST_CALL.get("latents_std")
-            init_sig = None
-            try:
-                sched = getattr(PIPE, "scheduler", None)
-                init_sig = getattr(sched, "init_noise_sigma", None)
-            except Exception:
-                pass
-            _p(
-                "[pipe] call model={mid} event={ev} steps={steps} size={w}x{h} "
-                "guidance={g} latents_std={ls} init_sigma={isig}".format(
-                    mid=mid,
-                    ev=ev,
-                    steps=int(_steps),
-                    w=kwargs.get("width"),
-                    h=kwargs.get("height"),
-                    g=kwargs.get("guidance_scale"),
-                    ls=lat_std,
-                    isig=init_sig,
-                ),
-                1,
-            )
-        except Exception:
-            pass
-        _p(
-            f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={_steps} w={kwargs.get('width')} h={kwargs.get('height')}",
-            2,
-        )
-
-    def _record_perf(_t0: float) -> None:
-        dur_s = _time.perf_counter() - _t0
-        try:
-            LAST_CALL["dur_s"] = float(dur_s)
-            _p(
-                f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})",
-                1,
-            )
-        except Exception:
-            pass
-
-    def _image_or_passthrough(_out):
-        if hasattr(_out, "images") and getattr(_out, "images"):
-            return _out.images[0]
-        try:
-            if _out is not None and not hasattr(_out, "images"):
-                return _out
-        except Exception:
-            pass
-        raise RuntimeError("Local FLUX pipeline returned no images")
-
     retries = 0
     try:
         retries = int(os.getenv("RETRY_ON_OOM", "0"))
@@ -272,49 +219,122 @@ def _run_pipe(**kwargs):
     while True:
         try:
             t0 = _time.perf_counter()
-            _log_call_begin(steps)
+            _log_call_begin_ext(steps, kwargs)
             with PIPE_LOCK:
                 _prepare_scheduler_locked(int(steps))
                 out = PIPE(**kwargs)
-            _record_perf(t0)
-            img_or_out = _image_or_passthrough(out)
-            # If we have an image, record stats as before
-            if hasattr(img_or_out, "__array__") or getattr(getattr(out, "images", []), "__len__", lambda:0)():
-                try:
-                    import numpy as _np  # type: ignore
-                    img0 = img_or_out if not hasattr(out, "images") else out.images[0]
-                    arr = _np.asarray(img0)
-                    LAST_CALL.update(
-                        {
-                            "img0_mean": float(arr.mean()),
-                            "img0_std": float(arr.std()),
-                            "img0_min": float(arr.min()),
-                            "img0_max": float(arr.max()),
-                        }
-                    )
-                    if _lv() >= 2:
-                        LOGGER.info(
-                            "img0 stats mean=%.3f std=%.3f min=%s max=%s",
-                            float(arr.mean()),
-                            float(arr.std()),
-                            arr.min(),
-                            arr.max(),
-                        )
-                except Exception:
-                    pass
+            _record_perf_ext(t0, kwargs)
+            img_or_out = _image_or_passthrough_ext(out)
+            _record_img0_stats_ext(out, img_or_out)
             return img_or_out
         except RuntimeError as e:
-            if attempt < retries and "out of memory" in str(e).lower():
+            if _should_retry_oom_ext(e, attempt, retries):
                 attempt += 1
-                try:
-                    import torch  # type: ignore
-
-                    torch.cuda.empty_cache()
-                except Exception:
-                    pass
-                _time.sleep(1.0)
                 continue
             raise
+
+
+def _log_call_begin_ext(_steps: int, kwargs) -> None:
+    try:
+        mid = CURRENT_MODEL_ID
+        ev = LAST_CALL.get("event")
+        lat_std = LAST_CALL.get("latents_std")
+        init_sig = None
+        try:
+            sched = getattr(PIPE, "scheduler", None)
+            init_sig = getattr(sched, "init_noise_sigma", None)
+        except Exception:
+            pass
+        _p(
+            "[pipe] call model={mid} event={ev} steps={steps} size={w}x{h} "
+            "guidance={g} latents_std={ls} init_sigma={isig}".format(
+                mid=mid,
+                ev=ev,
+                steps=int(_steps),
+                w=kwargs.get("width"),
+                h=kwargs.get("height"),
+                g=kwargs.get("guidance_scale"),
+                ls=lat_std,
+                isig=init_sig,
+            ),
+            1,
+        )
+    except Exception:
+        pass
+    _p(
+        f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={_steps} w={kwargs.get('width')} h={kwargs.get('height')}",
+        2,
+    )
+
+
+def _record_perf_ext(_t0: float, kwargs) -> None:
+    import time as _time
+
+    dur_s = _time.perf_counter() - _t0
+    try:
+        LAST_CALL["dur_s"] = float(dur_s)
+        _p(
+            f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})",
+            1,
+        )
+    except Exception:
+        pass
+
+
+def _image_or_passthrough_ext(_out):
+    if hasattr(_out, "images") and getattr(_out, "images"):
+        return _out.images[0]
+    try:
+        if _out is not None and not hasattr(_out, "images"):
+            return _out
+    except Exception:
+        pass
+    raise RuntimeError("Local FLUX pipeline returned no images")
+
+
+def _record_img0_stats_ext(out, img_or_out) -> None:
+    # If we have an image, record stats as before
+    if hasattr(img_or_out, "__array__") or getattr(getattr(out, "images", []), "__len__", lambda:0)():
+        try:
+            import numpy as _np  # type: ignore
+            img0 = img_or_out if not hasattr(out, "images") else out.images[0]
+            arr = _np.asarray(img0)
+            LAST_CALL.update(
+                {
+                    "img0_mean": float(arr.mean()),
+                    "img0_std": float(arr.std()),
+                    "img0_min": float(arr.min()),
+                    "img0_max": float(arr.max()),
+                }
+            )
+            if _lv() >= 2:
+                LOGGER.info(
+                    "img0 stats mean=%.3f std=%.3f min=%s max=%s",
+                    float(arr.mean()),
+                    float(arr.std()),
+                    arr.min(),
+                    arr.max(),
+                )
+        except Exception:
+            pass
+
+
+def _should_retry_oom_ext(e: Exception, attempt: int, retries: int) -> bool:
+    import time as _time
+    try:
+        msg = str(e).lower()
+    except Exception:
+        msg = ""
+    if attempt < retries and "out of memory" in msg:
+        try:
+            import torch  # type: ignore
+
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        _time.sleep(1.0)
+        return True
+    return False
 
 
 def _post_load_toggles(pipe) -> None:
