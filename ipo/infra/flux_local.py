@@ -514,62 +514,75 @@ def generate_flux_image_latents(
 def _record_latents_meta(latents, width: int, height: int, steps: int, guidance: float) -> None:
     """Record LAST_CALL + log a concise latents summary (pure helper)."""
     try:
-        # basic stats
-        try:
-            std = float(latents.std().item()) if hasattr(latents, "std") else None
-        except Exception:
-            std = None
-        try:
-            mean = (
-                float(getattr(latents, "mean")().item())
-                if hasattr(latents, "mean")
-                else None
+        std, mean, shp = _latents_basic_stats(latents)
+        guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+        _update_last_call_latents(width, height, steps, guidance_eff, std, mean, shp)
+        init_sigma = _get_init_sigma()
+        if _lv() >= 2:
+            LOGGER.info(
+                "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
+                width,
+                height,
+                steps,
+                guidance_eff,
+                std,
+                mean,
+                shp,
+                init_sigma,
             )
-        except Exception:
-            mean = None
-        try:
-            shp = None
-            try:
-                s = getattr(latents, "shape", None)
-                if s is not None:
-                    shp = tuple(int(x) for x in s)
-            except Exception:
-                shp = None
-            guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
-            LAST_CALL.update(
-                {
-                    "event": "latents_call",
-                    "model_id": CURRENT_MODEL_ID,
-                    "width": int(width),
-                    "height": int(height),
-                    "steps": int(steps),
-                    "guidance": float(guidance_eff),
-                    "latents_std": std,
-                    "latents_mean": mean,
-                    "latents_shape": shp,
-                }
-            )
-            try:
-                sched = getattr(PIPE, "scheduler", None)
-                init_sigma = getattr(sched, "init_noise_sigma", None)
-            except Exception:
-                init_sigma = None
-            if _lv() >= 2:
-                LOGGER.info(
-                    "latents gen w=%s h=%s steps=%s g=%.3f std=%s mean=%s shape=%s init_sigma=%s",
-                    width,
-                    height,
-                    steps,
-                    guidance_eff,
-                    std,
-                    mean,
-                    shp,
-                    init_sigma,
-                )
-        except Exception:
-            pass
     except Exception:
         pass
+
+
+def _latents_basic_stats(latents) -> tuple[float | None, float | None, tuple[int, ...] | None]:
+    """Compute (std, mean, shape) for debug/logging; tolerate stubs."""
+    try:
+        std = float(latents.std().item()) if hasattr(latents, "std") else None
+    except Exception:
+        std = None
+    try:
+        mean = (
+            float(getattr(latents, "mean")().item())
+            if hasattr(latents, "mean")
+            else None
+        )
+    except Exception:
+        mean = None
+    shp = None
+    try:
+        s = getattr(latents, "shape", None)
+        if s is not None:
+            shp = tuple(int(x) for x in s)
+    except Exception:
+        shp = None
+    return std, mean, shp
+
+
+def _update_last_call_latents(width: int, height: int, steps: int, guidance_eff: float, std, mean, shp) -> None:
+    try:
+        LAST_CALL.update(
+            {
+                "event": "latents_call",
+                "model_id": CURRENT_MODEL_ID,
+                "width": int(width),
+                "height": int(height),
+                "steps": int(steps),
+                "guidance": float(guidance_eff),
+                "latents_std": std,
+                "latents_mean": mean,
+                "latents_shape": shp,
+            }
+        )
+    except Exception:
+        pass
+
+
+def _get_init_sigma():
+    try:
+        sched = getattr(PIPE, "scheduler", None)
+        return getattr(sched, "init_noise_sigma", None)
+    except Exception:
+        return None
 
 
 def set_model(model_id: str):
