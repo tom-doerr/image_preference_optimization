@@ -1015,8 +1015,7 @@ New learnings (Nov 20, 2025):
 - Removed Paths/Dataset browser panels from the sidebar to keep it shorter; corresponding test now asserts they stay hidden.
 - Fully deleted the unused `render_paths_panel` and `render_dataset_viewer` helpers from `persistence_ui.py` to reduce dead code.
 - Added a toast when a sample is saved (Good/Bad/Batch/Upload flows) so the user sees immediate feedback; test `tests/test_toast_on_save.py` covers it.
-- New CLI `xgb_cli.py`: trains XGBoost on `dataset_<hash>.npz` for a given prompt and saves `xgb_model_<hash>.bin`; helper `train_xgb_for_prompt` is test-covered (`tests/test_xgb_cli.py`). Minimal, no fallbacks.
-- Smoke subset run (Nov 20, 2025): `python -m unittest tests/test_toast_on_save.py tests/test_xgb_cli.py tests/test_batch_keys_unique.py tests/test_dataset_rows_live.py tests/test_xgb_active_note.py` — all pass (CUDA warning still present).
+- XGB CLI removed (Nov 25, 2025): `xgb_cli.py` and its test were deleted to simplify the surface area. XGBoost training remains available via the UI button only.
 - Added cooldown regression test `tests/test_train_cooldown.py` to ensure recent `last_train_at` with `min_train_interval_s` prevents `fit_value_model` from running. Uses stubs; fast.
 - Consolidation (Nov 20, 2025, later): removed the separate “Train value model” selector—training now follows the main “Value model” choice. XGBoost sidebar status is a single line (`XGBoost active: yes/no`) plus an optional progress/waiting/updated line; we also show a toast when training starts. Tests updated (`tests/test_train_toast_on_start.py`, `tests/test_fit_value_model_async_status.py`, `tests/test_batch_nonce_in_keys.py`, `tests/test_dataset_rows_dim_mismatch_reset.py`).
 - Value prediction under images (Nov 20, 2025):
@@ -1359,7 +1358,7 @@ Next options (138) — proposed path forward
 
 Keep in mind:
 - `flux_local` lazily imports `image_server` only when `use_image_server(True, url)` is active; without a stub or server, that path will raise on first generate — acceptable per our “no fallbacks” policy.
-- `xgb_cli.py` retains a try/except import for `rich_cli`; removing the helper reduces optional deps without changing CLI behavior.
+- CLI notes: optional color helper references remain in docs for logs; no standalone XGB CLI is shipped anymore.
 - Decision (138e, Nov 21, 2025): Consolidated constants access
 - Added a local alias `K = Keys` in modules that use constants heavily (`app.py`, `ui_sidebar.py`) and switched several direct `st.session_state[...]` writes to use `helpers.safe_set` with `K.*` keys.
 - Removed a duplicate `from constants import Keys` in `ui_sidebar.py` and centralized the `DEFAULT_MODEL`/`MODEL_CHOICES` import with `Keys`.
