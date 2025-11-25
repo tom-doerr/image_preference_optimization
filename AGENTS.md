@@ -1903,3 +1903,18 @@ Maintainability (Nov 25, 2025 – late, MI pass):
 - batch_ui.py: removed an unused fragment/caching path and a stray block; extracted tiny param/cooldown helpers to batch_util; simplified logging and nonce math. MI → A (19.43) without changing visible strings.
 - ui_sidebar.py: moved train controls and XGB details into ui_sidebar_panels; delegated “Train results” emission to ui_train_results. MI → A (22.27).
 - All ipo/* modules now grade A by radon MI; remaining B‑grade functions were split or simplified until modules crossed the threshold.
+
+Data loading simplification (Nov 25, 2025):
+- Single source of truth for training data: in‑memory session_state (X/y). We append on label and write to disk once per row, but we do not re‑scan folders during renders.
+- ui_sidebar._get_dataset_for_display now returns only in‑memory (X, y); persistence fallback removed to avoid hidden I/O.
+- Sidebar training data block shows only in‑memory counters; disk path/rows are no longer computed.
+- Ridge details use in‑memory row count instead of disk scans.
+
+Sidebar simplification (Nov 25, 2025):
+- Removed duplicate “Train results” mirror inside a collapsed expander; we now emit a single canonical block once.
+- Kept only essential lines: Value model, Train/CV lines, XGBoost status, Optimization line, Ridge training status.
+
+Runtime log takeaway (Nov 25, 2025):
+- "[xgb] scorer unavailable: no model (… dataset_rows=0 …)" means no labeled rows yet for this prompt/dimension. Label at least one Good (+1) and one Bad (−1), then click "Train XGBoost now (sync)"; captions switch to "[XGB]" when ready.
+- "[data] no dataset for prompt=…" is expected until the first label is saved; we append rows on Good/Bad and write folder data at that time.
+- LCMScheduler "config attributes … ignored" lines are harmless warnings from Diffusers and do not prevent decoding.

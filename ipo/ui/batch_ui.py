@@ -130,21 +130,29 @@ def _try_ridge_if_norm(_gvs, lstate, prompt, st):
 
 def _pick_scorer(vm_choice: str, cache, lstate, prompt, st):
     """Internal: decide scorer without side effects.
-    Order: Distance → Logistic → XGB(cache) → Ridge(||w||>0).
+    Rule (simplified):
+    - XGBoost → use XGB only; no Ridge/Logit fallback for captions.
+    - Logistic/Distance → use their respective scorer.
+    - Ridge → use Ridge when ‖w‖>0.
     """
     try:
         from value_scorer import get_value_scorer as _gvs
     except Exception:
         return None, None
-    for fn in (
-        lambda: _try_distance(_gvs, vm_choice, lstate, prompt, st),
-        lambda: _try_logistic(_gvs, vm_choice, lstate, prompt, st),
-        lambda: _try_xgb_live(_gvs, lstate, prompt, st),
-        lambda: _try_ridge_if_norm(_gvs, lstate, prompt, st),
-    ):
-        s, tag = fn()
-        if s is not None:
-            return s, tag
+    if str(vm_choice) == "XGBoost":
+        s, tag = _try_xgb_live(_gvs, lstate, prompt, st)
+        return (s, tag) if s is not None else (None, None)
+    # Distance / Logistic first
+    s, tag = _try_distance(_gvs, vm_choice, lstate, prompt, st)
+    if s is not None:
+        return s, tag
+    s, tag = _try_logistic(_gvs, vm_choice, lstate, prompt, st)
+    if s is not None:
+        return s, tag
+    # Ridge only when explicitly not XGB and w is non‑zero
+    s, tag = _try_ridge_if_norm(_gvs, lstate, prompt, st)
+    if s is not None:
+        return s, tag
     return None, None
 
 
@@ -185,12 +193,16 @@ def _vm_tag(st) -> str:
 
 
 def _tile_value_text(st, z_p, z_i, scorer) -> str:
-    """Return "Value: … [TAG]" from the active scorer or Logit, else n/a."""
+    """Return "Value: … [TAG]" from the active scorer; never fall back when VM=XGBoost."""
     v = _predict_value(scorer, z_p, z_i)
     if v is not None:
         return f"Value: {v:.3f} [{_vm_tag(st)}]"
-    alt = _maybe_logit_value(z_p, z_i, st)
-    return alt or "Value: n/a"
+    # If user selected Logistic explicitly, allow Logit fallback
+    if str(getattr(st.session_state, "vm_choice", "")) == "Logistic":
+        alt = _maybe_logit_value(z_p, z_i, st)
+        if alt:
+            return alt
+    return "Value: n/a"
 
 
 def _render_tiles_row(
@@ -524,49 +536,35 @@ def _render_batch_tile_body(
 
 def _curation_train_and_next() -> None:
     import streamlit as st
-    # Use shared helper to resolve dataset (memory-first; then folder)
-    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     lstate, prompt = _lstate_and_prompt()
-    # Respect toggle: skip training when disabled
     if not bool(st.session_state.get("train_on_new_data", True)):
-        _curation_new_batch()
-        return
-    # Resolve dataset once (memory-first)
+        _curation_new_batch(); return
+    # Resolve dataset (memory-first) and maybe train once
+    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     X, y = _gdf(st, lstate, prompt)
-    # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
-    if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
-        try:
-            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
-            try:
-                getattr(st, "toast", lambda *a, **k: None)("Training Ridge…")
-            except Exception:
-                pass
-            if not _cooldown_recent(st):
-                _fit_ridge_once(lstate, X, y, lam_now, st)
-        except Exception:
-            pass
+    _maybe_train_ridge_sync(st, lstate, X, y)
     _curation_new_batch()
 
 
 def _refit_from_dataset_keep_batch() -> None:
     import streamlit as st
-    # Use shared helper for dataset resolution (memory-first)
-    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
         return
-    # Async training removed; resolve dataset once
+    from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     X, y = _gdf(st, lstate, prompt)
-    # persistence.get_dataset_for_prompt_or_session already guards dim mismatches
+    _maybe_train_ridge_sync(st, lstate, X, y)
+
+def _maybe_train_ridge_sync(st, lstate, X, y) -> None:
+    """Train Ridge synchronously once when data are present and cooldown allows."""
     try:
-        if X is not None and y is not None and getattr(X, "shape", (0,))[0] > 0:
-            lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
-            try:
-                getattr(st, "toast", lambda *a, **k: None)("Training Ridge…")
-            except Exception:
-                pass
-            if not _cooldown_recent(st):
-                _fit_ridge_once(lstate, X, y, lam_now, st)
+        n = int(getattr(X, "shape", (0,))[0]) if X is not None else 0
+        if n <= 0 or y is None:
+            return
+        lam_now = float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300))
+        getattr(st, "toast", lambda *a, **k: None)("Training Ridge…")
+        if not _cooldown_recent(st):
+            _fit_ridge_once(lstate, X, y, lam_now, st)
     except Exception:
         pass
 
