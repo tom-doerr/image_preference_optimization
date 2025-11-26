@@ -36,12 +36,12 @@ def _optim_xgb(z, ls, ss, n):
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
     if mdl is None: return z
-    best, bs = z, _xgb_proba(mdl, z)
+    best, bs = z.copy(), _xgb_proba(mdl, z)
     for _ in range(n):
-        c = z + np.random.randn(len(z)) * 0.1 * ls.sigma
+        c = best + np.random.randn(len(z)) * 0.1 * ls.sigma
         s = _xgb_proba(mdl, c)
         if s > bs: best, bs = c, s
-    print(f"[optim] XGB: {bs:.4f}")
+    print(f"[optim] XGB hill climb: {bs:.4f}")
     return best
 
 def _optimize_z(z, lstate, ss, steps, eta=0.01):
