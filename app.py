@@ -25,6 +25,9 @@ st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, 
 # Latent optimization steps
 iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 10)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
+# Batch size
+batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or 6)
+st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input("Batch Size", min_value=1, max_value=20, value=batch_val)
 # Training stats
 st.sidebar.markdown("---")
 st.sidebar.subheader("Training Stats")
