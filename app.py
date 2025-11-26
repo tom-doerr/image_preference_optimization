@@ -23,7 +23,7 @@ vm_opts = ["Ridge", "XGBoost"]
 vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
 # Latent optimization steps
-iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 0)
+iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 10)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
 # Training stats
 st.sidebar.markdown("---")
