@@ -60,7 +60,7 @@ def _curation_init_batch(): _curation_new_batch()
 def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
-    n = int(st.session_state.get(Keys.BATCH_SIZE) or 6)
+    n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
     steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
     eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
     zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
