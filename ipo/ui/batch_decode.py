@@ -18,7 +18,10 @@ def decode_one(i: int, lstate: Any, prompt: str, z_i, steps: int, guidance_eff: 
     except Exception:
         # Allow tests that inject a stub module to satisfy this import
         from sys import modules as _modules
-        generate_flux_image_latents = getattr(_modules.get("flux_local"), "generate_flux_image_latents")  # type: ignore
+        _fl = _modules.get("flux_local")
+        generate_flux_image_latents = getattr(  # type: ignore
+            _fl, "generate_flux_image_latents"
+        )
 
     t0 = _time.perf_counter()
     try:
@@ -37,7 +40,12 @@ def decode_one(i: int, lstate: Any, prompt: str, z_i, steps: int, guidance_eff: 
     try:
         dt_ms = (_time.perf_counter() - t0) * 1000.0
         from .batch_ui import _log  # local import to avoid cycles on import time
-        _log(f"[batch] decoded item={i} in {dt_ms:.1f} ms (steps={steps}, w={lstate.width}, h={lstate.height})")
+        _log(
+            (
+                f"[batch] decoded item={i} in {dt_ms:.1f} ms "
+                f"(steps={steps}, w={lstate.width}, h={lstate.height})"
+            )
+        )
     except Exception:
         pass
     return img_i

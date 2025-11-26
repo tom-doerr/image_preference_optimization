@@ -231,7 +231,12 @@ def _get_dataset_for_display(st: Any, lstate: Any, prompt: str):
     """
     Xm = getattr(lstate, 'X', None)
     ym = getattr(lstate, 'y', None)
-    if Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0:
+    if (
+        Xm is not None
+        and getattr(Xm, 'shape', (0,))[0] > 0
+        and ym is not None
+        and getattr(ym, 'shape', (0,))[0] > 0
+    ):
         return Xm, ym
     return None, None
 
@@ -292,7 +297,14 @@ def _sidebar_persistence_section(st: Any, lstate: Any, prompt: str, state_path: 
     return
 
 
-def _render_iter_step_scores_block(st: Any, lstate: Any, prompt: str, vm_choice: str, iter_steps: int, iter_eta: float | None) -> None:
+def _render_iter_step_scores_block(
+    st: Any,
+    lstate: Any,
+    prompt: str,
+    vm_choice: str,
+    iter_steps: int,
+    iter_eta: float | None,
+) -> None:
     try:
         _tr = st.session_state.get("trust_r", 0.0)
         trust_val = float(_tr) if (_tr is not None and float(_tr) > 0.0) else None
@@ -348,10 +360,19 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
         stats = _mem_dataset_stats(st, lstate)
         if callable(exp):
             with exp("Training data", expanded=False):
-                sidebar_metric_rows([("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))], per_row=2)
+                sidebar_metric_rows(
+                    [("Pos", stats.get("pos", 0)), ("Neg", stats.get("neg", 0))],
+                    per_row=2,
+                )
                 sidebar_metric_rows([("Feat dim", stats.get("d", 0))], per_row=1)
         else:
-            safe_write(st, f"Training data: pos={stats.get('pos',0)} neg={stats.get('neg',0)} d={stats.get('d',0)}")
+            safe_write(
+                st,
+                (
+                    f"Training data: pos={stats.get('pos',0)} "
+                    f"neg={stats.get('neg',0)} d={stats.get('d',0)}"
+                ),
+            )
     except Exception:
         pass
 

@@ -70,7 +70,10 @@ def build_pair_controls(st, expanded: bool = False):
     try:
         st.sidebar.write("Proposes the next A/B around the prompt:")
         st.sidebar.write("Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1);")
-        st.sidebar.write("Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration.")
+        st.sidebar.write(
+            "Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds "
+            "orthogonal exploration."
+        )
     except Exception:
         pass
     alpha = sld("Alpha (ridge d1)", value=0.5, step=0.05)

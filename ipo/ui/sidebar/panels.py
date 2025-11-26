@@ -5,7 +5,9 @@ from typing import Any
 from ipo.infra.util import SAFE_EXC
 
 
-def sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
+def sidebar_value_model_block(
+    st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float
+) -> None:
     """Render the Value model block in the sidebar.
 
     Delegates utilities (cached CV, details writers, status lines) to ui_sidebar helpers
@@ -95,7 +97,10 @@ def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
         Xm = getattr(lstate, 'X', None)
         ym = getattr(lstate, 'y', None)
         has_mem = (
-            Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
+            Xm is not None
+            and getattr(Xm, 'shape', (0,))[0] > 0
+            and ym is not None
+            and getattr(ym, 'shape', (0,))[0] > 0
         )
         return (Xm, ym) if has_mem else (Xd, yd)
 
@@ -130,7 +135,13 @@ def _xgb_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
 
     Xs, Ys = _select_dataset()
     pos, neg = _count_pos_neg(Ys)
-    if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1 and pos > 0 and neg > 0:
+    if (
+        Xs is not None
+        and Ys is not None
+        and getattr(Xs, 'shape', (0,))[0] > 1
+        and pos > 0
+        and neg > 0
+    ):
         _train_now(Xs, Ys)
 
 
@@ -138,9 +149,16 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
     from value_model import fit_value_model as _fit_vm
     Xm = getattr(lstate, 'X', None)
     ym = getattr(lstate, 'y', None)
-    Xs, Ys = (Xm, ym) if (
-        Xm is not None and getattr(Xm, 'shape', (0,))[0] > 0 and ym is not None and getattr(ym, 'shape', (0,))[0] > 0
-    ) else (Xd, yd)
+    Xs, Ys = (
+        (Xm, ym)
+        if (
+            Xm is not None
+            and getattr(Xm, 'shape', (0,))[0] > 0
+            and ym is not None
+            and getattr(ym, 'shape', (0,))[0] > 0
+        )
+        else (Xd, yd)
+    )
     if Xs is not None and Ys is not None and getattr(Xs, 'shape', (0,))[0] > 1:
         from ipo.infra.constants import Keys
         lam_now = float(st.session_state.get(Keys.REG_LAMBDA, 1.0))

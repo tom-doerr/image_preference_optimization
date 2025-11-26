@@ -290,7 +290,11 @@ def _record_perf_ext(_t0: float, kwargs) -> None:
     try:
         LAST_CALL["dur_s"] = float(dur_s)
         _p(
-            f"[perf] PIPE call took {dur_s:.3f} s (steps={kwargs.get('num_inference_steps')}, w={kwargs.get('width')}, h={kwargs.get('height')})",
+            (
+                f"[perf] PIPE call took {dur_s:.3f} s ("
+                f"steps={kwargs.get('num_inference_steps')}, "
+                f"w={kwargs.get('width')}, h={kwargs.get('height')})"
+            ),
             1,
         )
     except Exception:
@@ -310,7 +314,7 @@ def _image_or_passthrough_ext(_out):
 
 def _record_img0_stats_ext(out, img_or_out) -> None:
     # If we have an image, record stats as before
-    if hasattr(img_or_out, "__array__") or getattr(getattr(out, "images", []), "__len__", lambda:0)():
+    if hasattr(img_or_out, "__array__") or getattr(getattr(out, "images", []), "__len__", lambda: 0)():  # noqa: E501
         try:
             import numpy as _np  # type: ignore
             img0 = img_or_out if not hasattr(out, "images") else out.images[0]
@@ -574,7 +578,15 @@ def _latents_basic_stats(latents) -> tuple[float | None, float | None, tuple[int
     return std, mean, shp
 
 
-def _update_last_call_latents(width: int, height: int, steps: int, guidance_eff: float, std, mean, shp) -> None:
+def _update_last_call_latents(
+    width: int,
+    height: int,
+    steps: int,
+    guidance_eff: float,
+    std,
+    mean,
+    shp,
+) -> None:
     try:
         LAST_CALL.update(
             {

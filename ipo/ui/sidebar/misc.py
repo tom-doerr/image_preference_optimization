@@ -71,7 +71,13 @@ def emit_step_readouts(st: Any, lstate: Any) -> None:
     try:
         import numpy as _np
         mu = getattr(lstate, 'mu', _np.zeros(getattr(lstate, 'd', 0)))
-        lr_mu_val = float(getattr(st.session_state, 'lr_mu_ui', getattr(st.session_state, 'LR_MU_UI', 0.3)))
+        lr_mu_val = float(
+            getattr(
+                st.session_state,
+                'lr_mu_ui',
+                getattr(st.session_state, 'LR_MU_UI', 0.3),
+            )
+        )
         pair = getattr(st.session_state, 'lz_pair', None)
         if pair is not None:
             z_a, z_b = pair
@@ -97,7 +103,10 @@ def emit_debug_panel(st: Any) -> None:
 def emit_dim_mismatch(st: Any) -> None:
     """If a dim mismatch is recorded, print an explanatory line."""
     try:
-        mismatch = st.session_state.get('dataset_dim_mismatch') or st.session_state.get('DATASET_DIM_MISMATCH')
+        mismatch = (
+            st.session_state.get('dataset_dim_mismatch')
+            or st.session_state.get('DATASET_DIM_MISMATCH')
+        )
         if mismatch and isinstance(mismatch, tuple) and len(mismatch) == 2:
             st.sidebar.write(
                 f"Dataset recorded at d={mismatch[0]} (ignored); current latent dim d={mismatch[1]}"
@@ -119,7 +128,13 @@ def emit_last_action_recent(st: Any) -> None:
 
 def rows_refresh_tick(st: Any) -> None:
     try:
-        rows_live = int(len(st.session_state.get('DATASET_Y', []) or st.session_state.get('dataset_y', []) or []))
+        rows_live = int(
+            len(
+                st.session_state.get('DATASET_Y', [])
+                or st.session_state.get('dataset_y', [])
+                or []
+            )
+        )
     except SAFE_EXC:
         rows_live = 0
     st.session_state['ROWS_DISPLAY'] = str(rows_live)

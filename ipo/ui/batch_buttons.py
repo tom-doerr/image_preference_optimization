@@ -45,7 +45,10 @@ def _label_and_replace(i: int, lbl: int, z_i, img_i, st) -> None:
     st.session_state.cur_labels[i] = lbl
     _refit_from_dataset_keep_batch()
     _curation_replace_at(i)
-    _log(f"[perf] {'good' if lbl>0 else 'bad'}_label item={i} took {(_time.perf_counter() - t0b2) * 1000:.1f} ms")
+    d_ms = (_time.perf_counter() - t0b2) * 1000.0
+    _log(
+        f"[perf] {'good' if lbl>0 else 'bad'}_label item={i} took {d_ms:.1f} ms"
+    )
     try:
         rr = getattr(st, "rerun", None)
         if callable(rr):

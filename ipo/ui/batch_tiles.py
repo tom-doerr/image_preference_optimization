@@ -44,7 +44,18 @@ def render_batch_tile_body(
     _render_good_bad_buttons(st, i, z_i, img_i, nonce, gcol, bcol)
 
 
-def render_row_inline(st, idxs, lstate, prompt: str, steps: int, guidance_eff: float, best_of: bool, scorer, cur_batch, z_p) -> None:
+def render_row_inline(
+    st,
+    idxs,
+    lstate,
+    prompt: str,
+    steps: int,
+    guidance_eff: float,
+    best_of: bool,
+    scorer,
+    cur_batch,
+    z_p,
+) -> None:
     """Minimal inline row renderer used as a fallback in batch UI.
 
     It renders each tile via render_batch_tile_body inside column containers.
@@ -57,6 +68,30 @@ def render_row_inline(st, idxs, lstate, prompt: str, steps: int, guidance_eff: f
     for col, i in zip(cols, idxs):
         if col is not None:
             with col:
-                render_batch_tile_body(i, rn, lstate, prompt, steps, guidance_eff, best_of, scorer, False, cur_batch, z_p)
+                render_batch_tile_body(
+                    i,
+                    rn,
+                    lstate,
+                    prompt,
+                    steps,
+                    guidance_eff,
+                    best_of,
+                    scorer,
+                    False,
+                    cur_batch,
+                    z_p,
+                )
         else:
-            render_batch_tile_body(i, rn, lstate, prompt, steps, guidance_eff, best_of, scorer, False, cur_batch, z_p)
+            render_batch_tile_body(
+                i,
+                rn,
+                lstate,
+                prompt,
+                steps,
+                guidance_eff,
+                best_of,
+                scorer,
+                False,
+                cur_batch,
+                z_p,
+            )

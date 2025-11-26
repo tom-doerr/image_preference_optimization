@@ -284,7 +284,11 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     z = z_p + float(getattr(lstate, "sigma", 1.0)) * float(scale) * r
     try:
         _log(
-            f"[latent] sample_around_prompt scale={scale} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} ‖z‖={float(np.linalg.norm(z)):.3f}"
+            (
+                f"[latent] sample_around_prompt scale={scale} "
+                f"‖z_p‖={float(np.linalg.norm(z_p)):.3f} "
+                f"‖z‖={float(np.linalg.norm(z)):.3f}"
+            )
         )
     except Exception:
         pass
@@ -382,7 +386,11 @@ def _curation_new_batch() -> None:
     dt_ms = (_time.perf_counter() - t0) * 1000.0
     vm_choice = st.session_state.get(Keys.VM_CHOICE)
     _log(
-        f"[batch] new batch: n={len(z_list)} d={lstate.d} sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} size={lstate.width}x{lstate.height} vm={vm_choice} in {dt_ms:.1f} ms"
+        (
+            f"[batch] new batch: n={len(z_list)} d={lstate.d} "
+            f"sigma={lstate.sigma:.3f} ‖z_p‖={float(np.linalg.norm(z_p)):.3f} "
+            f"size={lstate.width}x{lstate.height} vm={vm_choice} in {dt_ms:.1f} ms"
+        )
     )
 
 
@@ -531,7 +539,19 @@ def _render_batch_tile_body(
     z_p,
 ) -> None:
     from .batch_tiles import render_batch_tile_body as _rb
-    _rb(i, render_nonce, lstate, prompt, steps, guidance_eff, best_of, scorer, fut_running, cur_batch, z_p)
+    _rb(
+        i,
+        render_nonce,
+        lstate,
+        prompt,
+        steps,
+        guidance_eff,
+        best_of,
+        scorer,
+        fut_running,
+        cur_batch,
+        z_p,
+    )
 
 
 def _curation_train_and_next() -> None:

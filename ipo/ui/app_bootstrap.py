@@ -38,7 +38,9 @@ def _emit_train_lines(vm: str) -> None:
     try:
         from value_scorer import get_value_scorer as _gvs
 
-        lstate_early = getattr(st.session_state, "lstate", None) or types.SimpleNamespace(d=0, w=None)  # type: ignore
+        lstate_early = getattr(st.session_state, "lstate", None) or types.SimpleNamespace(  # type: ignore
+            d=0, w=None
+        )
         prompt_early = (
             st.session_state.get(Keys.PROMPT) or st.session_state.get("prompt") or DEFAULT_PROMPT
         )
@@ -62,7 +64,11 @@ def _emit_train_lines(vm: str) -> None:
 
 
 def _emit_latent_dim_and_model() -> None:
-    ld = int(getattr(getattr(st.session_state, "lstate", None), "d", 0)) if hasattr(st, "session_state") else 0
+    ld = (
+        int(getattr(getattr(st.session_state, "lstate", None), "d", 0))
+        if hasattr(st, "session_state")
+        else 0
+    )
     safe_write(st, f"Latent dim: {ld}")
     try:
         from ipo.infra.pipeline_local import set_model
@@ -106,7 +112,9 @@ def _resolve_state_path() -> None:
 
         st.session_state.state_path = _spp(st.session_state.get("prompt") or DEFAULT_PROMPT)
     except Exception:
-        h = hashlib.sha1((st.session_state.get("prompt") or DEFAULT_PROMPT).encode("utf-8")).hexdigest()[:10]
+        h = hashlib.sha1(
+            (st.session_state.get("prompt") or DEFAULT_PROMPT).encode("utf-8")
+        ).hexdigest()[:10]
         st.session_state.state_path = f"latent_state_{h}.npz"
 
 
