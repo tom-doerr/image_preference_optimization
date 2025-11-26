@@ -1,8 +1,6 @@
-from typing import Any
-
 import numpy as np
-
-from ipo.infra.constants import Keys
+import streamlit as st
+from ipo.infra.constants import Keys, DEFAULT_PROMPT
 
 
 def _update_rows_display(st, Keys):
@@ -113,7 +111,7 @@ def _render_good_bad(st, i, z_i, img_i):
             _curation_add(-1, z_i, img_i)
             _curation_replace_at(i)
 
-def _render_batch_tile_body(i: int, lstate: Any, prompt: str, steps: int, guidance_eff: float, cur_batch) -> None:
+def _render_batch_tile_body(i, lstate, prompt, steps, guidance_eff, cur_batch):
     import streamlit as st
     z_i = cur_batch[i]
     img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
@@ -159,10 +157,39 @@ def _render_batch_ui() -> None:
                           steps, guidance_eff, cur_batch)
 
 
-def run_batch_mode() -> None:
-    _curation_init_batch()
-    _render_batch_ui()
-def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, guidance_eff: float):
+def run_batch_mode():
+    from ipo.infra.pipeline_local import set_model
+    set_model(None)
+    lstate, prompt = _lstate_and_prompt()
+    n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
+    if "batch_z" not in st.session_state:
+        st.session_state.batch_z = [_sample_z(lstate, prompt) for _ in range(n)]
+        st.session_state.batch_img = [None] * n
+    _render_batch(lstate, prompt, n)
+
+def _render_batch(lstate, prompt, n):
+    from ipo.core.latent_state import z_to_latents
+    from ipo.infra.pipeline_local import generate_flux_image_latents as gen
+    cols = st.columns(n)
+    for i, col in enumerate(cols):
+        with col:
+            _render_tile(i, lstate, prompt, z_to_latents, gen)
+
+def _render_tile(i, ls, pr, z2l, gen):
+    z = st.session_state.batch_z[i]
+    if st.session_state.batch_img[i] is None:
+        st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, 6, 0.0)
+    st.image(st.session_state.batch_img[i], caption=f"#{i}")
+    if st.button("👍", key=f"g{i}"): _do_label(i, 1, ls, pr)
+    if st.button("👎", key=f"b{i}"): _do_label(i, -1, ls, pr)
+
+def _do_label(i, label, ls, pr):
+    _curation_add(label, st.session_state.batch_z[i], st.session_state.batch_img[i])
+    st.session_state.batch_z[i] = _sample_z(ls, pr)
+    st.session_state.batch_img[i] = None
+    st.rerun()
+
+def _decode_one(i, lstate, prompt, z_i, steps, guidance_eff):
     from ipo.core.latent_state import z_to_latents
     from ipo.infra.pipeline_local import generate_flux_image_latents
     la = z_to_latents(lstate, z_i)
