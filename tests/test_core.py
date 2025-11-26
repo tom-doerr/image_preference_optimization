@@ -37,3 +37,12 @@ def test_value_model_fit():
     y = np.array([1,-1,1,-1,1,-1,1,-1,1,-1])
     fit_value_model("Ridge", state, X, y, 1.0, {})
     assert not np.allclose(state.w, 0)
+
+def test_data_persist(tmp_path, monkeypatch):
+    monkeypatch.setenv("IPO_DATA_ROOT", str(tmp_path))
+    from ipo.core.persistence import append_sample, get_dataset_for_prompt_or_session
+    from ipo.core.latent_state import init_latent_state
+    st = init_latent_state(); f = np.random.randn(1, st.d)
+    append_sample("t", f, 1.0)
+    X, y = get_dataset_for_prompt_or_session("t", type("S", (), {"lstate": st})())
+    assert X is not None and X.shape[0] == 1
