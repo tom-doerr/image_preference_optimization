@@ -69,6 +69,7 @@ def _mem_lock(prompt):
 def append_dataset_row(prompt, feat, label):
     import re
     root = data_root_for_prompt(prompt); os.makedirs(root, exist_ok=True)
+    print(f"[data] append_dataset_row root={root} feat.shape={feat.shape} label={label}")
     with _mem_lock(prompt), _file_lock(prompt):
         idxs = [int(m.group(1)) for n in os.listdir(root) if (m := re.fullmatch(r"(\d+)", n))]
         idx = (max(idxs) + 1) if idxs else 1

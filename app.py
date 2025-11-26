@@ -39,8 +39,16 @@ if "lstate" not in st.session_state:
         except: _apply_state(st, init_latent_state())
     else: _apply_state(st, init_latent_state())
 lstate = st.session_state.lstate
-# Display training stats
 import numpy as np
+from ipo.core.persistence import get_dataset_for_prompt_or_session
+X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
+print(f"[app] prompt='{base_prompt[:30]}...' X={X.shape if X is not None else None}")
+# Train on page load if data exists
+if X is not None and X.shape[0] > 0:
+    from ipo.core.value_model import fit_value_model
+    vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
+    fit_value_model(vm, lstate, X, y, 1e300, st.session_state)
+# Display training stats
 
 w = getattr(lstate, "w", None)
 w_norm = float(np.linalg.norm(w)) if w is not None else 0.0
@@ -51,8 +59,6 @@ st.sidebar.text(f"XGB samples: {xgb_n}")
 last_train = st.session_state.get(Keys.LAST_TRAIN_AT) or "never"
 st.sidebar.text(f"Last train: {last_train}")
 # Dataset stats
-from ipo.core.persistence import get_dataset_for_prompt_or_session
-X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
 n_total = 0 if X is None else X.shape[0]
 n_pos = int((y > 0).sum()) if y is not None else 0
 n_neg = int((y < 0).sum()) if y is not None else 0
