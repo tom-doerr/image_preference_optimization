@@ -76,7 +76,7 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
     """
     lstate, prompt = _lstate_and_prompt()
     try:
-        from ipo.core.latent_logic import z_from_prompt
+        from ipo.core.latent_state import z_from_prompt
 
         z_p = z_from_prompt(lstate, prompt)
     except Exception:
@@ -97,22 +97,10 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
 
 
 def _prepare_xgb_scorer(lstate: Any, prompt: str):
-    """Return (scorer, status) for XGB from cache (no auto-fit)."""
-    # Prefer unified scorer; provide a tiny compat shim when tests stub only the old API.
     try:
-        from ipo.core.value_scorer import get_value_scorer as _gvs
-    except Exception:
-        from ipo.core.value_scorer import get_value_scorer_with_status as _gvs_ws  # type: ignore
-
-        def _gvs(vm_choice, lstate, prompt, session_state):  # type: ignore
-            s, status = _gvs_ws(vm_choice, lstate, prompt, session_state)
-            return (s, ("ok" if callable(s) else status))
-
-    try:
-        scorer, tag_or_status = _gvs(
-            "XGBoost", lstate, prompt, __import__("streamlit").session_state
-        )
-        return (scorer, "ok") if scorer is not None else (None, str(tag_or_status))
+        from ipo.core.value_model import get_value_scorer as _gvs
+        scorer, tag = _gvs("XGBoost", lstate, prompt, __import__("streamlit").session_state)
+        return (scorer, "ok") if scorer else (None, tag)
     except Exception:
         return None, "xgb_unavailable"
 
@@ -206,7 +194,7 @@ def _resample_tile_at_index(i: int) -> np.ndarray:
     try:
         lstate, prompt = _lstate_and_prompt()
         try:
-            from ipo.core.latent_logic import z_from_prompt as _zfp
+            from ipo.core.latent_state import z_from_prompt as _zfp
             z_p = _zfp(lstate, prompt)
         except Exception:
             z_p = _np.zeros(int(getattr(lstate, 'd', 8)), dtype=float)
@@ -235,7 +223,7 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
 
     from ipo.infra.constants import Keys
-    from ipo.core.latent_logic import z_from_prompt
+    from ipo.core.latent_state import z_from_prompt
 
     lstate, prompt = _lstate_and_prompt()
     z_p = z_from_prompt(lstate, prompt)
@@ -329,7 +317,7 @@ def run_batch_mode() -> None:
     _curation_init_batch()
     _render_batch_ui()
 def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, guidance_eff: float):
-    from ipo.core.latent_logic import z_to_latents
+    from ipo.core.latent_state import z_to_latents
     from ipo.infra.pipeline_local import generate_flux_image_latents
     la = z_to_latents(lstate, z_i)
     return generate_flux_image_latents(prompt, latents=la, width=lstate.width, height=lstate.height, steps=steps, guidance=guidance_eff)

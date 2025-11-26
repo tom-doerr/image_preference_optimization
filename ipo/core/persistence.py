@@ -23,31 +23,7 @@ def state_path_for_prompt(prompt: str) -> str:
 
 
 def _base_data_dir() -> str:
-    """Return base data directory.
-
-    Precedence:
-    - IPO_DATA_ROOT env if set
-    - Per-test isolated folder when PYTEST_CURRENT_TEST is present
-    - Default 'data/'
-    """
-    global _BASE_DIR_CACHE
-    # Honor explicit root first
-    root = os.getenv("IPO_DATA_ROOT")
-    if root:
-        return root
-    # If a cached test root exists (set earlier in this session), reuse it
-    try:
-        if _BASE_DIR_CACHE is not None:
-            return _BASE_DIR_CACHE
-    except NameError:
-        pass
-    # Under pytest, use a single per-process temp root to avoid flakiness
-    if os.getenv("PYTEST_CURRENT_TEST"):
-        if _BASE_DIR_CACHE is None:
-            run = os.getenv("IPO_TEST_RUN") or str(os.getpid())
-            _BASE_DIR_CACHE = os.path.join(".tmp_cli_models", f"tdata_run_{run}")
-        return _BASE_DIR_CACHE
-    return "data"
+    return os.getenv("IPO_DATA_ROOT") or "data"
 
 
 def data_root_for_prompt(prompt: str) -> str:
@@ -81,37 +57,8 @@ def _file_lock_for_prompt(prompt: str):
             f.close()
 
 
-def dataset_rows_for_prompt(prompt: str) -> int:
-    """Count rows from per-sample folders only (data/<hash>/*/sample.npz)."""
-    root = data_root_for_prompt(prompt)
-    if not os.path.isdir(root):
-        return 0
-    n = 0
-    for name in os.listdir(root):
-        sample_path = os.path.join(root, name, "sample.npz")
-        if os.path.exists(sample_path):
-            n += 1
-    return n
 
 
-def dataset_rows_for_prompt_dim(prompt: str, d: int) -> int:
-    """Count rows in folders where X.shape[1] == d."""
-    root = data_root_for_prompt(prompt)
-    if not os.path.isdir(root):
-        return 0
-    n = 0
-    for name in os.listdir(root):
-        sample_path = os.path.join(root, name, "sample.npz")
-        if not os.path.exists(sample_path):
-            continue
-        with np.load(sample_path) as z:
-            X = z["X"] if "X" in z.files else None
-            if X is not None and getattr(X, "ndim", 1) == 2 and X.shape[1] == int(d):
-                n += 1
-    return n
-
-
-# dataset_rows_all_for_prompt removed (203f): use dataset_rows_for_prompt instead.
 
 
 def _target_dim_from_session(session_state) -> int | None:
@@ -307,32 +254,6 @@ def append_sample(prompt: str, feat: np.ndarray, label: float, img: Any | None =
     return row_idx
 
 
-# Legacy backup/aggregate NPZs removed (195c): folder-per-sample is the only format.
-
-
-def dataset_stats_for_prompt(prompt: str) -> dict:
-    """Folder-based stats: rows/pos/neg/d/recent_labels from data/<hash>/*/sample.npz."""
-    rows = pos = neg = d = 0
-    recent: list[int] = []
-    root = data_root_for_prompt(prompt)
-    if not os.path.isdir(root):
-        return {"rows": 0, "pos": 0, "neg": 0, "d": 0, "recent_labels": recent}
-    labels: list[int] = []
-    for sample_path in _iter_sample_paths(root):
-        Xi, yi = _load_sample_npz(sample_path)
-        if Xi is None or yi is None:
-            continue
-        if d == 0 and getattr(Xi, "ndim", 1) == 2:
-            d = int(Xi.shape[1])
-        rows += 1
-        val = int(np.asarray(yi).astype(int).ravel()[0])
-        labels.append(val)
-    if labels:
-        arr = np.asarray(labels)
-        pos = int((arr > 0).sum())
-        neg = int((arr < 0).sum())
-        recent = [int(v) for v in arr[-5:]]
-    return {"rows": rows, "pos": pos, "neg": neg, "d": d, "recent_labels": recent}
 
 
 def export_state_bytes(state, prompt: str) -> bytes:
@@ -351,24 +272,6 @@ def export_state_bytes(state, prompt: str) -> bytes:
     return buf.getvalue()
 
 
-def read_metadata(path: str) -> dict:
-    """Return minimal metadata dict from a saved NPZ state file.
-
-    Keys: 'app_version' (str|None), 'created_at' (str|None), 'prompt' (str|None)
-    Missing keys return as None. Errors bubble up to caller (keep it simple).
-    """
-    out = {"app_version": None, "created_at": None, "prompt": None}
-    with np.load(path) as data:
-        if "app_version" in data.files:
-            out["app_version"] = data["app_version"].item()
-        if "created_at" in data.files:
-            out["created_at"] = data["created_at"].item()
-        if "prompt" in data.files:
-            try:
-                out["prompt"] = data["prompt"].item()
-            except Exception:
-                pass
-    return out
 _LOCKS_GUARD = threading.Lock()
 _APPEND_LOCKS: dict[str, threading.Lock] = {}
 
@@ -387,4 +290,3 @@ def _lock_for_prompt(prompt: str) -> threading.Lock:
                 lock = threading.Lock()
                 _APPEND_LOCKS[key] = lock
     return lock
-_BASE_DIR_CACHE: str | None = None

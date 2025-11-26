@@ -7,18 +7,31 @@ from typing import Any
 
 import numpy as np
 
-from ipo.infra.constants import Keys
-from ipo.infra.constants import SAFE_EXC
+from ipo.infra.constants import Keys, SAFE_EXC
 
-__all__ = [
-    "fit_value_model",
-    "ensure_fitted",  # compat shim; sync-only
-    "ValueModel",
-    "RidgeVM",
-    "XGBVM",
-    "LogisticVM",
-    "get_vm",
-]
+class XGBTrainer:
+    def __init__(self, n_estimators=50, max_depth=3):
+        self.n_estimators, self.max_depth = int(n_estimators), int(max_depth)
+    def fit(self, X, y):
+        import xgboost as xgb
+        m = xgb.XGBClassifier(n_estimators=self.n_estimators, max_depth=self.max_depth, learning_rate=0.1)  # noqa: E501
+        m.fit(X, y); return m
+
+def _xgb_proba(model, fvec):
+    return float(model.predict_proba(np.asarray(fvec).reshape(1, -1))[0, 1])
+
+def _get_xgb_params(ss):
+    try: return int(getattr(ss, "xgb_n_estimators", 50)), int(getattr(ss, "xgb_max_depth", 3))
+    except Exception: return 50, 3
+
+def _set_xgb_model(ss, model, n):
+    try: ss.XGB_MODEL = model; ss.xgb_cache = {"model": model, "n": n}
+    except Exception: pass
+
+def _get_xgb_model(ss):
+    return getattr(ss, "XGB_MODEL", None) or (getattr(ss, "xgb_cache", {}) or {}).get("model")
+
+__all__ = ["fit_value_model", "ensure_fitted", "get_value_scorer", "XGBTrainer", "get_vm"]
 
 LOGGER = _logging.getLogger("ipo")
 if not LOGGER.handlers:
@@ -66,7 +79,7 @@ def _uses_ridge(choice: str) -> bool:
 def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
     """Fit ridge weights synchronously and store into lstate.w."""
     try:
-        from ipo.core.latent_logic import ridge_fit  # local import
+        from ipo.core.latent_state import ridge_fit  # local import
 
         w_new = ridge_fit(X, y, float(lam))
         lock = getattr(lstate, "w_lock", None)
@@ -85,10 +98,8 @@ def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
 
 
 def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
-    """Sync XGB fit with minimal side effects; also updates legacy cache for compat."""
+    """Sync XGB fit."""
     try:
-        from ipo.core.xgb_value import XGBTrainer  # type: ignore
-
         n = int(X.shape[0])
         d = int(X.shape[1]) if X.ndim == 2 else 0
         if n <= 0 or not _has_two_classes(y):
@@ -99,13 +110,11 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         pos = int((yy > 0).sum())
         neg = int((yy < 0).sum())
         # Async futures removed; no future bookkeeping
-        n_estim, max_depth = _xgb_hparams(session_state)
-        _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
-        _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
+        n_estim, max_depth = _get_xgb_params(session_state)
+        _log(f"[xgb] train rows={n} pos={pos} neg={neg}")
         t_x = _time.perf_counter()
-        trainer = XGBTrainer(n_estimators=n_estim, max_depth=max_depth)
-        mdl = trainer.fit(X, y)
-        _store_xgb_model(session_state, mdl, n)
+        mdl = XGBTrainer(n_estim, max_depth).fit(X, y)
+        _set_xgb_model(session_state, mdl, n)
         dt_ms = (_time.perf_counter() - t_x) * 1000.0
         _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
         try:
@@ -116,20 +125,6 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         pass
 
 
-def _xgb_hparams(session_state: Any) -> tuple[int, int]:
-    try:
-        from ipo.core.xgb_value import get_params as _gp
-        return _gp(session_state)
-    except SAFE_EXC:
-        return 50, 3
-
-
-def _store_xgb_model(session_state: Any, mdl: Any, n_rows: int) -> None:
-    try:
-        from ipo.core.xgb_value import set_live_model as _slm
-        _slm(session_state, mdl, int(n_rows))
-    except SAFE_EXC:
-        return None
 
 
 def _has_two_classes(y: np.ndarray) -> bool:
@@ -189,188 +184,30 @@ def _train_optionals(vm_choice: str, lstate: Any, X: np.ndarray, y: np.ndarray, 
         _maybe_fit_logit(X, y, float(lam), session_state)
 
 
-def _ridge_summary(lstate: Any, X: np.ndarray, yy: np.ndarray, lam: float) -> None:
+
+
+def fit_value_model(vm_choice, lstate, X, y, lam, session_state):
+    _train_optionals(str(vm_choice), lstate, X, y, lam, session_state)
+    _fit_ridge(lstate, X, y, float(lam))
+    try: session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    except Exception: pass
+
+
+def get_vm(choice): return choice
+
+def ensure_fitted(vm_choice, lstate, X, y, lam, session_state):
     try:
-        n = int(X.shape[0])
-        d = int(X.shape[1]) if X.ndim == 2 else 0
-        wv = getattr(lstate, "w", None)
-        if wv is not None and n > 0:
-            yhat = (np.dot(X, wv) >= 0.0)
-            acc = float((yhat == (yy > 0)).mean())
-            pos = int((yy > 0).sum())
-            neg = int((yy < 0).sum())
-        _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")  # noqa: E501
-    except Exception:
-        pass
+        if X is None or int(X.shape[0]) <= 0: return
+        fit_value_model(vm_choice, lstate, X, y, float(lam), session_state)
+    except Exception: pass
 
-
-def _logit_summary(X: np.ndarray, yy: np.ndarray, lam: float, session_state: Any) -> None:
-    try:
-        from ipo.infra.constants import Keys as _K
-
-        n = int(X.shape[0])
-        d = int(X.shape[1]) if X.ndim == 2 else 0
-        W = session_state.get(_K.LOGIT_W)
-        if W is not None and n > 0:
-            z = np.dot(X, np.asarray(W, dtype=float))
-            p = 1.0 / (1.0 + np.exp(-z))
-            yhat = (p >= 0.5)
-            acc = float((yhat == (yy > 0)).mean())
-            steps = int(session_state.get(_K.LOGIT_STEPS) or 0)
-            lam_eff = float(session_state.get(_K.LOGIT_L2) or lam)
-            pos = int((yy > 0).sum())
-            neg = int((yy < 0).sum())
-        _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")  # noqa: E501
-    except Exception:
-        pass
-
-
-def _xgb_summary(X: np.ndarray, yy: np.ndarray, session_state: Any) -> None:
-    try:
-        mdl = getattr(session_state, "XGB_MODEL", None)
-        if mdl is not None and int(X.shape[0]) > 0:
-            from ipo.core.xgb_value import score_xgb_proba  # type: ignore
-
-            p = np.asarray([score_xgb_proba(mdl, x) for x in X], dtype=float)
-            yhat = (p >= 0.5)
-            acc = float((yhat == (yy > 0)).mean())
-            n = int(X.shape[0])
-            d = int(X.shape[1]) if X.ndim == 2 else 0
-            pos = int((yy > 0).sum())
-            neg = int((yy < 0).sum())
-            _log(f"[train-summary] xgb rows={n} d={d} acc={acc*100:.0f}% pos={pos} neg={neg}")
-    except Exception:
-        pass
-
-
-def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
-    try:
-        yy = np.asarray(y).astype(float)
-        _ridge_summary(lstate, X, yy, lam)
-        _logit_summary(X, yy, lam, session_state)
-        _xgb_summary(X, yy, session_state)
-    except Exception:
-        pass
-
-
-def fit_value_model(
-    vm_choice: str,
-    lstate: Any,
-    X: np.ndarray,
-    y: np.ndarray,
-    lam: float,
-    session_state: Any,
-) -> None:
-    """Fit/update the value model artifacts with minimal logic.
-
-    - Always fits Ridge to update lstate.w (keeps proposals simple and fast).
-    - If vm_choice == 'XGBoost', also (re)fit and cache an XGB model when
-      row count changes and both classes are present. Scores are consumed via
-      value_scorer.get_value_scorer.
-    - Records last_train_at and last_train_ms in session_state.
-    """
-    choice = str(vm_choice)
-
-    # Synchronous fit via minimal OO facade (keeps behavior centralized)
-    _log(f"[train] start vm={vm_choice} rows={X.shape[0]} d={X.shape[1]} lam={lam}")
-    try:
-        vm = get_vm(choice)
-        vm.fit(lstate, X, y, float(lam), session_state)
-    except Exception:
-        # Fall back to previous procedural path if something goes wrong
-        _train_optionals(choice, lstate, X, y, lam, session_state)
-        if _uses_ridge(choice):
-            _fit_ridge(lstate, X, y, float(lam))
-
-    # Training bookkeeping
-    try:
-        session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(
-            timespec="seconds"
-        )
-    except Exception:
-        pass
-
-    # Print compact train summaries to CLI (OO fit already recorded, but cheap)
-    _record_train_summaries(lstate, X, y, lam, session_state)
-
-
-# --- Minimal OO API (kept in this module to avoid import churn) ---
-class ValueModel:
-    name = "ValueModel"
-
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: D401,E501
-        """Fit/update model artifacts in place. Subclasses implement behavior."""
-        raise NotImplementedError
-
-
-class RidgeVM(ValueModel):
-    name = "Ridge"
-
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
-        # Always refresh ridge weights; record summaries via shared helper
-        _fit_ridge(lstate, X, y, float(lam))
-        _record_train_summaries(lstate, X, y, lam, session_state)
-
-
-class XGBVM(ValueModel):
-    name = "XGBoost"
-
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
-        # Train XGB when data/classes are usable, then refresh ridge weights
-        _train_optionals("XGBoost", lstate, X, y, lam, session_state)
-        if _uses_ridge("XGBoost"):
-            _fit_ridge(lstate, X, y, float(lam))
-        _record_train_summaries(lstate, X, y, lam, session_state)
-
-
-class LogisticVM(ValueModel):
-    name = "Logistic"
-
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
-        _train_optionals("Logistic", lstate, X, y, lam, session_state)
-        if _uses_ridge("Logistic"):
-            _fit_ridge(lstate, X, y, float(lam))
-        _record_train_summaries(lstate, X, y, lam, session_state)
-
-
-def get_vm(choice: str) -> ValueModel:
-    c = str(choice)
+def get_value_scorer(vm_choice, lstate, prompt, ss):
+    c = str(vm_choice or "Ridge")
     if c == "XGBoost":
-        return XGBVM()
-    if c == "Logistic":
-        return LogisticVM()
-    return RidgeVM()
-
-
-def ensure_fitted(
-    vm_choice: str,
-    lstate: Any,
-    X: np.ndarray,
-    y: np.ndarray,
-    lam: float,
-    session_state: Any,
-) -> None:
-    """Compatibility shim: perform a sync fit if data looks usable.
-
-    - For XGBoost, require at least one positive and one negative label.
-    - Always refresh Ridge weights via fit_value_model (keeps code centralized).
-    - Records LAST_TRAIN_AT/MS via fit_value_model.
-    """
-    try:
-        n = int(getattr(X, "shape", (0,))[0]) if X is not None else 0
-        if n <= 0:
-            return
-        if str(vm_choice) == "XGBoost":
-            yy = np.asarray(y).astype(int) if y is not None else np.zeros(0, dtype=int)
-            if len(set(yy.tolist())) <= 1:
-                # not enough classes; only refresh Ridge
-                _log("[ensure] ridge sync fit (xgb insufficient classes)")
-                return fit_value_model("Ridge", lstate, X, y, float(lam), session_state)
-            _log("[ensure] xgb sync fit")
-        # Delegate to main trainer (sync)
-        if str(vm_choice) == "Ridge":
-            _log("[ensure] ridge sync fit")
-        return fit_value_model(vm_choice, lstate, X, y, float(lam), session_state)
-    except Exception:
-        # Minimal shim; swallow to keep import-time behavior stable
-        return
+        mdl = _get_xgb_model(ss)
+        if mdl: return (lambda f: _xgb_proba(mdl, f)), "XGB"
+        return None, "xgb_unavailable"
+    w = getattr(lstate, "w", None)
+    if w is None: return None, "untrained"
+    ww = np.asarray(w[:int(getattr(lstate, "d", len(w)))], dtype=float)
+    return (lambda f: float(np.dot(ww, f))), "Ridge"

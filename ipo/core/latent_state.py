@@ -172,3 +172,32 @@ def loads_state(data: bytes, seed: Optional[int] = 0) -> LatentState:
     buf = io.BytesIO(data)
     z = np.load(buf)
     return _build_state_from_npz(z, seed)
+
+# From deleted latent_logic.py
+import hashlib as _hashlib
+
+def ridge_fit(X, y, lam):
+    X, y = np.asarray(X, dtype=float), np.asarray(y, dtype=float).ravel()
+    if X.size == 0 or y.size == 0: return np.zeros(X.shape[1] if X.ndim == 2 else 0)
+    K = X @ X.T; K.ravel()[::K.shape[1]+1] += float(lam)
+    return X.T @ np.linalg.solve(K, y)
+
+def z_to_latents(state, z, noise_gamma=0.35):
+    h8, w8 = max(2, state.height//8), max(2, state.width//8)
+    need = 4*h8*w8
+    z = np.zeros(need) if z.size != need else z
+    x = z.astype(np.float32).reshape(1, 4, h8, w8)
+    if noise_gamma > 0: x = noise_gamma*x + (1-noise_gamma)*state.rng.standard_normal(x.shape).astype(np.float32)
+    return x
+
+def z_from_prompt(state, prompt):
+    h = int.from_bytes(_hashlib.sha1(prompt.encode()).digest()[:8], "big")
+    rng = np.random.default_rng(h)
+    return rng.standard_normal(state.d).astype(float) * state.sigma
+
+def propose_pair_prompt_anchor(state, prompt, alpha=0.5, beta=0.5, trust_r=None):
+    z_p = z_from_prompt(state, prompt)
+    w = state.w[:state.d]; n = float(np.linalg.norm(w))
+    d1 = (w/n) if n > 1e-12 else state.rng.standard_normal(state.d)
+    d1 = d1 / (float(np.linalg.norm(d1)) + 1e-12)
+    return z_p + state.sigma*alpha*d1, z_p - state.sigma*beta*d1

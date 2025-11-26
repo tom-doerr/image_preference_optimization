@@ -10,7 +10,7 @@ def label_image(st: Any, idx: int, label: int, z: np.ndarray, img: Any = None) -
     """Label an image and save to disk. Single entry point for all labeling."""
     from ipo.core import persistence as p
     from ipo.infra.constants import Keys
-    from ipo.core.latent_logic import z_from_prompt
+    from ipo.core.latent_state import z_from_prompt
 
     lstate = st.session_state.lstate
     prompt = st.session_state.prompt

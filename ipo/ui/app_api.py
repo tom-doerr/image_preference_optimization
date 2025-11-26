@@ -13,7 +13,7 @@ def _export_state_bytes(state, prompt: str):
 
 def _init_pair_for_state(new_state) -> None:
     try:
-        from ipo.core.latent_logic import propose_pair_prompt_anchor
+        from ipo.core.latent_state import propose_pair_prompt_anchor
         z1, z2 = propose_pair_prompt_anchor(new_state, st.session_state.prompt)
         st.session_state.lz_pair = (z1, z2)
     except Exception:
@@ -36,7 +36,7 @@ def _reset_derived_state(new_state) -> None:
 
 def _randomize_mu_if_zero(st_local, new_state) -> None:
     try:
-        from ipo.core.latent_logic import z_from_prompt as _zfp
+        from ipo.core.latent_state import z_from_prompt as _zfp
         if _np.allclose(new_state.mu, 0.0):
             pr = (
                 st_local.session_state.get(Keys.PROMPT)
@@ -139,12 +139,12 @@ def build_controls(st, lstate, base_prompt):
 
 
 def generate_pair(base_prompt: str) -> None:
-    from ipo.core.latent_logic import z_to_latents as _z2l
+    from ipo.core.latent_state import z_to_latents as _z2l
     from ipo.infra.pipeline_local import generate_flux_image_latents as _gen
     try:
         lstate = st.session_state.lstate
         if st.session_state.get("lz_pair") is None:
-            from ipo.core.latent_logic import z_from_prompt
+            from ipo.core.latent_state import z_from_prompt
 
             z_p = z_from_prompt(lstate, base_prompt)
             r = lstate.rng.standard_normal(lstate.d)
@@ -191,7 +191,7 @@ def _curation_init_batch() -> None:
         pass
     try:
         if not getattr(st.session_state, "cur_batch", None):
-            from ipo.core.latent_logic import z_from_prompt as _zfp
+            from ipo.core.latent_state import z_from_prompt as _zfp
 
             z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
             n = int(getattr(st.session_state, "batch_size", 4))
@@ -223,7 +223,7 @@ def _curation_replace_at(idx: int) -> None:
     try:
         zs = getattr(st.session_state, "cur_batch", None)
         if isinstance(zs, list) and len(zs) > 0:
-            from ipo.core.latent_logic import z_from_prompt as _zfp
+            from ipo.core.latent_state import z_from_prompt as _zfp
 
             z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
             rng = _np.random.default_rng(idx + 1)
