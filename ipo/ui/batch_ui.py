@@ -32,7 +32,7 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
             _render_batch_tile_body(*args)
 
 
-def _optim_xgb(z, ls, ss, n):
+def _optim_xgb(z, ls, ss, n, eta=0.1):
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
     if mdl is None:
@@ -41,7 +41,7 @@ def _optim_xgb(z, ls, ss, n):
     best, bs = z.copy(), _xgb_proba(mdl, z)
     print(f"[xgb] start: {bs:.4f}")
     for i in range(n):
-        c = best + np.random.randn(len(z)) * 0.1 * ls.sigma
+        c = best + np.random.randn(len(z)) * eta * ls.sigma
         s = _xgb_proba(mdl, c)
         print(f"[xgb] {i}: {s:.4f}{' *' if s > bs else ''}")
         if s > bs: best, bs = c, s
@@ -55,7 +55,7 @@ def _optimize_z(z, lstate, ss, steps, eta=0.01):
         return z
     vm = ss.get(Keys.VM_CHOICE) or "Ridge"
     print(f"[optim] vm={vm} steps={steps}")
-    if vm == "XGBoost": return _optim_xgb(z, lstate, ss, steps)
+    if vm == "XGBoost": return _optim_xgb(z, lstate, ss, steps, eta)
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0): return z
     w_norm = np.linalg.norm(w) + 1e-12
@@ -185,7 +185,8 @@ def run_batch_mode():
     n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
     if "batch_z" not in st.session_state:
         steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-        st.session_state.batch_z = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps) for _ in range(n)]
+        eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+        st.session_state.batch_z = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta) for _ in range(n)]
         st.session_state.batch_img = [None] * n
     _render_batch(lstate, prompt, n)
 
@@ -208,7 +209,8 @@ def _render_tile(i, ls, pr, z2l, gen):
 def _do_label(i, label, ls, pr):
     _curation_add(label, st.session_state.batch_z[i], st.session_state.batch_img[i])
     steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-    st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, steps)
+    eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+    st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, steps, eta)
     st.session_state.batch_img[i] = None
     st.rerun()
 
