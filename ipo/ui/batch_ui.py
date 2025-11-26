@@ -184,7 +184,8 @@ def run_batch_mode():
     lstate, prompt = _lstate_and_prompt()
     n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
     if "batch_z" not in st.session_state:
-        st.session_state.batch_z = [_sample_z(lstate, prompt) for _ in range(n)]
+        steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
+        st.session_state.batch_z = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps) for _ in range(n)]
         st.session_state.batch_img = [None] * n
     _render_batch(lstate, prompt, n)
 
@@ -206,7 +207,8 @@ def _render_tile(i, ls, pr, z2l, gen):
 
 def _do_label(i, label, ls, pr):
     _curation_add(label, st.session_state.batch_z[i], st.session_state.batch_img[i])
-    st.session_state.batch_z[i] = _sample_z(ls, pr)
+    steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
+    st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, steps)
     st.session_state.batch_img[i] = None
     st.rerun()
 
