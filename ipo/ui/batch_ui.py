@@ -91,6 +91,7 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     feat = (z - z_from_prompt(lstate, prompt)).reshape(1, -1)
     append_sample(prompt, feat, float(label), img)
     lstate.step = getattr(lstate, "step", 0) + 1
+    print(f"[label] {'Good' if label > 0 else 'Bad'} (step {lstate.step})")
     _update_rows_display(st, Keys)
 
 
@@ -118,7 +119,10 @@ def _train_if_data(st, lstate, prompt):
     from ipo.core.value_model import fit_value_model as fv
     X, y = gd(prompt, st.session_state)
     vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
-    if X is not None and X.shape[0] > 0: fv(vm, lstate, X, y, float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300)), st.session_state)
+    if X is not None and X.shape[0] > 0:
+        n_pos, n_neg = int((y > 0).sum()), int((y < 0).sum())
+        print(f"[train] {vm} on {X.shape[0]} samples (+{n_pos} / -{n_neg})")
+        fv(vm, lstate, X, y, float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300)), st.session_state)
 
 def _curation_train_and_next():
     import streamlit as st

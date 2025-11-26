@@ -50,6 +50,13 @@ xgb_n = xgb_cache.get("n", 0)
 st.sidebar.text(f"XGB samples: {xgb_n}")
 last_train = st.session_state.get(Keys.LAST_TRAIN_AT) or "never"
 st.sidebar.text(f"Last train: {last_train}")
+# Dataset stats
+from ipo.core.persistence import get_dataset_for_prompt_or_session
+X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
+n_total = 0 if X is None else X.shape[0]
+n_pos = int((y > 0).sum()) if y is not None else 0
+n_neg = int((y < 0).sum()) if y is not None else 0
+st.sidebar.text(f"Samples: {n_total} (+{n_pos} / -{n_neg})")
 (
     vm_choice,
     selected_gen_mode,
