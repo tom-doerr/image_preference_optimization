@@ -1,6 +1,9 @@
-import numpy as np
-from ipo.infra.constants import Keys
 from typing import Any
+
+import numpy as np
+
+from ipo.infra.constants import Keys
+
 
 def _update_rows_display(st, Keys):
     try:
@@ -12,6 +15,7 @@ def _update_rows_display(st, Keys):
 
 def _lstate_and_prompt():
     import streamlit as st
+
     from ipo.infra.constants import DEFAULT_PROMPT
     lstate = getattr(st.session_state, "lstate", None)
     if lstate is None:
@@ -30,6 +34,15 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
             _render_batch_tile_body(*args)
 
 
+def _optimize_z(z, lstate, ss, steps, eta=0.01):
+    """Gradient ascent on value function."""
+    if steps <= 0: return z
+    w = getattr(lstate, "w", None)
+    if w is None or np.allclose(w, 0): return z
+    for _ in range(int(steps)):
+        z = z + eta * w / (np.linalg.norm(w) + 1e-12)
+    return z
+
 def _sample_z(lstate, prompt, scale=0.8):
     from ipo.core.latent_state import z_from_prompt
     z_p = z_from_prompt(lstate, prompt)
@@ -44,7 +57,11 @@ def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
     n = int(st.session_state.get("batch_size", 6))
-    st.session_state.cur_batch = [_sample_z(lstate, prompt) for _ in range(n)]
+    steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
+    eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+    zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
+          for _ in range(n)]
+    st.session_state.cur_batch = zs
     st.session_state.cur_labels = [None] * n
     st.session_state["cur_batch_nonce"] = int(st.session_state.get("cur_batch_nonce", 0)) + 1
 
@@ -54,12 +71,16 @@ def _curation_replace_at(idx: int) -> None:
     zs = list(getattr(st.session_state, "cur_batch", []) or [])
     if not zs: _curation_new_batch(); return
     lstate, prompt = _lstate_and_prompt()
-    zs[int(idx) % len(zs)] = _sample_z(lstate, prompt)
+    steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
+    eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+    z_new = _optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
+    zs[int(idx) % len(zs)] = z_new
     st.session_state.cur_batch = zs
 
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
+
     from ipo.core.latent_state import z_from_prompt
     from ipo.core.persistence import append_sample
     lstate, prompt = _lstate_and_prompt()
@@ -92,7 +113,8 @@ def _train_if_data(st, lstate, prompt):
     from ipo.core.persistence import get_dataset_for_prompt_or_session as gd
     from ipo.core.value_model import fit_value_model as fv
     X, y = gd(prompt, st.session_state)
-    if X is not None and X.shape[0] > 0: fv("Ridge", lstate, X, y, float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300)), st.session_state)
+    vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
+    if X is not None and X.shape[0] > 0: fv(vm, lstate, X, y, float(getattr(st.session_state, Keys.REG_LAMBDA, 1e300)), st.session_state)
 
 def _curation_train_and_next():
     import streamlit as st
