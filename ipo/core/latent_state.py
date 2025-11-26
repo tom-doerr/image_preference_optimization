@@ -182,10 +182,10 @@ def ridge_fit(X, y, lam):
     K = X @ X.T; K.ravel()[::K.shape[1]+1] += float(lam)
     return X.T @ np.linalg.solve(K, y)
 
-def z_to_latents(state, z, noise_gamma=0.35):
+def z_to_latents(state, z, noise_gamma=0.0):
     h8, w8 = max(2, state.height//8), max(2, state.width//8)
     need = 4*h8*w8
-    z = np.zeros(need) if z.size != need else z
+    if z.size != need: z = np.resize(z, need)
     x = z.astype(np.float32).reshape(1, 4, h8, w8)
     if noise_gamma > 0: x = noise_gamma*x + (1-noise_gamma)*state.rng.standard_normal(x.shape).astype(np.float32)
     return x
