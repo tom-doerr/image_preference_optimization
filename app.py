@@ -25,8 +25,8 @@ st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, 
 # Latent optimization steps
 iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 10)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
-eta_val = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
-st.session_state[Keys.ITER_ETA] = st.sidebar.number_input("Step Size", min_value=0.001, value=eta_val, format="%.3f")
+eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 0.1))
+st.session_state[Keys.ITER_ETA] = st.sidebar.number_input("Step Size", min_value=0.0001, value=eta_val, format="%.4f")
 # Batch size
 batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
 st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input("Batch Size", min_value=1, max_value=20, value=batch_val)
