@@ -19,14 +19,8 @@ def _to_cuda_fp16(latents):
         return latents
 
 def _normalize_to_init_sigma(pipe, latents, steps=None):
-    try:
-        sched = getattr(pipe, "scheduler", None)
-        init_sigma = float(getattr(sched, "init_noise_sigma", 1.0) or 1.0)
-        print(f"[norm] init_sigma={init_sigma} sched={type(sched).__name__}")
-        # Scale latents by init_sigma (don't normalize std)
-        return latents * init_sigma
-    except Exception:
-        return latents
+    # Skip normalization - latents already have std~1
+    return latents
 
 
 def _free_pipe() -> None:
@@ -118,8 +112,12 @@ def _run_pipe(**kwargs):
     with PIPE_LOCK:
         _prepare_scheduler_locked(steps)
         out = PIPE(**kwargs)
-    if hasattr(out, "images") and out.images: return out.images[0]
-    if out is not None: return out
+    if hasattr(out, "images") and out.images:
+        img = out.images[0]
+        import numpy as np
+        arr = np.array(img)
+        print(f"[out] img mean={arr.mean():.1f} std={arr.std():.1f}")
+        return img
     raise RuntimeError("Pipeline returned no images")
 
 
@@ -145,11 +143,10 @@ def _get_prompt_embeds(prompt, guidance):
 def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20, guidance=3.5):
     _ensure_pipe(None)
     latents = _to_cuda_fp16(latents)
-    print(f"[pipe] in: std={latents.std().item():.3f} shape={latents.shape}")
-    latents = _normalize_to_init_sigma(PIPE, latents, steps or 20)
     g = _eff_g(CURRENT_MODEL_ID or "", guidance)
-    print(f"[pipe] norm: std={latents.std().item():.3f} g={g} steps={steps}")
-    kw = dict(num_inference_steps=int(steps or 20), guidance_scale=float(g), width=int(width), height=int(height), latents=latents, prompt=prompt)
+    print(f"[gen] latents std={latents.std().item():.3f} g={g} steps={steps} {width}x{height}")
+    h, w = latents.shape[2] * 8, latents.shape[3] * 8
+    kw = dict(num_inference_steps=int(steps or 4), guidance_scale=float(g), latents=latents, prompt=prompt, height=h, width=w)
     return _run_pipe(**kw)
 
 
