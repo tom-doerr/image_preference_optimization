@@ -6,6 +6,12 @@ Instructions for agents working in this repo
 - If the user types exactly `blueberries` in chat, respond with it reversed: `seirrebeulb`.
 - Update this file after each request with new learnings.
 
+Major simplification (Nov 26, 2025):
+- 80% code reduction: 22,000 → 4,329 LOC (main codebase)
+- Removed sidebar infrastructure (~1,223 lines), hill climb, debug logging
+- Simplified batch_ui.py (597 → 365): minimal UI with images + Good/Bad
+- Kept value models: XGBoost, Logistic, Ridge; Radon: A (3.8)
+
 Notes (Nov 12, 2025):
 - We are building a tiny Streamlit app that shows two color images and learns preferences online via a simple perceptron-style update. Images are synthetic; no heavy deps.
 - Tests use `unittest` to avoid extra packages.
@@ -1961,8 +1967,67 @@ Ruff run (latest):
 - Date: 2025-11-25 — ruff check returned no findings on app/core/infra/ui.
 - Scope remains tests-excluded; offer to lint tests separately if desired.
 
+Update (Nov 26, 2025 — Ruff clean):
+- Enabled McCabe complexity (C901, max=10) and fixed all offenders by extracting tiny helpers or, in UI-only code paths, adding narrow `# noqa: C901` markers.
+- Addressed import ordering and long lines (E501) across infra/ui/core; remaining long user-facing strings were wrapped rather than silenced.
+- Keep these standards going forward:
+  - Prefer wrapping long f-strings and signature args over disabling rules.
+  - Only use `# noqa: E501/C901` on UI hot paths that would otherwise become unreadable; avoid elsewhere.
+  - If you touch pipeline code, keep imports at top and avoid in-function module-level side effects.
+
+Note (Nov 26, 2025, later): Ran `ruff check` again — no findings. Lint stays green.
+
 Update (Nov 25, 2025 — shims + baseline repairs):
 - Added tiny root shims at repo root: batch_ui.py, ui_sidebar.py, value_model.py, value_scorer.py, persistence.py, latent_logic.py, and flux_local.py. Each re-exports from ipo/* to keep older tests/imports working while code lives under ipo/.
 - Added latent_state.py shim for the same reason; fixes `ModuleNotFoundError: latent_state` seen at app import.
 - Fixed a NameError in ipo/ui/batch_ui.py by importing time as _time at module scope.
 - Test suite currently has several syntactic corruptions (IndentationError/merged lines like "llfrom …"). We will repair those tests mechanically in small batches (move stray imports to top, split merged lines, fix indents) rather than adding behavioral fallbacks.
+
+Button key bug fix (Nov 26, 2025):
+- Good/Bad clicks weren't saving because keys included `render_count` which changed on rerun.
+- Fix: Keys now stable (`{prefix}_{idx}`). Test: `tests/test_labeling.py`.
+
+Labeling consolidation (Nov 26, 2025):
+- Created `ipo/ui/labeling.py`: `label_image(st, idx, label, z, img)` handles persist + mem-update + UI.
+- Tests: `tests/test_labeling.py` covers key stability, append_dataset_row, in-mem update.
+- Fixed duplicate sidebar: removed `render_sidebar_tail` call from `build_controls()` (kept only in `app.py`).
+- Added logging: `[data] saved ...`, `[data] skip ... d=X != target Y`.
+- Radon CC: All functions grade A/B. Ruff: All checks pass.
+
+Code simplification (Nov 26, 2025):
+- Fixed XGB train button: removed circular import in panels.py (was calling ui_sidebar which called back).
+- Added logging: `[xgb] train check: rows=N pos=P neg=Q` and `[xgb] skip train: need both +1 and -1`.
+- Removed no-op functions from ui_sidebar.py: `_autofit_xgb_if_selected`, `_emit_cv_metrics`, `_cv_on_demand`.
+- Consolidated: batch_ui.py now imports `_update_mem_dataset`, `_update_rows_display` from labeling.py.
+- LOC reduced: 6092 → 6003 lines (~89 lines removed).
+
+Further cleanup (Nov 26, 2025):
+- batch_tiles.py: imports `render_good_bad_buttons` directly from batch_buttons (no stub).
+- batch_ui.py: removed forwarding stubs `_render_good_bad_buttons`, `_button_key`, `_toast_and_record`, `_handle_best_of`.
+- ui_sidebar.py: removed `_predicted_values_block`, `_sidebar_persistence_section` (both no-ops).
+- app_api.py: imports directly from sidebar.controls (fewer indirections).
+- panels.py: removed dead `_sidebar_training_data_block` (duplicate of ui_sidebar version).
+- misc.py: removed dead `status_panel` (duplicate of ui_sidebar version).
+- LOC: 6003 → 5970 lines.
+
+Dead code removal (Nov 26, 2025):
+- ui_sidebar.py: removed unused `_ridge_dir`, `_get_scorer_for_vm`, `_accumulate_step_scores`.
+- value_model.py: removed dead `_ensure_fitted_removed`, `_train_and_record_removed`.
+- controls.py: removed dead `_debug_saves_section` no-op.
+- misc.py: removed dead `emit_debug_panel` no-op.
+- Fixed syntax error in test_ui_controls_fallbacks.py.
+- LOC: 5970 → 5890 lines.
+
+Bug fix and simplification (Nov 26, 2025):
+- panels.py: XGB train now falls back to disk data when memory is empty (fixes rows=0 bug).
+- panels.py: extracted `_load_disk_dataset`, `_count_pos_neg` to reduce complexity.
+- batch_ui.py: simplified `_render_tiles_row` by consolidating duplicate branches.
+- LOC: 5890 → 5880 lines.
+
+Disk-only data simplification (Nov 26, 2025):
+- Removed in-memory dataset tracking; disk is now single source of truth.
+- labeling.py: removed `_update_mem_dataset`; `_update_rows_display` reads from disk.
+- ui_sidebar.py: `_get_dataset_for_display` loads from disk; renamed `_mem_dataset_stats` → `_dataset_stats`.
+- panels.py: simplified `_select_dataset` to use disk only.
+- misc.py: `rows_refresh_tick` reads from disk.
+- LOC: 5881 → 5825 lines.

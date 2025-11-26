@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 APP_VERSION = "0.1.0"
+
+SAFE_EXC = (AttributeError, ImportError, TypeError, ValueError, KeyError, FileNotFoundError)
 DEFAULT_PROMPT = "latex, neon punk city, women with short hair, standing in the rain"
 # Model is hardcoded to sd-turbo; no selector/choices remain.
 

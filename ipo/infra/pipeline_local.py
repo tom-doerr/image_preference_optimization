@@ -44,9 +44,6 @@ from .pipeline_utils import (  # noqa: E402
     normalize_to_init_sigma as _normalize_to_init_sigma,
 )
 from .pipeline_utils import (  # noqa: E402
-    p as _p,
-)
-from .pipeline_utils import (  # noqa: E402
     to_cuda_fp16 as _to_cuda_fp16,
 )
 
@@ -79,13 +76,11 @@ def _load_pipeline(mid: str):
 
     Kept separate to reduce branching in _ensure_pipe without changing behavior.
     """
-    import time as _time
     try:
         import torch  # type: ignore
         from diffusers import DiffusionPipeline  # type: ignore
     except Exception as e:
         raise ValueError("torch/diffusers not installed") from e
-    t0 = _time.perf_counter()
     try:
         pipe = DiffusionPipeline.from_pretrained(
             mid,
@@ -93,7 +88,6 @@ def _load_pipeline(mid: str):
             low_cpu_mem_usage=False,
         ).to("cuda")
     except NotImplementedError:
-        _p("[pipe] meta-to error; reloading with device_map='cuda'", 1)
         try:
             pipe = DiffusionPipeline.from_pretrained(
                 mid,
@@ -104,23 +98,11 @@ def _load_pipeline(mid: str):
         except (NotImplementedError, ValueError) as e2:
             if "meta tensor" not in str(e2) and "device_map" not in str(e2):
                 raise
-            _p(
-                (
-                    "[pipe] device_map reload failed; retrying CPU load + to('cuda') "
-                    "with low_cpu_mem_usage=True"
-                ),
-                1,
-            )
             pipe = DiffusionPipeline.from_pretrained(
                 mid,
                 torch_dtype=torch.float16,
                 low_cpu_mem_usage=True,
             ).to("cuda")
-    try:
-        dt = _time.perf_counter() - t0
-        _p(f"[pipe] loaded model id={mid!r} in {dt:.3f} s", 1)
-    except Exception:
-        pass
     return pipe
 
 
@@ -166,14 +148,12 @@ def _ensure_pipe(model_id: Optional[str] = None):
     # Return cached if suitable
     with PIPE_LOCK:
         if PIPE is not None and (model_id is None or CURRENT_MODEL_ID == model_id):
-            _p(f"[pipe] reuse model id={CURRENT_MODEL_ID!r}", 1)
             return PIPE
 
     # Prefer an explicitly selected/current model id before consulting env
     mid = model_id or CURRENT_MODEL_ID or _get_model_id()
     if PIPE is not None and CURRENT_MODEL_ID != mid:
         _free_pipe()
-    _p(f"[pipe] loading model id={mid!r}", 1)
     PIPE = _load_pipeline(mid)
     _disable_safety(PIPE)
     _post_load_toggles(PIPE)
@@ -248,39 +228,7 @@ def _run_pipe(**kwargs):
 
 
 def _log_call_begin_ext(_steps: int, kwargs) -> None:
-    try:
-        mid = CURRENT_MODEL_ID
-        ev = LAST_CALL.get("event")
-        lat_std = LAST_CALL.get("latents_std")
-        init_sig = None
-        try:
-            sched = getattr(PIPE, "scheduler", None)
-            init_sig = getattr(sched, "init_noise_sigma", None)
-        except Exception:
-            pass
-        _p(
-            "[pipe] call model={mid} event={ev} steps={steps} size={w}x{h} "
-            "guidance={g} latents_std={ls} init_sigma={isig}".format(
-                mid=mid,
-                ev=ev,
-                steps=int(_steps),
-                w=kwargs.get("width"),
-                h=kwargs.get("height"),
-                g=kwargs.get("guidance_scale"),
-                ls=lat_std,
-                isig=init_sig,
-            ),
-            1,
-        )
-    except Exception:
-        pass
-    _p(
-        (
-            f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={_steps} "
-            f"w={kwargs.get('width')} h={kwargs.get('height')}"
-        ),
-        2,
-    )
+    pass  # Logging removed
 
 
 def _record_perf_ext(_t0: float, kwargs) -> None:
@@ -289,14 +237,6 @@ def _record_perf_ext(_t0: float, kwargs) -> None:
     dur_s = _time.perf_counter() - _t0
     try:
         LAST_CALL["dur_s"] = float(dur_s)
-        _p(
-            (
-                f"[perf] PIPE call took {dur_s:.3f} s ("
-                f"steps={kwargs.get('num_inference_steps')}, "
-                f"w={kwargs.get('width')}, h={kwargs.get('height')})"
-            ),
-            1,
-        )
     except Exception:
         pass
 
@@ -397,7 +337,6 @@ def _get_prompt_embeds(prompt: str, guidance: float):
     key = (CURRENT_MODEL_ID, prompt, bool(guidance and guidance > 1e-6))
     try:
         if key in PROMPT_CACHE:
-            _p("[pipe] prompt embeds cache: hit", 2)
             return PROMPT_CACHE[key]
         enc = getattr(PIPE, "encode_prompt", None)
         if enc is None:
@@ -411,75 +350,9 @@ def _get_prompt_embeds(prompt: str, guidance: float):
             negative_prompt=None,
         )
         PROMPT_CACHE[key] = (prompt_embeds, neg_embeds)
-        _p("[pipe] prompt embeds cache: miss → stored", 2)
         return PROMPT_CACHE[key]
     except Exception:
         return (None, None)
-
-
-def generate_flux_image(
-    prompt: str,
-    seed: Optional[int] = None,
-    width: int = 768,
-    height: int = 768,
-    steps: int = 20,
-    guidance: float = 3.5,
-):
-    def _eff_guidance(mid: str, g: float) -> float:
-        return _eff_g(mid, g)
-    # Remote image server path removed: always use local pipeline
-    """Generate one image with a local FLUX model via Diffusers.
-
-    Strict requirements (no fallbacks):
-    - torch with CUDA available (1080 Ti)
-    - diffusers installed
-    - env FLUX_LOCAL_MODEL set to a valid HF model id
-    Returns a PIL image (whatever the pipeline returns at out.images[0]).
-    """
-    # Ensure pipeline is ready (env model id if not set)
-    _ensure_pipe(None)
-
-    gen = None
-    if seed is not None:
-        import torch  # local import for type
-
-        gen = torch.Generator(device="cuda").manual_seed(int(seed))
-
-    guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
-    LAST_CALL.update(
-        {
-            "event": "text_call",
-            "model_id": CURRENT_MODEL_ID,
-            "width": int(width),
-            "height": int(height),
-            "steps": int(steps),
-            "guidance": float(guidance_eff),
-        }
-    )
-    # Allow tests that stub flux_local._run_pipe to intercept
-    import sys as _sys
-    _run = getattr(_sys.modules.get("flux_local"), "_run_pipe", _run_pipe)
-    pe, ne = _get_prompt_embeds(prompt, guidance_eff)
-    if pe is not None:
-        return _run(
-            prompt_embeds=pe,
-            negative_prompt_embeds=ne,
-            num_inference_steps=int(steps),
-            guidance_scale=float(guidance_eff),
-            width=int(width),
-            height=int(height),
-            generator=gen,
-        )
-    else:
-        return _run(
-            prompt=prompt,
-            num_inference_steps=int(steps),
-            guidance_scale=float(guidance_eff),
-            width=int(width),
-            height=int(height),
-            generator=gen,
-        )
-    # unreachable; keep signature symmetry
 
 
 def generate_flux_image_latents(
@@ -636,10 +509,5 @@ def set_model(model_id: str):
     except Exception:
         pass
 def _get_model_id() -> str:
-    """Return the effective default model id and emit a tiny gated log."""
-    mid = _get_default_model_id()
-    try:
-        _p("[pipe] resolved default model id", 1)
-    except Exception:
-        pass
-    return mid
+    """Return the effective default model id."""
+    return _get_default_model_id()

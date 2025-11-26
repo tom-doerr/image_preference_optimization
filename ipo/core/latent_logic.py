@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 
-from latent_state import LatentState
+from ipo.core.latent_state import LatentState
 
 
 def append_pair(
@@ -246,350 +246,31 @@ def propose_pair_prompt_anchor(
     return z_p + d_plus, z_p + d_minus
 
 
-def propose_pair_prompt_anchor_iterative(
-    state: LatentState,
-    prompt: str,
-    steps: int = 3,
-    eta: Optional[float] = None,
-    trust_r: Optional[float] = None,
-    gamma: float = 0.0,
-):
-    """Iteratively optimize Δ around z_prompt along w with tiny projected steps.
-
-    - Starts at Δ=0 and takes `steps` projected steps along normalize(w).
-    - Step length defaults to (trust_r/steps) if trust_r is set, otherwise σ/steps.
-    - Returns symmetric pair (z_p+Δ, z_p−Δ).
-    """
-    z_p = z_from_prompt(state, prompt)
-    d1 = _dir_w(state)
-    # choose step size
-    step = (
-        (float(trust_r) / max(1, int(steps)))
-        if (trust_r is not None and trust_r > 0)
-        else (state.sigma / max(1, int(steps)))
-    )
-    if eta is not None:
-        step = float(eta)
-    # accumulate delta with optional trust clamp
-    delta = _accumulate_delta(state.d, d1, int(max(1, int(steps))), float(step), trust_r)
-    if gamma and float(gamma) != 0.0:
-        d2 = _rand_orth_dir(state, d1)
-        delta_plus = delta + float(gamma) * d2
-        delta_minus = -delta - float(gamma) * d2
-    else:
-        delta_plus = delta
-        delta_minus = -delta
-    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(delta_minus, trust_r)
-
-
-def propose_pair_prompt_anchor_linesearch(
-    state: LatentState,
-    prompt: str,
-    trust_r: Optional[float] = None,
-    gamma: float = 0.0,
-    mags: Optional[list[float]] = None,
-):
-    """Tiny line-search for Δ along w around z_prompt.
-
-    - Candidates are magnitudes along d1 = normalize(w). If `mags` is None,
-      use fractions of the available scale: [0.25, 0.5, 1.0] × S where
-      S = trust_r (when provided) else state.sigma.
-    - Choose the m that maximizes w·Δ (linear value), then return symmetric
-      pair (z_p+Δ, z_p−Δ) with optional orthogonal γ·d2.
-    """
-    z_p = z_from_prompt(state, prompt)
-    d1 = _dir_w(state)
-    S = float(trust_r) if (trust_r is not None and trust_r > 0) else float(state.sigma)
-    mm = _linesearch_mags(mags, S, trust_r)
-    # value is proportional to m for linear ridge; pick largest
-    m_best = max(mm) if mm else 0.0
-    delta = m_best * d1
-    if gamma and float(gamma) != 0.0:
-        d2 = _rand_orth_dir(state, d1)
-        delta_plus = delta + float(gamma) * d2
-        delta_minus = -delta - float(gamma) * d2
-    else:
-        delta_plus = delta
-        delta_minus = -delta
-
-    # final trust clamp
-    return z_p + _clamp_norm(delta_plus, trust_r), z_p + _clamp_norm(
-        delta_minus, trust_r
-    )
-
-
-def _accumulate_delta(d: int, d1: np.ndarray, steps: int, step: float, trust_r: Optional[float]) -> np.ndarray:  # noqa: E501
-    """Accumulate steps along d1 with optional trust‑radius clamp (pure helper)."""
-    delta = np.zeros(d, dtype=float)
-    for _ in range(max(1, int(steps))):
-        delta = delta + float(step) * d1
-        if trust_r is not None and trust_r > 0:
-            nn = float(np.linalg.norm(delta))
-            if nn > trust_r and nn > 0.0:
-                delta = delta * (trust_r / nn)
-    return delta
-
-
-def _rand_orth_dir(state: LatentState, d1: np.ndarray) -> np.ndarray:
-    """Random unit direction orthogonal to d1 (pure helper)."""
-    r = state.rng.standard_normal(state.d)
-    d2 = _orth_component(r, d1)
-    n = float(np.linalg.norm(d2))
-    if n <= 1e-12:
-        return _unit(d1)
-    return d2 / n
-
-
-def _linesearch_mags(mags: Optional[list[float]], S: float, trust_r: Optional[float]) -> list[float]:  # noqa: E501
-    """Prepare candidate magnitudes for line-search with optional trust clamp."""
-    cands = mags if (isinstance(mags, list) and len(mags) > 0) else [0.25 * S, 0.5 * S, 1.0 * S]
-    out: list[float] = []
-    for m in cands:
-        m = float(max(0.0, m))
-        if trust_r is not None and trust_r > 0 and m > float(trust_r):
-            m = float(trust_r)
-        out.append(m)
-    return out
-
-
-# propose_next_pair and ProposerOpts moved to proposer.py to centralize configuration
-
-
-def _sigmoid(x: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-x))
-
-
-def hill_climb_mu_distance(
-    state: LatentState,
-    prompt: str,
-    X: np.ndarray,
-    y: np.ndarray,
-    eta: float = 0.2,
-    gamma: float = 0.5,
-    trust_r: Optional[float] = None,
-) -> None:
-    """One gradient step on μ to move toward positives and away from negatives.
-
-    L(μ) = - Σ_i y_i · σ(γ · ||μ − z_i||^2), where z_i = z_prompt + X_i
-    Step: μ ← μ − η · ∇L(μ) with optional trust‑radius clamp around z_prompt.
-    """
-    if X is None or y is None or len(getattr(y, "shape", (0,))) == 0:
-        return
-    z_p = z_from_prompt(state, prompt)
-    mu = state.mu.astype(float)
-    # If μ is still uninitialized (all zeros), start from a random point
-    # around the prompt anchor to avoid always climbing from the same vector.
-    if not np.any(mu):
-        r = state.rng.standard_normal(state.d).astype(float)
-        n = float(np.linalg.norm(r))
-        if n > 0.0:
-            r = r / n
-        scale = (
-            float(trust_r)
-            if (trust_r is not None and float(trust_r) > 0.0)
-            else float(state.sigma)
-        )
-        mu = z_p + scale * r
-        state.mu = mu
-    Z = z_p.reshape(1, -1) + np.asarray(X, dtype=float)
-    yy = np.asarray(y, dtype=float).reshape(-1)
-    L0, grad = _distance_loss_and_grad(mu, Z, yy, float(gamma))
-    mu_new = mu - float(eta) * grad
-    mu_new = _trust_clamp(mu_new, z_p, trust_r)
-    try:
-        L1 = _distance_loss_only(mu_new, Z, yy, float(gamma))
-        if L0 is not None:
-            print(f"[hill] L(mu) before={L0:.4f} after={L1:.4f}")
-        else:
-            print(f"[hill] L(mu) after={L1:.4f}")
-    except Exception:
-        pass
-    state.mu = mu_new
-    _push_mu_history(state)
-
-
-def _distance_loss_and_grad(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> tuple[float | None, np.ndarray]:  # noqa: E501
-    diffs = mu.reshape(1, -1) - Z  # shape (n, d)
-    d2 = np.sum(diffs * diffs, axis=1)  # (n,)
-    sig = _sigmoid(gamma * d2)
-    try:
-        L = float(np.sum(-yy * sig))
-    except Exception:
-        L = None
-    scal = (yy) * sig * (1.0 - sig) * (2.0 * gamma)  # (n,)
-    grad = (scal.reshape(-1, 1) * diffs).sum(axis=0)
-    return L, grad
-
-
-def _distance_loss_only(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> float:
-    diffs = mu.reshape(1, -1) - Z
-    d2 = np.sum(diffs * diffs, axis=1)
-    sig = _sigmoid(gamma * d2)
-    return float(np.sum(-yy * sig))
-
-
-def hill_climb_mu_xgb(
-    state: LatentState,
-    prompt: str,
-    scorer,
-    steps: int = 3,
-    step_scale: float = 0.2,
-    trust_r: Optional[float] = None,
-) -> None:
-    """Multi-step hill climb on μ using an external value scorer (e.g. XGBoost).
-
-    Uses ridge w to define a direction d1 in latent space and, at each step,
-    proposes μ ± step_t·d1, scores them via `scorer` on f = z − z_prompt,
-    and moves μ to the better one. step_t decays as step_scale/(1+t).
-    """
-    try:
-        n_steps = max(1, int(steps))
-    except Exception:
-        n_steps = 1
-    if n_steps <= 0:
-        return
-    z_p = z_from_prompt(state, prompt)
-    mu = state.mu.astype(float)
-    if not np.any(mu):
-        mu = z_p.copy()
-    w = getattr(state, "w", None)
-    if w is None:
-        return
-    w = np.asarray(w[: state.d], dtype=float)
-    n = float(np.linalg.norm(w))
-    if n == 0.0:
-        return
-    d1 = w / n
-    try:
-        base_step = float(step_scale)
-    except Exception:
-        base_step = 0.2
-    for t in range(n_steps):
-        step_t = base_step / float(1 + t)
-        mu, best_score = _best_of_along_d1(mu, z_p, d1, step_t, trust_r, scorer)
-        try:
-            print(f"[xgb-hill] step={t + 1} best_score={best_score:.4f}")
-        except Exception:
-            pass
-    state.mu = mu
-    mh = getattr(state, "mu_hist", None)
-    mu_now = state.mu.reshape(1, -1)
-    state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
-
-
-def _random_start_around_anchor(state: LatentState, z_p: np.ndarray) -> np.ndarray:
-    """Return a random start around the anchor using the state's sigma."""
-    r = state.rng.standard_normal(state.d).astype(float)
-    n_r = float(np.linalg.norm(r))
-    if n_r > 0.0:
-        r = r / n_r
-    return z_p + float(state.sigma) * r
-
-
-def _ridge_dir_from_state(state: LatentState) -> tuple[np.ndarray | None, np.ndarray | None]:
-    """Return (d1, w) where d1 is normalized ridge direction or (None, None)."""
-    w = getattr(state, "w", None)
-    if w is None:
-        return None, None
-    w = np.asarray(w[: state.d], dtype=float)
-    n_w = float(np.linalg.norm(w))
-    if n_w == 0.0:
-        return None, None
-    return (w / n_w), w
-
-
-def sample_z_xgb_hill(
-    state: LatentState,
-    prompt: str,
-    scorer,
-    steps: int = 3,
-    step_scale: float = 0.2,
-    trust_r: Optional[float] = None,
-) -> np.ndarray:
-    """Return one latent sample via XGB-guided hill climb from a random start.
-
-    - Start from z_p + σ·r where r is a random unit vector.
-    - Use ridge w to define d1 and perform a small multi-step best-of-two
-      search along ±d1 with scores from `scorer(f)` where f = z − z_p.
-    - If w is missing/zero or scorer fails, fall back to the random start.
-    """
-    z_p = z_from_prompt(state, prompt)
-    mu = _random_start_around_anchor(state, z_p)
-
-    d1, w = _ridge_dir_from_state(state)
-    if d1 is None or w is None:
-        try:
-            print("[xgb-hill-batch] w is None; returning random start sample")
-        except Exception:
-            pass
-        return mu
-    try:
-        n_steps = max(1, int(steps))
-    except Exception:
-        n_steps = 1
-    try:
-        base_step = float(step_scale)
-    except Exception:
-        base_step = 0.2
-
-    # Fallback scorer when None: simple ridge dot
-    def _score(delta: np.ndarray) -> float:
-        if scorer is None:
-            return float(np.dot(w, delta))
-        try:
-            return float(scorer(delta))
-        except Exception:
-            return float(np.dot(w, delta))
-
-    for t in range(n_steps):
-        step_t = base_step / float(1 + t)
-        mu, best_score = _best_of_along_d1(mu, z_p, d1, step_t, trust_r, _score)
-        try:
-            print(f"[xgb-hill-batch] step={t + 1} score={best_score:.4f}")
-        except Exception:
-            pass
-    return mu
-
-
-def _best_of_along_d1(mu: np.ndarray, z_p: np.ndarray, d1: np.ndarray, step: float, trust_r: Optional[float], scorer) -> tuple[np.ndarray, float]:  # noqa: E501
-    """Evaluate ±step along d1 around mu and return (best_mu, best_score)."""
-    candidates: list[tuple[float, np.ndarray]] = []
-    for sgn in (1.0, -1.0):
-        z_cand = mu + float(sgn) * float(step) * d1
-        z_cand = _trust_clamp(z_cand, z_p, trust_r)
-        delta = z_cand - z_p
-        try:
-            s = float(scorer(delta))
-        except Exception:
-            s = 0.0
-        candidates.append((s, z_cand))
-    try:
-        best_score, best_z = max(candidates, key=lambda x: x[0])
-    except ValueError:
-        return mu, 0.0
-    return best_z, float(best_score)
-
-
-def _trust_clamp(z_cand: np.ndarray, z_p: np.ndarray, trust_r: Optional[float]) -> np.ndarray:
-    if trust_r is None or float(trust_r) <= 0.0:
-        return z_cand
-    delta = z_cand - z_p
-    r = float(np.linalg.norm(delta))
-    if r > float(trust_r) and r > 0.0:
-        return z_p + delta * (float(trust_r) / r)
-    return z_cand
 
 
 
 
-def _cosine(u: np.ndarray, v: np.ndarray, eps: float = 1e-8) -> float:
-    nu = float(np.linalg.norm(u))
-    nv = float(np.linalg.norm(v))
-    if nu < eps or nv < eps:
-        return 0.0
-    return float(np.dot(u, v) / (nu * nv))
 
 
 
 
-# Legacy non‑ridge proposers/scorers were removed to reduce LOC.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

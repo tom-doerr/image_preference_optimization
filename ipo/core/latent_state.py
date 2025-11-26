@@ -70,6 +70,7 @@ def save_state(state: LatentState, path: str) -> None:
         choices=choices,
         mu_hist=mu_hist,
     )
+    print(f"[state] saved {path} d={state.d} {state.width}x{state.height} step={state.step}")
 
 
 def _optional_arr(

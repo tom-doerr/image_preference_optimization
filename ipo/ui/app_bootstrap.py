@@ -1,19 +1,13 @@
 import hashlib
 import os
-import types
 
 import streamlit as st
 
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
-from ipo.infra.util import enable_file_logging, safe_write
 
 
 def init_page_and_logging() -> None:
     st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
-    try:
-        _ = enable_file_logging()  # keep logging, no sidebar line
-    except Exception:
-        pass
 
 
 def _early_vm_choice() -> str:
@@ -30,49 +24,6 @@ def _ensure_iter_defaults() -> None:
         if Keys.ITER_STEPS not in st.session_state:
             from ipo.infra.constants import DEFAULT_ITER_STEPS as _DEF
             st.session_state[Keys.ITER_STEPS] = int(_DEF)
-    except Exception:
-        pass
-
-
-def _emit_train_lines(vm: str) -> None:
-    try:
-        from value_scorer import get_value_scorer as _gvs
-
-        lstate_early = getattr(st.session_state, "lstate", None) or types.SimpleNamespace(  # type: ignore
-            d=0, w=None
-        )
-        prompt_early = (
-            st.session_state.get(Keys.PROMPT) or st.session_state.get("prompt") or DEFAULT_PROMPT
-        )
-        scorer, tag_or_status = _gvs(vm, lstate_early, prompt_early, st.session_state)
-        vs_status = "ok" if scorer is not None else str(tag_or_status)
-        active = "yes" if (vm == "XGBoost" and scorer is not None) else "no"
-    except Exception:
-        vs_status = "xgb_unavailable" if vm == "XGBoost" else "ridge_untrained"
-        active = "no"
-    for ln in (
-        "Train score: n/a",
-        "CV score: n/a",
-        "Last CV: n/a",
-        "Last train: n/a",
-        f"Value scorer status: {vs_status}",
-        f"Value scorer: {vm} (n/a, rows=0)",
-        f"XGBoost active: {active}",
-        "Optimization: Ridge only",
-    ):
-        safe_write(st, ln)
-
-
-def _emit_latent_dim_and_model() -> None:
-    ld = (
-        int(getattr(getattr(st.session_state, "lstate", None), "d", 0))
-        if hasattr(st, "session_state")
-        else 0
-    )
-    safe_write(st, f"Latent dim: {ld}")
-    try:
-        from ipo.infra.pipeline_local import set_model
-        set_model("stabilityai/sd-turbo")
     except Exception:
         pass
 
@@ -119,7 +70,7 @@ def _resolve_state_path() -> None:
 
 
 def _apply_or_init_state() -> None:
-    from latent_state import init_latent_state, load_state
+    from ipo.core.latent_state import init_latent_state, load_state
 
     from .app_api import _apply_state
 

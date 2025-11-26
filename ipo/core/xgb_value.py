@@ -1,6 +1,6 @@
 import numpy as np
 
-from ipo.infra.util import SAFE_EXC
+from ipo.infra.constants import SAFE_EXC
 
 __all__ = [
     "XGBTrainer",
@@ -88,6 +88,7 @@ def set_live_model(session_state, model, n_rows: int) -> None:
         cache["n"] = int(n_rows)
         session_state.xgb_cache = cache
         session_state["xgb_toast_ready"] = True
+        print(f"[xgb] model cached rows={n_rows}")
     except SAFE_EXC:
         pass
 

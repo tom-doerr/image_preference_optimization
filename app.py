@@ -33,7 +33,6 @@ from ipo.ui.app_api import (
 from ipo.ui.app_api import (
     generate_pair as _generate_pair,
 )
-from ipo.ui.app_api import render_sidebar_tail as render_sidebar_tail_module
 from ipo.ui.app_api import (
     run_app as _run_app_impl,
 )
@@ -91,19 +90,6 @@ lstate = st.session_state.lstate
     _,
 ) = _build_controls(st, lstate, base_prompt)
 
-# Sidebar tail (always render)
-render_sidebar_tail_module(
-    st,
-    lstate,
-    st.session_state.prompt,
-    st.session_state.state_path,
-    vm_choice,
-    int(iter_steps),
-    float(iter_eta) if iter_eta is not None else None,
-    selected_model,
-    _apply_state,
-    st_rerun,
-)
 
 
 def generate_pair():

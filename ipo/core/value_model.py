@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from ipo.infra.constants import Keys
-from ipo.infra.util import SAFE_EXC
+from ipo.infra.constants import SAFE_EXC
 
 __all__ = [
     "fit_value_model",
@@ -66,7 +66,7 @@ def _uses_ridge(choice: str) -> bool:
 def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
     """Fit ridge weights synchronously and store into lstate.w."""
     try:
-        from latent_logic import ridge_fit  # local import keeps import time low
+        from ipo.core.latent_logic import ridge_fit  # local import
 
         w_new = ridge_fit(X, y, float(lam))
         lock = getattr(lstate, "w_lock", None)
@@ -374,31 +374,3 @@ def ensure_fitted(
     except Exception:
         # Minimal shim; swallow to keep import-time behavior stable
         return
-
-
-def _ensure_fitted_removed(
-    vm_choice: str,
-    lstate: Any,
-    X: Any,
-    y: Any,
-    lam: float,
-    session_state: Any,
-) -> None:
-    """199c: ensure_fitted retired; do nothing (kept for import compatibility)."""
-    try:
-        session_state["auto_fit_done"] = True
-    except Exception:
-        pass
-
-
-def _train_and_record_removed(
-    vm_choice: str,
-    lstate: Any,
-    X: np.ndarray,
-    y: np.ndarray,
-    lam: float,
-    session_state: Any,
-) -> str:
-    """199c: train_and_record retired; call fit_value_model directly in UI."""
-    fit_value_model(vm_choice, lstate, X, y, lam, session_state)
-    return "ok"

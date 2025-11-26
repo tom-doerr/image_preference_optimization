@@ -4,7 +4,7 @@ from typing import Any, Callable, Tuple
 
 import numpy as np
 
-from ipo.infra.util import SAFE_EXC
+from ipo.infra.constants import SAFE_EXC
 
 __all__ = [
     "get_value_scorer",  # unified API: returns (scorer|None, tag_or_status)
@@ -147,8 +147,10 @@ def _print_xgb_unavailable(vm_choice: str, lstate: Any, prompt: str, session_sta
         Xd, _ = _get_ds(prompt, session_state)
         rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
         d_lat = getattr(lstate, "d", "?")
+        w = getattr(lstate, "width", "?")
+        h = getattr(lstate, "height", "?")
         print(
-            f"[xgb] scorer unavailable: no model (vm={vm_choice}, dataset_rows={rows}, d={d_lat})"
+            f"[xgb] scorer unavailable: no model (vm={vm_choice}, rows={rows}, d={d_lat}, {w}x{h})"
         )
     except SAFE_EXC:
         print("[xgb] scorer unavailable: no model")

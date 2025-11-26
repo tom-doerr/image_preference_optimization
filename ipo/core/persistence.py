@@ -163,15 +163,19 @@ def get_dataset_for_prompt_or_session(
     try:
         if not os.path.isdir(root):
             raise FileNotFoundError
-        xs, ys = _load_rows_filtered(root, _target_dim_from_session(session_state), session_state)
+        target_d = _target_dim_from_session(session_state)
+        xs, ys, skipped = _load_rows_filtered(root, target_d, session_state)
         if xs:
             X = np.vstack(xs)
             y = np.concatenate(ys)
             try:
-                print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}")
+                extra = f" (skipped {skipped})" if skipped else ""
+                print(f"[data] loaded {X.shape[0]} rows d={X.shape[1]} from {root}{extra}")
             except Exception:
                 pass
             return X, y
+        if skipped:
+            print(f"[data] all {skipped} rows skipped due to dim mismatch in {root}")
     except Exception:
         X = y = None
     try:
@@ -181,10 +185,11 @@ def get_dataset_for_prompt_or_session(
     return X, y
 
 
-def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple[list[np.ndarray], list[np.ndarray]]:  # noqa: E501
-    """Load per-sample rows, filtering by feature dim if target_d is provided."""
+def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple[list[np.ndarray], list[np.ndarray], int]:  # noqa: E501
+    """Load per-sample rows, filtering by feature dim. Returns (xs, ys, skipped)."""
     xs: list[np.ndarray] = []
     ys: list[np.ndarray] = []
+    skipped = 0
     for sample_path in _iter_sample_paths(root):
         Xi, yi = _load_sample_npz(sample_path)
         if Xi is None or yi is None:
@@ -196,10 +201,12 @@ def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple
                 d_x = None  # type: ignore
             if d_x != target_d:
                 _record_dim_mismatch(session_state, d_x, target_d)
+                print(f"[data] skip {sample_path}: d={d_x} != target {target_d}")
+                skipped += 1
                 continue
         xs.append(Xi)
         ys.append(yi)
-    return xs, ys
+    return xs, ys, skipped
 
 
 def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
@@ -248,9 +255,8 @@ def append_dataset_row(prompt: str, feat: np.ndarray, label: float) -> int:
         import numpy as _np
 
         fn = float(_np.linalg.norm(_np.asarray(feat, dtype=float)))
-        print(
-            f"[data] wrote {sample_path} (row #{next_idx}) feat_norm={fn:.3f} label={int(label):+d}"
-        )
+        d = feat.shape[-1] if hasattr(feat, "shape") else len(feat)
+        print(f"[data] saved {sample_path} d={d} label={int(label):+d} ‖feat‖={fn:.1f}")
     except Exception:
         pass
     # Also save per-sample NPZ under data/<hash>/<row_idx>/sample.npz
@@ -332,7 +338,7 @@ def dataset_stats_for_prompt(prompt: str) -> dict:
 def export_state_bytes(state, prompt: str) -> bytes:
     # Import lazily so tests that stub latent_opt with minimal surface
     # (without dumps_state) can still import persistence.
-    from latent_opt import dumps_state  # local import
+    from ipo.core.latent_state import dumps_state  # local import
 
     raw = dumps_state(state)
     with np.load(io.BytesIO(raw)) as data:

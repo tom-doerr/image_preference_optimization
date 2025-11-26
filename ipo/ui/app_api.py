@@ -13,23 +13,12 @@ def _export_state_bytes(state, prompt: str):
 
 def _init_pair_for_state(new_state) -> None:
     try:
-        from latent_opt import propose_next_pair
-        z1, z2 = propose_next_pair(new_state, st.session_state.prompt)
+        from ipo.core.latent_logic import propose_pair_prompt_anchor
+        z1, z2 = propose_pair_prompt_anchor(new_state, st.session_state.prompt)
         st.session_state.lz_pair = (z1, z2)
-        return
     except Exception:
-        pass
-    try:
-        from latent_logic import propose_latent_pair_ridge
-        st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
-        return
-    except Exception:
-        pass
-    try:
         d = int(getattr(new_state, "d", 0))
-        st.session_state.lz_pair = (_np.zeros(d, dtype=float), _np.zeros(d, dtype=float))
-    except Exception:
-        st.session_state.lz_pair = (None, None)
+        st.session_state.lz_pair = (_np.zeros(d), _np.zeros(d))
 
 
 def _reset_derived_state(new_state) -> None:
@@ -47,7 +36,7 @@ def _reset_derived_state(new_state) -> None:
 
 def _randomize_mu_if_zero(st_local, new_state) -> None:
     try:
-        from latent_logic import z_from_prompt as _zfp
+        from ipo.core.latent_logic import z_from_prompt as _zfp
         if _np.allclose(new_state.mu, 0.0):
             pr = (
                 st_local.session_state.get(Keys.PROMPT)
@@ -87,14 +76,8 @@ def _apply_state(*args) -> None:
 
 
 def build_controls(st, lstate, base_prompt):
-    from .ui_sidebar import (
-        render_model_decode_settings,
-        render_modes_and_value_model,
-        render_rows_and_last_action,
-    )
-    from .ui_sidebar import (
-        render_sidebar_tail as render_sidebar_tail_module,
-    )
+    from .sidebar.controls import render_model_decode_settings, render_rows_and_last_action
+    from .ui_sidebar import render_modes_and_value_model
     # number_input helper
     def safe_sidebar_num(_st, label, *, value, step=None, format=None):
         num = getattr(
@@ -138,18 +121,7 @@ def build_controls(st, lstate, base_prompt):
     )
     st.session_state[Keys.ITER_STEPS] = int(iter_steps_num)
     iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or steps_default)
-    render_sidebar_tail_module(
-        st,
-        lstate,
-        st.session_state.prompt,
-        st.session_state.state_path,
-        vm_choice,
-        iter_steps,
-        iter_eta,
-        selected_model,
-        apply_state_cb=lambda *a, **k: None,
-        rerun_cb=lambda *a, **k: None,
-    )
+    # Sidebar tail is rendered in app.py to avoid duplicates
     st.session_state[Keys.GUIDANCE_EFF] = 0.0
     return (
         vm_choice,
@@ -167,12 +139,12 @@ def build_controls(st, lstate, base_prompt):
 
 
 def generate_pair(base_prompt: str) -> None:
+    from ipo.core.latent_logic import z_to_latents as _z2l
     from ipo.infra.pipeline_local import generate_flux_image_latents as _gen
-    from latent_opt import z_to_latents as _z2l
     try:
         lstate = st.session_state.lstate
         if st.session_state.get("lz_pair") is None:
-            from latent_logic import z_from_prompt
+            from ipo.core.latent_logic import z_from_prompt
 
             z_p = z_from_prompt(lstate, base_prompt)
             r = lstate.rng.standard_normal(lstate.d)
@@ -203,36 +175,9 @@ def generate_pair(base_prompt: str) -> None:
         pass
 
 
-def render_sidebar_tail(
-    st_mod,
-    lstate,
-    prompt: str,
-    state_path: str,
-    vm_choice: str,
-    iter_steps: int,
-    iter_eta: float | None,
-    selected_model: str,
-    apply_state_cb,
-    rerun_cb,
-) -> None:
-    """Proxy to ui_sidebar.render_sidebar_tail to avoid app.py direct imports."""
-    try:
-        from .ui_sidebar import render_sidebar_tail as _rst
-
-        _rst(
-            st_mod,
-            lstate,
-            prompt,
-            state_path,
-            vm_choice,
-            iter_steps,
-            iter_eta,
-            selected_model,
-            apply_state_cb,
-            rerun_cb,
-        )
-    except Exception:
-        pass
+def render_sidebar_tail(*_args, **_kwargs) -> None:
+    """Sidebar removed; no-op stub for backwards compatibility."""
+    pass
 
 
 def _render_batch_ui() -> None:
@@ -246,7 +191,7 @@ def _curation_init_batch() -> None:
         pass
     try:
         if not getattr(st.session_state, "cur_batch", None):
-            from latent_logic import z_from_prompt as _zfp
+            from ipo.core.latent_logic import z_from_prompt as _zfp
 
             z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
             n = int(getattr(st.session_state, "batch_size", 4))
@@ -278,7 +223,7 @@ def _curation_replace_at(idx: int) -> None:
     try:
         zs = getattr(st.session_state, "cur_batch", None)
         if isinstance(zs, list) and len(zs) > 0:
-            from latent_logic import z_from_prompt as _zfp
+            from ipo.core.latent_logic import z_from_prompt as _zfp
 
             z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
             rng = _np.random.default_rng(idx + 1)
