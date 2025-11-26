@@ -35,7 +35,9 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
 def _optim_xgb(z, ls, ss, n):
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
-    if mdl is None: return z
+    if mdl is None:
+        print("[xgb] no model trained yet")
+        return z
     best, bs = z.copy(), _xgb_proba(mdl, z)
     print(f"[xgb] start: {bs:.4f}")
     for i in range(n):
@@ -48,8 +50,11 @@ def _optim_xgb(z, ls, ss, n):
 
 def _optimize_z(z, lstate, ss, steps, eta=0.01):
     """Optimize z using value function."""
-    if steps <= 0: return z
+    if steps <= 0:
+        print(f"[optim] steps=0, skipping")
+        return z
     vm = ss.get(Keys.VM_CHOICE) or "Ridge"
+    print(f"[optim] vm={vm} steps={steps}")
     if vm == "XGBoost": return _optim_xgb(z, lstate, ss, steps)
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0): return z
