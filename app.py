@@ -24,7 +24,10 @@ vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
 # Latent optimization steps
 iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", 0, 1000, iter_val)
+st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
+# Training stats
+st.sidebar.markdown("---")
+st.sidebar.subheader("Training Stats")
 from ipo.core.persistence import state_path_for_prompt
 
 st.session_state.state_path = state_path_for_prompt(base_prompt)
@@ -36,6 +39,17 @@ if "lstate" not in st.session_state:
         except: _apply_state(st, init_latent_state())
     else: _apply_state(st, init_latent_state())
 lstate = st.session_state.lstate
+# Display training stats
+import numpy as np
+
+w = getattr(lstate, "w", None)
+w_norm = float(np.linalg.norm(w)) if w is not None else 0.0
+st.sidebar.text(f"Ridge |w|: {w_norm:.4f}")
+xgb_cache = st.session_state.get(Keys.XGB_CACHE) or {}
+xgb_n = xgb_cache.get("n", 0)
+st.sidebar.text(f"XGB samples: {xgb_n}")
+last_train = st.session_state.get(Keys.LAST_TRAIN_AT) or "never"
+st.sidebar.text(f"Last train: {last_train}")
 (
     vm_choice,
     selected_gen_mode,

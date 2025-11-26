@@ -39,8 +39,12 @@ def _optimize_z(z, lstate, ss, steps, eta=0.01):
     if steps <= 0: return z
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0): return z
-    for _ in range(int(steps)):
-        z = z + eta * w / (np.linalg.norm(w) + 1e-12)
+    w_norm = np.linalg.norm(w) + 1e-12
+    for i in range(int(steps)):
+        if i % max(1, steps // 5) == 0:
+            print(f"[optim] step {i}: score={float(np.dot(w, z)):.4f}")
+        z = z + eta * w / w_norm
+    print(f"[optim] final: score={float(np.dot(w, z)):.4f}")
     return z
 
 def _sample_z(lstate, prompt, scale=0.8):
