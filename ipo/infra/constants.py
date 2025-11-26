@@ -64,6 +64,7 @@ class Keys:
     DEBUG_TAIL_LINES = "debug_tail_lines"
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
+    XGB_OPTIM_MODE = "xgb_optim_mode"
     XGB_CV_FOLDS = "xgb_cv_folds"
     # Logistic weights cache (simple numpy vector)
     LOGIT_W = "logit_w"

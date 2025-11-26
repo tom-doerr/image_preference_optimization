@@ -13,7 +13,7 @@ def init_latent_state(*a, **k):
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 if Keys.VM_CHOICE not in st.session_state: st.session_state[Keys.VM_CHOICE] = "XGBoost"
-if Keys.ITER_ETA not in st.session_state: st.session_state[Keys.ITER_ETA] = 0.00001
+if Keys.ITER_ETA not in st.session_state: st.session_state[Keys.ITER_ETA] = 1.0
 
 if "prompt" not in st.session_state: st.session_state.prompt = DEFAULT_PROMPT
 base_prompt = st.sidebar.text_input("Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
@@ -22,10 +22,21 @@ st.session_state.prompt = base_prompt
 vm_opts = ["Ridge", "XGBoost"]
 vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
+st.sidebar.markdown("---")
+st.sidebar.subheader("XGBoost")
+xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
+st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", 1, 500, xgb_n)
+xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 3)
+st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", 1, 10, xgb_d)
+trust_r = float(st.session_state.get(Keys.TRUST_R) or 1.0)
+st.session_state[Keys.TRUST_R] = st.sidebar.number_input("Max Dist", 0.0, value=trust_r, step=0.1)
+xgb_modes = ["Line", "Hill"]
+xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or "Line"
+st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox("Optim", xgb_modes, index=xgb_modes.index(xgb_m))
 # Latent optimization steps
 iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 10)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
-eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 0.1))
+eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 1.0))
 st.session_state[Keys.ITER_ETA] = st.sidebar.number_input("Step Size", min_value=0.0001, value=eta_val, format="%.4f")
 # Batch size
 batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or 3)

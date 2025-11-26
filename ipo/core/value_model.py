@@ -5,16 +5,20 @@ from ipo.infra.constants import Keys
 class XGBTrainer:
     def __init__(self, n_estimators=50, max_depth=3):
         self.n_estimators, self.max_depth = int(n_estimators), int(max_depth)
-    def fit(self, X, y):
+    def fit(self, X, y, warm_model=None):
         import xgboost as xgb
         m = xgb.XGBClassifier(n_estimators=self.n_estimators, max_depth=self.max_depth, learning_rate=0.1)  # noqa: E501
-        m.fit(X, y); return m
+        m.fit(X, y, xgb_model=warm_model)
+        return m
 
 def _xgb_proba(model, fvec):
     return float(model.predict_proba(np.asarray(fvec).reshape(1, -1))[0, 1])
 
 def _get_xgb_params(ss):
-    try: return int(getattr(ss, "xgb_n_estimators", 50)), int(getattr(ss, "xgb_max_depth", 3))
+    try:
+        n = ss.get(Keys.XGB_N_ESTIMATORS, 50) if hasattr(ss, "get") else getattr(ss, Keys.XGB_N_ESTIMATORS, 50)
+        d = ss.get(Keys.XGB_MAX_DEPTH, 3) if hasattr(ss, "get") else getattr(ss, Keys.XGB_MAX_DEPTH, 3)
+        return int(n or 50), int(d or 3)
     except Exception: return 50, 3
 
 def _set_xgb_model(ss, model, n):
@@ -39,7 +43,9 @@ def _maybe_fit_xgb(X, y, lam, ss):
     if X.shape[0] <= 0 or not _has_two_classes(y): return
     n_estim, max_depth = _get_xgb_params(ss)
     y01 = ((np.asarray(y) + 1) / 2).astype(int)  # -1,1 -> 0,1
-    mdl = XGBTrainer(n_estim, max_depth).fit(X, y01)
+    old = _get_xgb_model(ss)
+    mdl = XGBTrainer(n_estim, max_depth).fit(X, y01, warm_model=old)
+    print(f"[xgb] {'warm' if old else 'cold'} fit on {X.shape[0]} samples")
     _set_xgb_model(ss, mdl, X.shape[0])
 
 def _train_optionals(vm_choice, lstate, X, y, lam, ss):
@@ -47,6 +53,9 @@ def _train_optionals(vm_choice, lstate, X, y, lam, ss):
 
 def fit_value_model(vm_choice, lstate, X, y, lam, session_state):
     _train_optionals(str(vm_choice), lstate, X, y, lam, session_state)
+    mode = session_state.get(Keys.XGB_OPTIM_MODE) if hasattr(session_state, "get") else None
+    if str(vm_choice) == "XGBoost" and mode == "Line":
+        print("[train] XGB done, training Ridge for line search direction")
     _fit_ridge(lstate, X, y, float(lam))
     try: session_state[Keys.LAST_TRAIN_AT] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     except Exception: pass

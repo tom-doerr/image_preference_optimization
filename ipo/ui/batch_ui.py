@@ -1,6 +1,7 @@
 import numpy as np
 import streamlit as st
-from ipo.infra.constants import Keys, DEFAULT_PROMPT
+
+from ipo.infra.constants import DEFAULT_PROMPT, Keys
 
 
 def _update_rows_display(st, Keys):
@@ -14,7 +15,6 @@ def _update_rows_display(st, Keys):
 def _lstate_and_prompt():
     import streamlit as st
 
-    from ipo.infra.constants import DEFAULT_PROMPT
     lstate = getattr(st.session_state, "lstate", None)
     if lstate is None:
         from ipo.core.latent_state import init_latent_state; lstate = init_latent_state(); st.session_state.lstate = lstate
@@ -32,16 +32,37 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
             _render_batch_tile_body(*args)
 
 
+def _line_xgb(z, z0, w, mdl, n, eta, mr):
+    from ipo.core.value_model import _xgb_proba
+    wd = w / (np.linalg.norm(w) + 1e-12); best, bs = z.copy(), _xgb_proba(mdl, z)
+    for i in range(n):
+        c = z + eta * (i + 1) * wd
+        if mr > 0:
+            dn = np.linalg.norm(c - z0)
+            if dn > mr: c = z0 + (c - z0) * mr / dn
+        s = _xgb_proba(mdl, c)
+        if s > bs: best, bs = c, s
+    return best
+
 def _optim_xgb(z, ls, ss, n, eta=0.1):
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
     if mdl is None:
         print("[xgb] no model trained yet")
         return z
+    z0, max_r = z.copy(), float(ss.get(Keys.TRUST_R, 0) or 0)
+    mode = ss.get(Keys.XGB_OPTIM_MODE) or "Line"
+    w = getattr(ls, "w", None)
+    if mode == "Line" and w is not None and not np.allclose(w, 0):
+        print("[xgb] line search along Ridge direction")
+        return _line_xgb(z, z0, w, mdl, n, eta, max_r)
     best, bs = z.copy(), _xgb_proba(mdl, z)
     print(f"[xgb] start: {bs:.4f}")
     for i in range(n):
         c = best + np.random.randn(len(z)) * eta * ls.sigma
+        if max_r > 0:
+            d = np.linalg.norm(c - z0)
+            if d > max_r: c = z0 + (c - z0) * max_r / d
         s = _xgb_proba(mdl, c)
         print(f"[xgb] {i}: {s:.4f}{' *' if s > bs else ''}")
         if s > bs: best, bs = c, s
@@ -51,7 +72,7 @@ def _optim_xgb(z, ls, ss, n, eta=0.1):
 def _optimize_z(z, lstate, ss, steps, eta=0.01):
     """Optimize z using value function."""
     if steps <= 0:
-        print(f"[optim] steps=0, skipping")
+        print("[optim] steps=0, skipping")
         return z
     vm = ss.get(Keys.VM_CHOICE) or "Ridge"
     print(f"[optim] vm={vm} steps={steps}")
@@ -202,7 +223,9 @@ def _render_tile(i, ls, pr, z2l, gen):
     z = st.session_state.batch_z[i]
     if st.session_state.batch_img[i] is None:
         st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, 6, 0.0)
-    st.image(st.session_state.batch_img[i], caption=f"#{i}")
+    sc = _get_score(z, ls, st.session_state)
+    d = _get_dist(z, ls, pr)
+    st.image(st.session_state.batch_img[i], caption=f"#{i} s={sc:.3f} d={d:.2f}")
     if st.button("👍", key=f"g{i}"): _do_label(i, 1, ls, pr)
     if st.button("👎", key=f"b{i}"): _do_label(i, -1, ls, pr)
 
@@ -213,6 +236,20 @@ def _do_label(i, label, ls, pr):
     st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, steps, eta)
     st.session_state.batch_img[i] = None
     st.rerun()
+
+def _get_score(z, ls, ss):
+    vm = ss.get(Keys.VM_CHOICE) or "Ridge"
+    if vm == "XGBoost":
+        from ipo.core.value_model import _get_xgb_model, _xgb_proba
+        mdl = _get_xgb_model(ss)
+        return _xgb_proba(mdl, z) if mdl else 0.0
+    w = getattr(ls, "w", None)
+    return float(np.dot(w, z)) if w is not None else 0.0
+
+def _get_dist(z, ls, prompt):
+    from ipo.core.latent_state import z_from_prompt
+    z0 = z_from_prompt(ls, prompt)
+    return float(np.linalg.norm(z - z0))
 
 def _decode_one(i, lstate, prompt, z_i, steps, guidance_eff):
     from ipo.core.latent_state import z_to_latents

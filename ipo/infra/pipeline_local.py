@@ -2,6 +2,7 @@ import os, threading
 PIPE = None
 CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.RLock()
+_LCM_SET = False
 PROMPT_CACHE: dict = {}
 
 def _get_default_model_id() -> str:
@@ -25,7 +26,7 @@ def _normalize_to_init_sigma(pipe, latents, steps=None):
 
 def _free_pipe() -> None:
     """Best-effort free of cached pipeline and CUDA memory."""
-    global PIPE
+    global PIPE, _LCM_SET
     try:
         import gc  # type: ignore
 
@@ -34,6 +35,7 @@ def _free_pipe() -> None:
         if PIPE is not None:
             del PIPE
             PIPE = None
+            _LCM_SET = False
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()  # type: ignore[attr-defined]
@@ -156,12 +158,14 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
 
 
 def set_model(model_id):
-    global CURRENT_MODEL_ID
+    global CURRENT_MODEL_ID, _LCM_SET
     with PIPE_LOCK: pipe = _ensure_pipe(model_id)
+    if _LCM_SET: return
     mid = CURRENT_MODEL_ID or ""
     try:
         if "sd-turbo" in mid or "sdxl-turbo" in mid:
             from diffusers import LCMScheduler
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+            _LCM_SET = True
             print(f"[set_model] LCMScheduler set for {mid}")
     except Exception: pass
