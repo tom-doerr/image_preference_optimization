@@ -3,9 +3,11 @@ import types
 import numpy as np
 
 
-def test_xgb_unavailable_sets_status_and_skips_resubmit():
 from value_model import fit_value_model
 from constants import Keys
+
+
+def test_xgb_unavailable_sets_status_and_skips_resubmit():
 
     # Stub trainer to raise ImportError
     xv = types.ModuleType("xgb_value")

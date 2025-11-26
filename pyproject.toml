@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+  "tests/**",
+  "scripts/**",
+]
+
+[tool.ruff.lint]
+# Enable common rules + McCabe complexity (C901)
+select = ["E", "F", "I", "C901"]
+
+[tool.ruff.lint.mccabe]
+# Keep functions simple; fail above this complexity.
+max-complexity = 10

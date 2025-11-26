@@ -214,3 +214,17 @@ Open questions for you:
 - Do you want Ridge captions to appear when VM=XGBoost but no XGB is trained yet? (Current stance: no.)
 - Should we keep the lightweight debug lines in CLI, or make them verbosity‑1 only?
 - Do you want us to delete the remaining legacy sidebar widgets entirely (CV lines), or keep the placeholders?
+Q (Nov 25, 2025): Why do image captions still show “Value: n/a” when XGBoost is selected?
+A: In the simplified flow XGBoost trains only when you click the explicit sync button (or the code calls fit_value_model synchronously). Until a trained model exists AND the dataset includes both classes (+1/−1), captions remain n/a by design (no Ridge fallback when VM=XGBoost). After a sync fit, captions switch to “[XGB] …”.
+
+Update: We reverted the forced-XGB change. You can choose XGBoost, Logistic, or Ridge. When you pick Ridge, the app uses Ridge for scoring/training (no fallback to XGB/Logit). For XGBoost, you still need at least one +1 and one −1 row and a sync fit before captions show numeric values.
+
+Q: Why not keep auto‑fit/async? It used to work sometimes.
+A: Async/auto‑fit caused races and mixed status signals in the UI. Sync‑only is deterministic and much simpler to test. We’ll keep the code small and add focused tests instead of fallbacks.
+
+Q: What’s blocking a green test run right now?
+A: Several tests are syntactically corrupted (IndentationError or merged lines like “llfrom …”). These are test-file edits we need to repair. The app imports and the new shims are fine; we’ll fix tests in small batches and rerun.
+
+Note (Nov 25, 2025): The app failed with `ModuleNotFoundError: latent_state` during bootstrap. Root cause: recent refactor moved latent_state to `ipo/core/latent_state.py`, while some modules still import `latent_state`. I added a tiny root shim `latent_state.py` that re-exports from the new location. No behavior change; just fixes imports.
+
+Open question for you: Do you want me to (1) repair all corrupted tests mechanically now, or (2) gate heavy/brittle tests behind an env flag and land a smaller green subset first? I recommend (1) for clarity and long‑term stability.

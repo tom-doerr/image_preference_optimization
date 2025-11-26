@@ -37,11 +37,11 @@ def ensure_sidebar_shims(st: Any) -> None:
         st.sidebar.write = _w  # type: ignore[attr-defined]
     # Always provide a lightweight metric shim so tests can capture lines.
     def _metric(label, value, **k):
-    try:
-        if hasattr(st, "sidebar_writes"):
-            st.sidebar_writes.append(f"{label}: {value}")
-    except SAFE_EXC:
-        pass
+        try:
+            if hasattr(st, "sidebar_writes"):
+                st.sidebar_writes.append(f"{label}: {value}")
+        except SAFE_EXC:
+            pass
     try:
         st.sidebar.metric = _metric  # type: ignore[attr-defined]
     except SAFE_EXC:
@@ -128,10 +128,4 @@ def rows_refresh_tick(st: Any) -> None:
             print(f"[rows] live={rows_live} disp={rows_live}")
     except SAFE_EXC:
         pass
-    try:
-        from latent_opt import state_summary  # type: ignore
-        from ipo.ui.ui import sidebar_metric_rows
-        info = state_summary(lstate)
-        sidebar_metric_rows([("Pairs:", info.get("pairs_logged", 0)), ("Choices:", info.get("choices_logged", 0))], per_row=2)
-    except SAFE_EXC:
-        pass
+    # Omit extra dataset summary lines to keep sidebar minimal.

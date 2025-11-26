@@ -5,7 +5,8 @@ from typing import Any
 
 def resolve_meta_pairs(prompt: str, state_path: str):
     try:
-        import os, hashlib
+        import os
+        import hashlib
         from ipo.core.persistence import read_metadata
         meta = None
         path = state_path
@@ -45,4 +46,3 @@ def emit_meta_pairs(st: Any, pairs) -> None:
                 st.sidebar.write(f"{k}: {v}")
         except Exception:
             pass
-

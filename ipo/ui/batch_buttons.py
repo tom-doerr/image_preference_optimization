@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 
 def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
@@ -90,4 +89,3 @@ def handle_best_of(st, i: int, img_i, cur_batch) -> None:
     except Exception:
         pass
     _log(f"[perf] best_of choose item={i} took {(_time.perf_counter() - t0b) * 1000:.1f} ms")
-

@@ -158,11 +158,8 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
 
 def _vm_details_xgb(st: Any, cache: dict) -> None:
     try:
-        try:
-            import xgboost  # type: ignore
-            avail = "yes"
-        except SAFE_EXC:
-            avail = "no"
+        import importlib.util as _ilu
+        avail = "yes" if _ilu.find_spec("xgboost") is not None else "no"
         st.sidebar.write(f"XGBoost available: {avail}")
     except SAFE_EXC:
         pass
@@ -205,7 +202,7 @@ def _sidebar_training_data_block(st: Any, prompt: str, lstate: Any) -> None:
             stats = {"rows": 0, "pos": 0, "neg": 0, "d": int(getattr(lstate, 'd', 0))}
         st.sidebar.write("Training data & scores")
         st.sidebar.write(f"Dataset rows: {stats.get('rows', 0)}")
-        st.sidebar.write(f"Rows (disk): 0")  # disk scan removed in simplified path
+        st.sidebar.write("Rows (disk): 0")  # disk scan removed in simplified path
         st.sidebar.write("Pairs:: 0")
         st.sidebar.write("Choices:: 0")
     except Exception:

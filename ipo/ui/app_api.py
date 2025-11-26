@@ -1,4 +1,3 @@
-import os
 import numpy as _np
 import streamlit as st
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
@@ -87,11 +86,11 @@ def build_controls(st, lstate, base_prompt):
         render_sidebar_tail as render_sidebar_tail_module,
     )
     # number_input helper
-    safe_sidebar_num = lambda _st, label, *, value, step=None, format=None: (
-        (getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None)))(label, value=value, step=step, format=format)
-        if callable(getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None)))
-        else value
-    )
+    def safe_sidebar_num(_st, label, *, value, step=None, format=None):
+        num = getattr(getattr(_st, "sidebar", _st), "number_input", getattr(_st, "number_input", None))
+        if callable(num):
+            return num(label, value=value, step=step, format=format)
+        return value
     vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
     render_rows_and_last_action(st, base_prompt, lstate)
     selected_model, width, height, steps, guidance, _apply_clicked = render_model_decode_settings(st, lstate)

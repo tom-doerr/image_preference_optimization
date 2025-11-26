@@ -47,6 +47,12 @@ New learnings (Nov 25, 2025 — sync-only + unified scorer):
 - Early sidebar lines are deterministic at import: Value model, Step scores (n/a), Train/CV/Last, Latent dim, hardcoded model. Keeps text‑only tests stable.
 - Dataset is memory‑first and folder‑only. Rows with mismatched feature dims are ignored; the sidebar shows the folder path and counts.
 
+OO refactor (Nov 25, 2025):
+- Switched XGBoost training to a tiny OO wrapper `ipo.core.xgb_value.XGBTrainer`. It exposes `fit(...)` and a static `proba(...)`, plus `from_session(...)` to read params. Old functions `fit_xgb_classifier` and `score_xgb_proba` remain as thin shims to avoid breaking tests.
+
+Decision update (259d→revised): Keep all value-model options
+- We keep XGBoost, Logistic, and Ridge selectable. No forced override at startup. When "Ridge" is selected, captions and training use Ridge explicitly (no XGB/Logit fallback). When "XGBoost" is selected, captions remain `n/a` until a trained XGB model exists.
+
 What we learned today:
 - Many “XGB bugs” were state/contract mismatches: prompt/dim scoping, single‑class data, or cache not set after fit.
 - Page reruns and async paths created mixed signals; keeping XGB sync‑only removes races and simplifies tests.
@@ -1943,3 +1949,20 @@ Keep in mind:
 Update (Nov 25, 2025 – CV consolidation):
 - Consolidated CV helpers: removed `ipo/ui/sidebar/cv.py`; `_cached_cv_lines` and `_cv_on_demand` now live in `ipo.ui.ui_sidebar` (the latter is a no‑op).
 - CV values are cached-only; we no longer compute CV on button click to keep UI small. Tests still see the labels via `_cached_cv_lines`.
+
+
+Ruff status (Nov 25, 2025):
+- Ran `ruff check` on app/core/infra/ui modules → clean (no findings).
+- Replaced broad `except Exception` with `SAFE_EXC` where appropriate.
+- Added `pyproject.toml` to scope ruff (tests/scripts excluded) to keep signal high.
+
+
+Ruff run (latest):
+- Date: 2025-11-25 — ruff check returned no findings on app/core/infra/ui.
+- Scope remains tests-excluded; offer to lint tests separately if desired.
+
+Update (Nov 25, 2025 — shims + baseline repairs):
+- Added tiny root shims at repo root: batch_ui.py, ui_sidebar.py, value_model.py, value_scorer.py, persistence.py, latent_logic.py, and flux_local.py. Each re-exports from ipo/* to keep older tests/imports working while code lives under ipo/.
+- Added latent_state.py shim for the same reason; fixes `ModuleNotFoundError: latent_state` seen at app import.
+- Fixed a NameError in ipo/ui/batch_ui.py by importing time as _time at module scope.
+- Test suite currently has several syntactic corruptions (IndentationError/merged lines like "llfrom …"). We will repair those tests mechanically in small batches (move stray imports to top, split merged lines, fix indents) rather than adding behavioral fallbacks.

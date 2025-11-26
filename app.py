@@ -53,6 +53,8 @@ if "prompt" not in st.session_state:
 base_prompt = ensure_prompt_and_state()
 st_rerun = getattr(st, "rerun", getattr(st, "experimental_rerun", None))
 
+# Keep user-selectable value models (XGBoost, Logistic, Ridge). No forced override.
+
 # Controls
 lstate = st.session_state.lstate
 vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, _ = _build_controls(
@@ -110,7 +112,7 @@ def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None) -> None:
 run_app(st, vm_choice, selected_gen_mode)
 
 st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
-from ipo.core.latent_state import save_state  # local import to reduce global surface
+from ipo.core.latent_state import save_state  # noqa: E402  (local import to reduce global surface)
 if st.button("Reset", type="secondary"):
     _apply_state(st, init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)

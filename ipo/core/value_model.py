@@ -86,7 +86,7 @@ def _fit_ridge(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float) -> None:
 def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
     """Sync XGB fit with minimal side effects; also updates legacy cache for compat."""
     try:
-        from ipo.core.xgb_value import fit_xgb_classifier  # type: ignore
+        from ipo.core.xgb_value import XGBTrainer  # type: ignore
 
         n = int(X.shape[0])
         d = int(X.shape[1]) if X.ndim == 2 else 0
@@ -104,7 +104,8 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         _log(f"[xgb] train start rows={n} d={d} pos={pos} neg={neg}")
         _log(f"[xgb] params n_estim={n_estim} depth={max_depth}")
         t_x = _time.perf_counter()
-        mdl = fit_xgb_classifier(X, y, n_estimators=n_estim, max_depth=max_depth)
+        trainer = XGBTrainer(n_estimators=n_estim, max_depth=max_depth)
+        mdl = trainer.fit(X, y)
         _store_xgb_model(session_state, mdl, n)
         dt_ms = (_time.perf_counter() - t_x) * 1000.0
         _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
@@ -269,7 +270,6 @@ def fit_value_model(
       value_scorer.get_value_scorer.
     - Records last_train_at and last_train_ms in session_state.
     """
-    t0 = _time.perf_counter()
     choice = str(vm_choice)
 
     # Synchronous fit via minimal OO facade (keeps behavior centralized)

@@ -5,7 +5,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 import os
-import shutil
 import numpy as np
 from ipo.infra.constants import APP_VERSION
 

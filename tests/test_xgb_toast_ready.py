@@ -9,8 +9,11 @@ class SS(dict):
         self[k] = v
 
 
-def test_xgb_toast_on_sync_fit_via_fit_value_model():
 from constants import Keys
+from value_model import fit_value_model
+
+
+def test_xgb_toast_on_sync_fit_via_fit_value_model():
     # Stub streamlit.toast collector
     calls = []
     st = types.ModuleType("streamlit")
@@ -22,7 +25,6 @@ from constants import Keys
     xv = types.ModuleType("xgb_value")
     xv.fit_xgb_classifier = lambda X, y, n_estimators=50, max_depth=3: mdl
     sys.modules["xgb_value"] = xv
-from value_model import fit_value_model
 
     lstate = types.SimpleNamespace(d=4, w=np.zeros(4), w_lock=None)
     X = np.array([[1, 0, 0, 0], [-1, 0, 0, 0]], dtype=float)
@@ -46,7 +48,6 @@ def test_xgb_toast_on_sync_fit_via_fit_value_model_2():
     xv = types.ModuleType("xgb_value")
     xv.fit_xgb_classifier = lambda X, y, n_estimators=50, max_depth=3: mdl
     sys.modules["xgb_value"] = xv
-from value_model import fit_value_model
 
     lstate = types.SimpleNamespace(d=4, w=np.zeros(4), w_lock=None)
     X = np.array([[1, 0, 0, 0], [-1, 0, 0, 0]], dtype=float)

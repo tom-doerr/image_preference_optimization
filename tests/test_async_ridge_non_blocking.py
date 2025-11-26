@@ -34,7 +34,8 @@ class TestAsyncRidgeNonBlocking(unittest.TestCase):
             return np.ones(Xd.shape[1], dtype=np.float32)
 
         ll.ridge_fit = slow_ridge_fit
-        sys.modules["latent_logic"] = llfrom ipo.core import value_model as vm
+        sys.modules["latent_logic"] = ll
+        from ipo.core import value_model as vm
 
         t0 = time.perf_counter()
         vm.fit_value_model("Ridge", lstate, X, y, lam=1e-3, session_state=ss)

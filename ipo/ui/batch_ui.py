@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Any, Tuple
+import time as _time
 import numpy as np
-from ipo.infra.constants import Keys, DEFAULT_ITER_STEPS
+from ipo.infra.constants import Keys
 import logging as _logging
+from .batch_util import save_and_print as _save_and_print
 
 LOGGER = _logging.getLogger("ipo")
 if not LOGGER.handlers:
@@ -169,8 +171,6 @@ def _choose_scorer(st, lstate, prompt):
 
 def _predict_value(scorer, z_p, z_i):
     try:
-        import numpy as _np
-
         if scorer is None or z_p is None:
             return None
         fvec = z_i - z_p
@@ -290,18 +290,18 @@ def _sample_around_prompt(scale: float = 0.8) -> np.ndarray:
 
 def _prepare_xgb_scorer(lstate: Any, prompt: str):
     """Return (scorer, status) for XGB from cache (no auto-fit)."""
+    # Prefer unified scorer; provide a tiny compat shim when tests stub only the old API.
     try:
-        # Prefer unified scorer; provide a tiny compat shim when tests stub only the old API.
-        try:
-            from value_scorer import get_value_scorer as _gvs
-        except Exception:
-            from value_scorer import get_value_scorer_with_status as _gvs_ws  # type: ignore
+        from value_scorer import get_value_scorer as _gvs
+    except Exception:
+        from value_scorer import get_value_scorer_with_status as _gvs_ws  # type: ignore
 
-            def _gvs(vm_choice, lstate, prompt, session_state):  # type: ignore
-                s, status = _gvs_ws(vm_choice, lstate, prompt, session_state)
-                return (s, ("ok" if callable(s) else status))
+        def _gvs(vm_choice, lstate, prompt, session_state):  # type: ignore
+            s, status = _gvs_ws(vm_choice, lstate, prompt, session_state)
+            return (s, ("ok" if callable(s) else status))
 
-        scorer, tag_or_status = get_value_scorer(
+    try:
+        scorer, tag_or_status = _gvs(
             "XGBoost", lstate, prompt, __import__("streamlit").session_state
         )
         return (scorer, "ok") if scorer is not None else (None, str(tag_or_status))
@@ -420,9 +420,6 @@ def _append_mem_dataset(st, Keys, feat: np.ndarray, label: float) -> None:
         pass
 
 
-from .batch_util import save_and_print as _save_and_print
-
-
 def _record_last_action_and_step(st, Keys, lstate, msg: str) -> None:
     try:
         import time as _time
@@ -538,7 +535,8 @@ def _curation_train_and_next() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
     if not bool(st.session_state.get("train_on_new_data", True)):
-        _curation_new_batch(); return
+        _curation_new_batch()
+        return
     # Resolve dataset (memory-first) and maybe train once
     from ipo.ui.ui_sidebar import _get_dataset_for_display as _gdf
     X, y = _gdf(st, lstate, prompt)
@@ -571,7 +569,6 @@ def _maybe_train_ridge_sync(st, lstate, X, y) -> None:
 
 def _render_batch_ui() -> None:
     import streamlit as st
-    import time as _time
 
     # Header + init
     lstate, prompt, steps, guidance_eff, cur_batch, scorer, z_p = _batch_init(st)

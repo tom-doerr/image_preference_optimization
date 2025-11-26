@@ -1,18 +1,23 @@
-from __future__ import annotations
-
-from typing import Any
-from ipo.infra.util import SAFE_EXC, safe_write
-
-import numpy as np
-
 """Sidebar UI composition for the app.
 
 Debug/log-tail helpers live in `ui_sidebar_debug` to keep this file lean
 without changing behavior or strings.
 """
+
+from __future__ import annotations
+
+from typing import Any
+from ipo.infra.util import SAFE_EXC, safe_write
 from ipo.infra.constants import Keys
-from ipo.core.persistence import dataset_rows_for_prompt, dataset_stats_for_prompt
-from ipo.infra.util import safe_write
+from .ui_sidebar_modes import (
+    _select_generation_mode,  # noqa: F401
+    _select_value_model,      # noqa: F401
+    _toggle_random_anchor,    # noqa: F401
+    build_batch_controls,     # noqa: F401
+    build_pair_controls,      # noqa: F401
+    render_modes_and_value_model,  # noqa: F401
+)
+from .sidebar.panels import handle_train_section as _handle_train_section
 
 def _step_len_for_scores(lstate: Any, n_steps: int, iter_eta: float | None, trust_r: float | None) -> float:
     try:
@@ -35,13 +40,6 @@ def _step_len_for_scores(lstate: Any, n_steps: int, iter_eta: float | None, trus
         return 1.0 / n
 
 
-from .ui_sidebar_modes import _select_generation_mode  # re-export
-
-
-from .ui_sidebar_modes import _select_value_model  # re-export
-
-
-from .ui_sidebar_modes import _toggle_random_anchor  # re-export
 def sidebar_metric(label: str, value) -> None:
     """Plain text lines only; no Streamlit metric widgets."""
     import streamlit as st
@@ -108,10 +106,7 @@ def perf_panel(last_call: dict, last_train_ms) -> None:
         sidebar_metric_rows(pairs, per_row=2)
 
 
-from .ui_sidebar_modes import build_batch_controls  # re-export
-
-
-from .ui_sidebar_modes import build_pair_controls  # re-export
+# re-exports declared at top; remove duplicates
 
 
 def build_size_controls(st, lstate):
@@ -470,7 +465,7 @@ def _logit_train_controls(st: Any, lstate: Any, Xd, yd) -> None:
     return _impl(st, lstate, Xd, yd)
 
 
-from .sidebar.panels import handle_train_section as _handle_train_section
+ # duplicate import removed; imported at top
 
 
 def _early_persistence_and_meta(
@@ -546,13 +541,7 @@ def _emit_train_results(st: Any, lines: list[str], sidebar_only: bool = False) -
 
 
 # Merged from ui_sidebar_extra
-from .sidebar.misc import emit_dim_mismatch as _emit_dim_mismatch
-
-
-from .sidebar.misc import emit_last_action_recent as _emit_last_action_recent
-
-
-from .sidebar.misc import rows_refresh_tick as _rows_refresh_tick
+ # duplicate sidebar misc re-exports removed
 
 
 # moved to ui_sidebar_controls to reduce this file's complexity
@@ -569,7 +558,7 @@ def render_model_decode_settings(st: Any, lstate: Any):
 
 
 # Merged from ui_sidebar_modes
-from .ui_sidebar_modes import render_modes_and_value_model  # re-export
+ # duplicate re-export removed
 def _build_size_controls(st, lstate):
     num = getattr(st.sidebar, "number_input", st.number_input)
     sld = getattr(st.sidebar, "slider", st.slider)

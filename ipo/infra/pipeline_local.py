@@ -32,7 +32,7 @@ try:
 except Exception:
     pass
 
-from .flux_utils import (
+from .pipeline_utils import (  # noqa: E402
     get_default_model_id as _get_default_model_id,
     p as _p,
     log_verbosity as _lv,
@@ -515,7 +515,7 @@ def _record_latents_meta(latents, width: int, height: int, steps: int, guidance:
     """Record LAST_CALL + log a concise latents summary (pure helper)."""
     try:
         std, mean, shp = _latents_basic_stats(latents)
-        guidance_eff = _eff_guidance(CURRENT_MODEL_ID or "", guidance)
+        guidance_eff = _eff_g(CURRENT_MODEL_ID or "", guidance)
         _update_last_call_latents(width, height, steps, guidance_eff, std, mean, shp)
         init_sigma = _get_init_sigma()
         if _lv() >= 2:
