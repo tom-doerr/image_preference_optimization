@@ -89,6 +89,7 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     from ipo.core.persistence import append_sample
     lstate, prompt = _lstate_and_prompt()
     feat = (z - z_from_prompt(lstate, prompt)).reshape(1, -1)
+    print(f"[add] label={label} feat.shape={feat.shape} prompt={prompt[:20]}...")
     append_sample(prompt, feat, float(label), img)
     lstate.step = getattr(lstate, "step", 0) + 1
     print(f"[label] {'Good' if label > 0 else 'Bad'} (step {lstate.step})")
@@ -103,10 +104,12 @@ def _render_good_bad(st, i, z_i, img_i):
     n = st.session_state.get("cur_batch_nonce", 0)
     with c1:
         if st.button(f"Good {i}", key=f"g_{n}_{i}"):
+            print(f"[btn] Good {i} clicked")
             _curation_add(1, z_i, img_i)
             _curation_replace_at(i)
     with c2:
         if st.button(f"Bad {i}", key=f"b_{n}_{i}"):
+            print(f"[btn] Bad {i} clicked")
             _curation_add(-1, z_i, img_i)
             _curation_replace_at(i)
 
