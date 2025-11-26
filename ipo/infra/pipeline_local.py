@@ -22,8 +22,9 @@ def _normalize_to_init_sigma(pipe, latents, steps=None):
     try:
         sched = getattr(pipe, "scheduler", None)
         init_sigma = float(getattr(sched, "init_noise_sigma", 1.0) or 1.0)
-        std = float(latents.std().item()) if hasattr(latents, "std") else 1.0
-        return (latents / max(std, 1e-8)) * init_sigma
+        print(f"[norm] init_sigma={init_sigma} sched={type(sched).__name__}")
+        # Scale latents by init_sigma (don't normalize std)
+        return latents * init_sigma
     except Exception:
         return latents
 
@@ -143,12 +144,12 @@ def _get_prompt_embeds(prompt, guidance):
 
 def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20, guidance=3.5):
     _ensure_pipe(None)
-    latents = _normalize_to_init_sigma(PIPE, _to_cuda_fp16(latents), steps or 20)
+    latents = _to_cuda_fp16(latents)
+    print(f"[pipe] in: std={latents.std().item():.3f} shape={latents.shape}")
+    latents = _normalize_to_init_sigma(PIPE, latents, steps or 20)
     g = _eff_g(CURRENT_MODEL_ID or "", guidance)
-    pe, ne = _get_prompt_embeds(prompt, g)
-    kw = dict(num_inference_steps=int(steps or 20), guidance_scale=float(g), width=int(width), height=int(height), latents=latents)  # noqa: E501
-    if pe: kw.update(prompt_embeds=pe, negative_prompt_embeds=ne)
-    else: kw["prompt"] = prompt
+    print(f"[pipe] norm: std={latents.std().item():.3f} g={g} steps={steps}")
+    kw = dict(num_inference_steps=int(steps or 20), guidance_scale=float(g), width=int(width), height=int(height), latents=latents, prompt=prompt)
     return _run_pipe(**kw)
 
 
