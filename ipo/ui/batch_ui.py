@@ -32,9 +32,23 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
             _render_batch_tile_body(*args)
 
 
+def _optim_xgb(z, ls, ss, n):
+    from ipo.core.value_model import _get_xgb_model, _xgb_proba
+    mdl = _get_xgb_model(ss)
+    if mdl is None: return z
+    best, bs = z, _xgb_proba(mdl, z)
+    for _ in range(n):
+        c = z + np.random.randn(len(z)) * 0.1 * ls.sigma
+        s = _xgb_proba(mdl, c)
+        if s > bs: best, bs = c, s
+    print(f"[optim] XGB: {bs:.4f}")
+    return best
+
 def _optimize_z(z, lstate, ss, steps, eta=0.01):
-    """Gradient ascent on value function."""
+    """Optimize z using value function."""
     if steps <= 0: return z
+    vm = ss.get(Keys.VM_CHOICE) or "Ridge"
+    if vm == "XGBoost": return _optim_xgb(z, lstate, ss, steps)
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0): return z
     w_norm = np.linalg.norm(w) + 1e-12
