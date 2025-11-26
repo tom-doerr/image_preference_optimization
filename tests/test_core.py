@@ -28,3 +28,12 @@ def test_ridge_fit():
     w = ridge_fit(X, y, lam=1.0)
     assert w.shape == (5,)
     assert np.isfinite(w).all()
+
+def test_value_model_fit():
+    from ipo.core.latent_state import init_latent_state
+    from ipo.core.value_model import fit_value_model
+    state = init_latent_state()
+    X = np.random.randn(10, state.d)
+    y = np.array([1,-1,1,-1,1,-1,1,-1,1,-1])
+    fit_value_model("Ridge", state, X, y, 1.0, {})
+    assert not np.allclose(state.w, 0)
