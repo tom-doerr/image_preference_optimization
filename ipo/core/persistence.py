@@ -1,11 +1,13 @@
-import io
 import hashlib
+import io
+import os
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
-import os
+
 import numpy as np
+
 from ipo.infra.constants import APP_VERSION
 
 
@@ -179,7 +181,7 @@ def get_dataset_for_prompt_or_session(
     return X, y
 
 
-def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def _load_rows_filtered(root: str, target_d: int | None, session_state) -> tuple[list[np.ndarray], list[np.ndarray]]:  # noqa: E501
     """Load per-sample rows, filtering by feature dim if target_d is provided."""
     xs: list[np.ndarray] = []
     ys: list[np.ndarray] = []

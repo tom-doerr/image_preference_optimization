@@ -14,6 +14,7 @@ def render_iter_step_scores(
 ) -> None:
     try:
         from ipo.ui.ui import sidebar_metric_rows
+
         from .step_scores import compute_step_scores as _css
         scores = _css(lstate, prompt, vm_choice, iter_steps, iter_eta, trust_r, st.session_state)
         if scores is None:

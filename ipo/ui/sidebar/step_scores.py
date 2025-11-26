@@ -26,6 +26,7 @@ def compute_step_scores(
 
     try:
         import numpy as _np
+
         from latent_logic import z_from_prompt as _zfp
         from value_scorer import get_value_scorer as _gvs
 

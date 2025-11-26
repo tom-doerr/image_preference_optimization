@@ -1,30 +1,50 @@
 import hashlib
 import os
+
 import streamlit as st
 
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
-
-# Early bootstrap
-from ipo.ui.app_bootstrap import (
-    init_page_and_logging,
-    emit_early_sidebar,
-    ensure_prompt_and_state,
+from ipo.ui.app_api import (
+    _apply_state as _apply_state,
+)
+from ipo.ui.app_api import (
+    _curation_add as _curation_add_impl,
+)
+from ipo.ui.app_api import (
+    _curation_init_batch as _curation_init_batch_impl,
+)
+from ipo.ui.app_api import (
+    _curation_new_batch as _curation_new_batch_impl,
+)
+from ipo.ui.app_api import (
+    _curation_replace_at as _curation_replace_at_impl,
+)
+from ipo.ui.app_api import (
+    _curation_train_and_next as _curation_train_and_next_impl,
+)
+from ipo.ui.app_api import (
+    _render_batch_ui as _render_batch_ui_impl,
 )
 
 # App API shims (keep names stable for tests)
 from ipo.ui.app_api import (
     build_controls as _build_controls,
+)
+from ipo.ui.app_api import (
     generate_pair as _generate_pair,
-    _apply_state as _apply_state,
-    _render_batch_ui as _render_batch_ui_impl,
-    _curation_init_batch as _curation_init_batch_impl,
-    _curation_new_batch as _curation_new_batch_impl,
-    _curation_replace_at as _curation_replace_at_impl,
-    _curation_add as _curation_add_impl,
-    _curation_train_and_next as _curation_train_and_next_impl,
-    run_app as _run_app_impl,
 )
 from ipo.ui.app_api import render_sidebar_tail as render_sidebar_tail_module
+from ipo.ui.app_api import (
+    run_app as _run_app_impl,
+)
+
+# Early bootstrap
+from ipo.ui.app_bootstrap import (
+    emit_early_sidebar,
+    ensure_prompt_and_state,
+    init_page_and_logging,
+)
+
 
 # State helpers (re-export minimal surface expected by tests)
 def init_latent_state(*a, **k):
@@ -57,9 +77,19 @@ st_rerun = getattr(st, "rerun", getattr(st, "experimental_rerun", None))
 
 # Controls
 lstate = st.session_state.lstate
-vm_choice, selected_gen_mode, selected_model, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, _ = _build_controls(
-    st, lstate, base_prompt
-)
+(
+    vm_choice,
+    selected_gen_mode,
+    selected_model,
+    width,
+    height,
+    steps,
+    guidance,
+    reg_lambda,
+    iter_steps,
+    iter_eta,
+    _,
+) = _build_controls(st, lstate, base_prompt)
 
 # Sidebar tail (always render)
 render_sidebar_tail_module(
@@ -113,6 +143,7 @@ run_app(st, vm_choice, selected_gen_mode)
 
 st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
 from ipo.core.latent_state import save_state  # noqa: E402  (local import to reduce global surface)
+
 if st.button("Reset", type="secondary"):
     _apply_state(st, init_latent_state(width=int(width), height=int(height)))
     save_state(st.session_state.lstate, st.session_state.state_path)

@@ -1,8 +1,7 @@
+import logging
 import os
 import threading
-import logging
 from typing import Optional
-
 
 PIPE = None  # lazily initialized Diffusers pipeline
 CURRENT_MODEL_ID = None
@@ -33,12 +32,22 @@ except Exception:
     pass
 
 from .pipeline_utils import (  # noqa: E402
-    get_default_model_id as _get_default_model_id,
-    p as _p,
-    log_verbosity as _lv,
-    to_cuda_fp16 as _to_cuda_fp16,
-    normalize_to_init_sigma as _normalize_to_init_sigma,
     eff_guidance as _eff_g,
+)
+from .pipeline_utils import (  # noqa: E402
+    get_default_model_id as _get_default_model_id,
+)
+from .pipeline_utils import (  # noqa: E402
+    log_verbosity as _lv,
+)
+from .pipeline_utils import (  # noqa: E402
+    normalize_to_init_sigma as _normalize_to_init_sigma,
+)
+from .pipeline_utils import (  # noqa: E402
+    p as _p,
+)
+from .pipeline_utils import (  # noqa: E402
+    to_cuda_fp16 as _to_cuda_fp16,
 )
 
 
@@ -52,6 +61,7 @@ def _free_pipe() -> None:
     global PIPE
     try:
         import gc  # type: ignore
+
         import torch  # type: ignore
 
         if PIPE is not None:
@@ -95,7 +105,10 @@ def _load_pipeline(mid: str):
             if "meta tensor" not in str(e2) and "device_map" not in str(e2):
                 raise
             _p(
-                "[pipe] device_map reload failed; retrying CPU load + to('cuda') with low_cpu_mem_usage=True",
+                (
+                    "[pipe] device_map reload failed; retrying CPU load + to('cuda') "
+                    "with low_cpu_mem_usage=True"
+                ),
                 1,
             )
             pipe = DiffusionPipeline.from_pretrained(
@@ -262,7 +275,10 @@ def _log_call_begin_ext(_steps: int, kwargs) -> None:
     except Exception:
         pass
     _p(
-        f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={_steps} w={kwargs.get('width')} h={kwargs.get('height')}",
+        (
+            f"[pipe] starting PIPE call event={LAST_CALL.get('event')} steps={_steps} "
+            f"w={kwargs.get('width')} h={kwargs.get('height')}"
+        ),
         2,
     )
 

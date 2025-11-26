@@ -5,8 +5,9 @@ from typing import Any
 
 def resolve_meta_pairs(prompt: str, state_path: str):
     try:
-        import os
         import hashlib
+        import os
+
         from ipo.core.persistence import read_metadata
         meta = None
         path = state_path

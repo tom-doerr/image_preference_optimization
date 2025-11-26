@@ -68,9 +68,9 @@ def build_pair_controls(st, expanded: bool = False):
     if ctx is not None:
         ctx.__enter__()
     try:
-        st.sidebar.write(
-            "Proposes the next A/B around the prompt: Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1); Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration."
-        )
+        st.sidebar.write("Proposes the next A/B around the prompt:")
+        st.sidebar.write("Alpha scales d1 (∥ w), Beta scales d2 (⟂ d1);")
+        st.sidebar.write("Trust radius clamps ‖y‖; lr_μ is the μ update step; γ adds orthogonal exploration.")
     except Exception:
         pass
     alpha = sld("Alpha (ridge d1)", value=0.5, step=0.05)
@@ -87,7 +87,15 @@ def build_pair_controls(st, expanded: bool = False):
         eta_default = 0.00001
     if ctx is not None:
         ctx.__exit__(None, None, None)
-    return float(alpha), float(beta), float(trust_r), float(lr_mu_ui), float(gamma_orth), int(steps_default), float(eta_default)
+    return (
+        float(alpha),
+        float(beta),
+        float(trust_r),
+        float(lr_mu_ui),
+        float(gamma_orth),
+        int(steps_default),
+        float(eta_default),
+    )
 
 
 def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, int | None]:
@@ -105,4 +113,3 @@ def render_modes_and_value_model(st: Any) -> tuple[str, str | None, int | None, 
     except Exception:
         pass
     return vm_choice, selected_gen_mode, batch_size, None
-

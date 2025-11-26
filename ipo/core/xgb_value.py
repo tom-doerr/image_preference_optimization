@@ -1,4 +1,5 @@
 import numpy as np
+
 from ipo.infra.util import SAFE_EXC
 
 __all__ = [

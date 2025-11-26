@@ -7,19 +7,22 @@ without changing behavior or strings.
 from __future__ import annotations
 
 from typing import Any
-from ipo.infra.util import SAFE_EXC, safe_write
+
 from ipo.infra.constants import Keys
+from ipo.infra.util import SAFE_EXC, safe_write
+
+from .sidebar.panels import handle_train_section as _handle_train_section
 from .ui_sidebar_modes import (
     _select_generation_mode,  # noqa: F401
-    _select_value_model,      # noqa: F401
-    _toggle_random_anchor,    # noqa: F401
-    build_batch_controls,     # noqa: F401
-    build_pair_controls,      # noqa: F401
+    _select_value_model,  # noqa: F401
+    _toggle_random_anchor,  # noqa: F401
+    build_batch_controls,  # noqa: F401
+    build_pair_controls,  # noqa: F401
     render_modes_and_value_model,  # noqa: F401
 )
-from .sidebar.panels import handle_train_section as _handle_train_section
 
-def _step_len_for_scores(lstate: Any, n_steps: int, iter_eta: float | None, trust_r: float | None) -> float:
+
+def _step_len_for_scores(lstate: Any, n_steps: int, iter_eta: float | None, trust_r: float | None) -> float:  # noqa: E501
     try:
         n = max(1, int(n_steps))
     except Exception:
@@ -80,6 +83,7 @@ def status_panel(*_args, **_kwargs) -> None:
 def env_panel(env: dict) -> None:
     """Compact Environment panel (Python/torch/CUDA/Streamlit)."""
     import streamlit as st
+
     from .sidebar.misc import env_panel as _ep
     _ep(st, env)
 
@@ -198,6 +202,7 @@ def render_iter_step_scores(
 def render_mu_value_history(st: Any, lstate: Any, prompt: str) -> None:
     try:
         import numpy as _np
+
         from latent_opt import z_from_prompt as _zfp
         mu_hist = getattr(lstate, "mu_hist", None)
         if mu_hist is None or getattr(mu_hist, "size", 0) == 0:
@@ -240,6 +245,7 @@ def compute_train_results_lines(st: Any, lstate: Any, prompt: str, vm_choice: st
     """Small, self-contained train-results builder (keeps strings stable)."""
     try:
         import numpy as _np
+
         from value_scorer import get_value_scorer as _gvs
     except Exception:
         _np = None
@@ -281,7 +287,7 @@ def compute_train_results_lines(st: Any, lstate: Any, prompt: str, vm_choice: st
 K = Keys
 
 
-def _sidebar_persistence_section(st: Any, lstate: Any, prompt: str, state_path: str, apply_state_cb, rerun_cb) -> None:
+def _sidebar_persistence_section(st: Any, lstate: Any, prompt: str, state_path: str, apply_state_cb, rerun_cb) -> None:  # noqa: E501
     """Download/State persistence UI removed (no-op)."""
     return
 
@@ -418,7 +424,7 @@ def _emit_cv_metrics(st: Any, xgb_line: str, ridge_line: str) -> None:
     return
 
 
-def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:
+def _sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str, reg_lambda: float) -> None:  # noqa: E501
     from .sidebar.panels import sidebar_value_model_block as _sv
     _sv(st, lstate, prompt, vm_choice, reg_lambda)
 
@@ -505,7 +511,7 @@ def render_sidebar_tail(
     apply_state_cb,
     rerun_cb,
 ) -> None:
-    _early_persistence_and_meta(st, lstate, prompt, state_path, apply_state_cb, rerun_cb, selected_model)
+    _early_persistence_and_meta(st, lstate, prompt, state_path, apply_state_cb, rerun_cb, selected_model)  # noqa: E501
     # Status lines (Value model/XGBoost active/Optimization) are emitted later in the
     # canonical train-results block to preserve expected ordering in tests.
     _render_iter_step_scores_block(st, lstate, prompt, vm_choice, iter_steps, iter_eta)
@@ -572,7 +578,7 @@ def _build_size_controls(st, lstate):
     steps = 6 if steps is None else steps
     guidance = 3.5 if guidance is None else guidance
     apply_clicked = False
-    if int(width) != int(getattr(lstate, "width", width)) or int(height) != int(getattr(lstate, "height", height)):
+    if int(width) != int(getattr(lstate, "width", width)) or int(height) != int(getattr(lstate, "height", height)):  # noqa: E501
         apply_clicked = True
     # Removed explicit "Apply size now" button; width/height changes are detected
     # via the comparison above, and callers already ignore apply_clicked.

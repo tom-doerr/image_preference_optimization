@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 from ipo.infra.util import SAFE_EXC
 
 
@@ -11,15 +12,15 @@ def sidebar_value_model_block(st: Any, lstate: Any, prompt: str, vm_choice: str,
     to preserve strings and behavior.
     """
     from .ui_sidebar import (
-        _cached_cv_lines,
-        safe_write,
-        _emit_cv_metrics,
-        _xgb_status_line,
-        _vm_details_ridge,
-        _vm_details_distance,
-        _vm_details_xgb,
-        _cv_on_demand,
         Keys,
+        _cached_cv_lines,
+        _cv_on_demand,
+        _emit_cv_metrics,
+        _vm_details_distance,
+        _vm_details_ridge,
+        _vm_details_xgb,
+        _xgb_status_line,
+        safe_write,
     )
 
     def _emit_cv_all() -> None:
@@ -73,7 +74,7 @@ def handle_train_section(st: Any, lstate: Any, prompt: str, vm_choice: str) -> N
     """
     try:
         # Resolve dataset (prefers in-memory, falls back to folder dataset)
-        from ipo.ui.ui_sidebar import _get_dataset_for_display, _autofit_xgb_if_selected
+        from ipo.ui.ui_sidebar import _autofit_xgb_if_selected, _get_dataset_for_display
         Xd, yd = _get_dataset_for_display(st, lstate, prompt)
         _autofit_xgb_if_selected(st, lstate, vm_choice, Xd, yd)  # no-op by design
         button = getattr(st.sidebar, "button", lambda *a, **k: False)

@@ -21,8 +21,9 @@ def render_batch_tile_body(
     Extracted from batch_ui to reduce file complexity; behavior/strings unchanged.
     """
     import streamlit as st
+
     # Late import to avoid circular import at module load time
-    from .batch_ui import _decode_one, _tile_value_text, _render_good_bad_buttons  # type: ignore
+    from .batch_ui import _decode_one, _render_good_bad_buttons, _tile_value_text  # type: ignore
 
     z_i = cur_batch[i]
 

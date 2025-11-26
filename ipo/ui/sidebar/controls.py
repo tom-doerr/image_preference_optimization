@@ -5,8 +5,8 @@ from typing import Any
 
 def _render_rows_counters(st: Any, lstate: Any | None, base_prompt: str) -> None:
     try:
-        from latent_opt import state_summary  # type: ignore
         from ipo.ui.ui import sidebar_metric, sidebar_metric_rows
+        from latent_opt import state_summary  # type: ignore
         disp_plain = st.session_state.get('ROWS_DISPLAY', '0')
         sidebar_metric("Dataset rows", disp_plain)
         sidebar_metric("Rows (disk)", int(disp_plain or 0))
@@ -23,7 +23,9 @@ def _debug_saves_section(st: Any, base_prompt: str, lstate: Any | None) -> None:
 
 
 def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = None) -> None:
-    from ipo.ui.sidebar.misc import emit_dim_mismatch as _emit_dim_mismatch, emit_last_action_recent as _emit_last_action_recent, rows_refresh_tick as _rows_refresh_tick
+    from ipo.ui.sidebar.misc import emit_dim_mismatch as _emit_dim_mismatch
+    from ipo.ui.sidebar.misc import emit_last_action_recent as _emit_last_action_recent
+    from ipo.ui.sidebar.misc import rows_refresh_tick as _rows_refresh_tick
     st.sidebar.subheader("Training data & scores")
     _emit_dim_mismatch(st)
     _emit_last_action_recent(st)
@@ -33,12 +35,14 @@ def render_rows_and_last_action(st: Any, base_prompt: str, lstate: Any | None = 
 
 
 def render_model_decode_settings(st: Any, lstate: Any):
+    from ipo.infra.util import safe_set
+    from ipo.ui.ui_sidebar import (
+        Keys as K,
+    )
     from ipo.ui.ui_sidebar import (
         _build_size_controls,
         safe_write,
-        Keys as K,
     )
-    from ipo.infra.util import safe_set
 
     st.sidebar.header("Model & decode settings")
     try:

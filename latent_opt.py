@@ -1,26 +1,29 @@
-from ipo.core.latent_state import (
-    LatentState,
-    init_latent_state,
-    save_state,
-    load_state,
-    dumps_state,
-    loads_state,
-    state_summary,
-)
+from dataclasses import dataclass
+from typing import Optional
+
 from ipo.core.latent_logic import (
     propose_latent_pair_ridge,
     propose_pair_prompt_anchor,
     propose_pair_prompt_anchor_iterative,
     propose_pair_prompt_anchor_linesearch,
-    z_to_latents,
-    z_from_prompt,
     update_latent_ridge,
+    z_from_prompt,
+    z_to_latents,
 )
-from dataclasses import dataclass
-from typing import Optional
 from ipo.core.latent_logic import (
     propose_pair_prompt_anchor_iterative as _propose_iter,
+)
+from ipo.core.latent_logic import (
     propose_pair_prompt_anchor_linesearch as _propose_line,
+)
+from ipo.core.latent_state import (
+    LatentState,
+    dumps_state,
+    init_latent_state,
+    load_state,
+    loads_state,
+    save_state,
+    state_summary,
 )
 
 

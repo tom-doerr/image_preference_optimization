@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Callable, Any, Tuple
-from ipo.infra.util import SAFE_EXC
+from typing import Any, Callable, Tuple
+
 import numpy as np
+
+from ipo.infra.util import SAFE_EXC
 
 __all__ = [
     "get_value_scorer",  # unified API: returns (scorer|None, tag_or_status)
@@ -110,7 +112,7 @@ def _build_xgb_scorer(
         # Prefer top-level stub when present (tests), otherwise package path
         try:
             import sys as _sys
-            if "xgb_value" in _sys.modules and hasattr(_sys.modules["xgb_value"], "score_xgb_proba"):
+            if "xgb_value" in _sys.modules and hasattr(_sys.modules["xgb_value"], "score_xgb_proba"):  # noqa: E501
                 from xgb_value import score_xgb_proba  # type: ignore
             else:
                 from ipo.core.xgb_value import score_xgb_proba  # type: ignore
@@ -138,7 +140,9 @@ def _get_live_xgb_model(session_state: Any):
 def _print_xgb_unavailable(vm_choice: str, lstate: Any, prompt: str, session_state: Any) -> None:
     """Emit the same unavailable line as before (keeps tests stable)."""
     try:
-        from ipo.core.persistence import get_dataset_for_prompt_or_session as _get_ds  # type: ignore
+        from ipo.core.persistence import (
+            get_dataset_for_prompt_or_session as _get_ds,  # type: ignore
+        )
 
         Xd, _ = _get_ds(prompt, session_state)
         rows = int(getattr(Xd, "shape", (0, 0))[0]) if Xd is not None else 0
@@ -160,7 +164,8 @@ def get_value_scorer(
 
     Returns (scorer|None, tag_or_status):
     - When a scorer is usable, tag is one of: "Ridge" | "XGB" | "Distance".
-    - Otherwise returns (None, status) where status ∈ {"ridge_untrained","xgb_unavailable","xgb_training","xgb_error"}.
+    - Otherwise returns (None, status) where status ∈ {
+      "ridge_untrained", "xgb_unavailable", "xgb_training", "xgb_error"}.
     """
     choice = str(vm_choice or "Ridge")
     if choice == "Distance":

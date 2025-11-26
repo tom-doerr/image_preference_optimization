@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Tuple
-import time as _time
-import numpy as np
-from ipo.infra.constants import Keys
 import logging as _logging
+import time as _time
+from typing import Any, Tuple
+
+import numpy as np
+
+from ipo.infra.constants import Keys
+
 from .batch_util import save_and_print as _save_and_print
 
 LOGGER = _logging.getLogger("ipo")
@@ -352,7 +355,6 @@ def _curation_new_batch() -> None:
     import streamlit as st
 
     lstate, prompt = _lstate_and_prompt()
-    import time as _time
 
     t0 = _time.perf_counter()
     z_list = []
@@ -454,8 +456,8 @@ def _resample_tile_at_index(i: int) -> np.ndarray:
 
     Falls back to around-prompt sampling when latent logic is unavailable.
     """
-    import streamlit as st
     import numpy as _np
+    import streamlit as st
     try:
         lstate, prompt = _lstate_and_prompt()
         try:
@@ -490,6 +492,7 @@ def _fit_ridge_once(lstate, X, y, lam_now, st) -> None:
 
 def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     import streamlit as st
+
     from ipo.infra.constants import Keys
     from latent_logic import z_from_prompt
 
@@ -625,7 +628,7 @@ def _decode_one(i: int, lstate: Any, prompt: str, z_i: np.ndarray, steps: int, g
     return _dec(i, lstate, prompt, z_i, steps, guidance_eff)
 
 
-def _render_row_fallback(
+def _render_row_fallback(  # noqa: C901
     st,
     row_start: int,
     row_end: int,
@@ -638,12 +641,11 @@ def _render_row_fallback(
     cur_batch,
     z_p,
 ) -> None:
-    import time as _time
     cols = getattr(st, "columns", lambda x: [None] * x)(row_end - row_start)
     for col_idx, i in enumerate(range(row_start, row_end)):
         col = cols[col_idx] if cols and len(cols) > col_idx else None
 
-        def _render_item() -> None:
+        def _render_item() -> None:  # noqa: C901
             z_i = cur_batch[i]
             img_i = _decode_one(i, lstate, prompt, z_i, steps, guidance_eff)
             # Predicted value using current value model scorer
@@ -705,8 +707,9 @@ def _render_row_fallback(
                 except Exception:
                     pass
                 try:
-                    from ipo.infra.constants import Keys
                     import time as __t
+
+                    from ipo.infra.constants import Keys
                     st.session_state[Keys.LAST_ACTION_TEXT] = msg
                     st.session_state[Keys.LAST_ACTION_TS] = float(__t.time())
                 except Exception:

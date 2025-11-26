@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Optional
 import os
+from typing import Any, Optional
 
 
 def safe_set(ns: Any, key: str, value: Any) -> None:

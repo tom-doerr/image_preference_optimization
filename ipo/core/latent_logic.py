@@ -1,6 +1,8 @@
-from typing import Optional
 import hashlib
+from typing import Optional
+
 import numpy as np
+
 from latent_state import LatentState
 
 
@@ -134,7 +136,7 @@ def _feature_diff(z_a: np.ndarray, z_b: np.ndarray, feats_a, feats_b) -> np.ndar
     return (z_a - z_b).reshape(1, -1)
 
 
-def _append_row_and_fit(state: LatentState, diff: np.ndarray, label: np.ndarray, lam: float) -> None:
+def _append_row_and_fit(state: LatentState, diff: np.ndarray, label: np.ndarray, lam: float) -> None:  # noqa: E501
     if state.X is None:
         state.X = diff
         state.y = label
@@ -197,9 +199,7 @@ def z_from_prompt(state: LatentState, prompt: str) -> np.ndarray:
             import numpy as _np  # local to keep deps minimal
 
             n = float(_np.linalg.norm(z_cached))
-            print(
-                f"[latent] z_from_prompt random anchor d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}"
-            )
+            print(f"[latent] z_from_prompt random anchor d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")  # noqa: E501
         except Exception:
             pass
         return z_cached
@@ -210,9 +210,7 @@ def z_from_prompt(state: LatentState, prompt: str) -> np.ndarray:
         import numpy as _np  # local import
 
         n = float(_np.linalg.norm(z))
-        print(
-            f"[latent] z_from_prompt prompt_hash={h} d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}"
-        )
+        print(f"[latent] z_from_prompt prompt_hash={h} d={state.d} sigma={state.sigma:.3f} ‖z_p‖={n:.3f}")  # noqa: E501
     except Exception:
         pass
     return z
@@ -320,7 +318,7 @@ def propose_pair_prompt_anchor_linesearch(
     )
 
 
-def _accumulate_delta(d: int, d1: np.ndarray, steps: int, step: float, trust_r: Optional[float]) -> np.ndarray:
+def _accumulate_delta(d: int, d1: np.ndarray, steps: int, step: float, trust_r: Optional[float]) -> np.ndarray:  # noqa: E501
     """Accumulate steps along d1 with optional trust‑radius clamp (pure helper)."""
     delta = np.zeros(d, dtype=float)
     for _ in range(max(1, int(steps))):
@@ -342,7 +340,7 @@ def _rand_orth_dir(state: LatentState, d1: np.ndarray) -> np.ndarray:
     return d2 / n
 
 
-def _linesearch_mags(mags: Optional[list[float]], S: float, trust_r: Optional[float]) -> list[float]:
+def _linesearch_mags(mags: Optional[list[float]], S: float, trust_r: Optional[float]) -> list[float]:  # noqa: E501
     """Prepare candidate magnitudes for line-search with optional trust clamp."""
     cands = mags if (isinstance(mags, list) and len(mags) > 0) else [0.25 * S, 0.5 * S, 1.0 * S]
     out: list[float] = []
@@ -410,7 +408,7 @@ def hill_climb_mu_distance(
     _push_mu_history(state)
 
 
-def _distance_loss_and_grad(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> tuple[float | None, np.ndarray]:
+def _distance_loss_and_grad(mu: np.ndarray, Z: np.ndarray, yy: np.ndarray, gamma: float) -> tuple[float | None, np.ndarray]:  # noqa: E501
     diffs = mu.reshape(1, -1) - Z  # shape (n, d)
     d2 = np.sum(diffs * diffs, axis=1)  # (n,)
     sig = _sigmoid(gamma * d2)
@@ -479,6 +477,27 @@ def hill_climb_mu_xgb(
     state.mu_hist = mu_now if mh is None else np.vstack([mh, mu_now])
 
 
+def _random_start_around_anchor(state: LatentState, z_p: np.ndarray) -> np.ndarray:
+    """Return a random start around the anchor using the state's sigma."""
+    r = state.rng.standard_normal(state.d).astype(float)
+    n_r = float(np.linalg.norm(r))
+    if n_r > 0.0:
+        r = r / n_r
+    return z_p + float(state.sigma) * r
+
+
+def _ridge_dir_from_state(state: LatentState) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Return (d1, w) where d1 is normalized ridge direction or (None, None)."""
+    w = getattr(state, "w", None)
+    if w is None:
+        return None, None
+    w = np.asarray(w[: state.d], dtype=float)
+    n_w = float(np.linalg.norm(w))
+    if n_w == 0.0:
+        return None, None
+    return (w / n_w), w
+
+
 def sample_z_xgb_hill(
     state: LatentState,
     prompt: str,
@@ -495,29 +514,15 @@ def sample_z_xgb_hill(
     - If w is missing/zero or scorer fails, fall back to the random start.
     """
     z_p = z_from_prompt(state, prompt)
-    # Random starting point around the anchor
-    r = state.rng.standard_normal(state.d).astype(float)
-    n_r = float(np.linalg.norm(r))
-    if n_r > 0.0:
-        r = r / n_r
-    mu = z_p + float(state.sigma) * r
+    mu = _random_start_around_anchor(state, z_p)
 
-    w = getattr(state, "w", None)
-    if w is None:
+    d1, w = _ridge_dir_from_state(state)
+    if d1 is None or w is None:
         try:
             print("[xgb-hill-batch] w is None; returning random start sample")
         except Exception:
             pass
         return mu
-    w = np.asarray(w[: state.d], dtype=float)
-    n_w = float(np.linalg.norm(w))
-    if n_w == 0.0:
-        try:
-            print("[xgb-hill-batch] ‖w‖=0; returning random start sample")
-        except Exception:
-            pass
-        return mu
-    d1 = w / n_w
     try:
         n_steps = max(1, int(steps))
     except Exception:
@@ -546,7 +551,7 @@ def sample_z_xgb_hill(
     return mu
 
 
-def _best_of_along_d1(mu: np.ndarray, z_p: np.ndarray, d1: np.ndarray, step: float, trust_r: Optional[float], scorer) -> tuple[np.ndarray, float]:
+def _best_of_along_d1(mu: np.ndarray, z_p: np.ndarray, d1: np.ndarray, step: float, trust_r: Optional[float], scorer) -> tuple[np.ndarray, float]:  # noqa: E501
     """Evaluate ±step along d1 around mu and return (best_mu, best_score)."""
     candidates: list[tuple[float, np.ndarray]] = []
     for sgn in (1.0, -1.0):

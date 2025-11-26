@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 from ipo.infra.util import SAFE_EXC
 
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import logging as _logging
 import time as _time
 from datetime import datetime, timezone
-import logging as _logging
 from typing import Any
 
 import numpy as np
+
 from ipo.infra.constants import Keys
 from ipo.infra.util import SAFE_EXC
 
@@ -92,9 +93,7 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         d = int(X.shape[1]) if X.ndim == 2 else 0
         if n <= 0 or not _has_two_classes(y):
             classes = set(np.asarray(y).astype(int).tolist()) if n > 0 else set()
-            _log(
-                f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}"
-            )
+            _log(f"[xgb] skip: insufficient classes rows={n} classes={sorted(list(classes)) if classes else []}")  # noqa: E501
             return
         yy = np.asarray(y).astype(int)
         pos = int((yy > 0).sum())
@@ -110,7 +109,7 @@ def _maybe_fit_xgb(X: np.ndarray, y: np.ndarray, lam: float, session_state: Any)
         dt_ms = (_time.perf_counter() - t_x) * 1000.0
         _log(f"[xgb] train done rows={n} d={d} took {dt_ms:.1f} ms")
         try:
-            session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}
+            session_state[Keys.XGB_TRAIN_STATUS] = {"state": "ok", "rows": int(n), "lam": float(lam)}  # noqa: E501
         except Exception:
             pass
     except Exception:
@@ -155,7 +154,7 @@ def _maybe_fit_logit(X: np.ndarray, y: np.ndarray, lam: float, session_state: An
         steps, lam_eff = _logit_params(session_state, lam)
         W = _logit_train_loop(X, y01, W, n, steps, lam_eff)
         session_state[Keys.LOGIT_W] = W
-        _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")
+        _log(f"[logit] fit rows={n} d={d} steps={steps} lam={lam_eff} ||w||={float(np.linalg.norm(W)):.3f}")  # noqa: E501
     except Exception:
         pass
 
@@ -166,13 +165,13 @@ def _logit_params(session_state: Any, lam_fallback: float) -> tuple[int, float]:
     except Exception:
         steps = 120
     try:
-        lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam_fallback)
+        lam_eff = float(session_state.get(Keys.LOGIT_L2)) if session_state.get(Keys.LOGIT_L2) is not None else float(lam_fallback)  # noqa: E501
     except Exception:
         lam_eff = float(lam_fallback)
     return steps, lam_eff
 
 
-def _logit_train_loop(X: np.ndarray, y01: np.ndarray, W: np.ndarray, n: int, steps: int, lam_eff: float) -> np.ndarray:
+def _logit_train_loop(X: np.ndarray, y01: np.ndarray, W: np.ndarray, n: int, steps: int, lam_eff: float) -> np.ndarray:  # noqa: E501
     lr = 0.1
     for _ in range(int(steps)):
         z = X @ W
@@ -182,7 +181,7 @@ def _logit_train_loop(X: np.ndarray, y01: np.ndarray, W: np.ndarray, n: int, ste
     return W
 
 
-def _train_optionals(vm_choice: str, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+def _train_optionals(vm_choice: str, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
     choice = str(vm_choice)
     if choice == "XGBoost":
         _maybe_fit_xgb(X, y, float(lam), session_state)
@@ -200,7 +199,7 @@ def _ridge_summary(lstate: Any, X: np.ndarray, yy: np.ndarray, lam: float) -> No
             acc = float((yhat == (yy > 0)).mean())
             pos = int((yy > 0).sum())
             neg = int((yy < 0).sum())
-            _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")
+        _log(f"[train-summary] ridge rows={n} d={d} lam={lam} acc={acc*100:.0f}% pos={pos} neg={neg}")  # noqa: E501
     except Exception:
         pass
 
@@ -221,7 +220,7 @@ def _logit_summary(X: np.ndarray, yy: np.ndarray, lam: float, session_state: Any
             lam_eff = float(session_state.get(_K.LOGIT_L2) or lam)
             pos = int((yy > 0).sum())
             neg = int((yy < 0).sum())
-            _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")
+        _log(f"[train-summary] logit rows={n} d={d} steps={steps} lam={lam_eff} acc={acc*100:.0f}% pos={pos} neg={neg}")  # noqa: E501
     except Exception:
         pass
 
@@ -244,7 +243,7 @@ def _xgb_summary(X: np.ndarray, yy: np.ndarray, session_state: Any) -> None:
         pass
 
 
-def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+def _record_train_summaries(lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
     try:
         yy = np.asarray(y).astype(float)
         _ridge_summary(lstate, X, yy, lam)
@@ -299,7 +298,7 @@ def fit_value_model(
 class ValueModel:
     name = "ValueModel"
 
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: D401
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: D401,E501
         """Fit/update model artifacts in place. Subclasses implement behavior."""
         raise NotImplementedError
 
@@ -307,7 +306,7 @@ class ValueModel:
 class RidgeVM(ValueModel):
     name = "Ridge"
 
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
         # Always refresh ridge weights; record summaries via shared helper
         _fit_ridge(lstate, X, y, float(lam))
         _record_train_summaries(lstate, X, y, lam, session_state)
@@ -316,7 +315,7 @@ class RidgeVM(ValueModel):
 class XGBVM(ValueModel):
     name = "XGBoost"
 
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
         # Train XGB when data/classes are usable, then refresh ridge weights
         _train_optionals("XGBoost", lstate, X, y, lam, session_state)
         if _uses_ridge("XGBoost"):
@@ -327,7 +326,7 @@ class XGBVM(ValueModel):
 class LogisticVM(ValueModel):
     name = "Logistic"
 
-    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:
+    def fit(self, lstate: Any, X: np.ndarray, y: np.ndarray, lam: float, session_state: Any) -> None:  # noqa: E501
         _train_optionals("Logistic", lstate, X, y, lam, session_state)
         if _uses_ridge("Logistic"):
             _fit_ridge(lstate, X, y, float(lam))

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 
-
 def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
     try:
         rnd = int(st.session_state.get("render_nonce", 0))
@@ -22,8 +21,9 @@ def _button_key(st, prefix: str, nonce: int, idx: int) -> str:
 def _toast_and_record(st, msg: str) -> None:
     try:
         getattr(st, "toast", lambda *a, **k: None)(msg)
-        from ipo.infra.constants import Keys as _K
         import time as __t
+
+        from ipo.infra.constants import Keys as _K
         st.session_state[_K.LAST_ACTION_TEXT] = msg
         st.session_state[_K.LAST_ACTION_TS] = float(__t.time())
     except Exception:
@@ -32,8 +32,14 @@ def _toast_and_record(st, msg: str) -> None:
 
 def _label_and_replace(i: int, lbl: int, z_i, img_i, st) -> None:
     # Import inside function to avoid cycles
-    from .batch_ui import _curation_add, _refit_from_dataset_keep_batch, _curation_replace_at, _log  # type: ignore
     import time as _time
+
+    from .batch_ui import (  # type: ignore
+        _curation_add,
+        _curation_replace_at,
+        _log,
+        _refit_from_dataset_keep_batch,
+    )
     t0b2 = _time.perf_counter()
     _curation_add(lbl, z_i, img_i)
     st.session_state.cur_labels[i] = lbl
@@ -75,8 +81,9 @@ def render_good_bad_buttons(st, i: int, z_i, img_i, nonce: int, gcol, bcol) -> N
 
 def handle_best_of(st, i: int, img_i, cur_batch) -> None:
     # Import inside to avoid cycles
-    from .batch_ui import _curation_add, _curation_train_and_next, _log  # type: ignore
     import time as _time
+
+    from .batch_ui import _curation_add, _curation_train_and_next, _log  # type: ignore
     t0b = _time.perf_counter()
     for j, z_j in enumerate(cur_batch):
         lbl = 1 if j == i else -1

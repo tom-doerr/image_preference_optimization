@@ -1,10 +1,12 @@
-from dataclasses import dataclass, field
-from typing import Optional, Any, Mapping
-import numpy as np
-import os
 import io
-from ipo.infra.constants import Config
+import os
 import threading as _threading
+from dataclasses import dataclass, field
+from typing import Any, Mapping, Optional
+
+import numpy as np
+
+from ipo.infra.constants import Config
 
 
 @dataclass

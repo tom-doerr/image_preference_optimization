@@ -1,5 +1,6 @@
 import numpy as _np
 import streamlit as st
+
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
 from ipo.ui import batch_ui as _batch_ui
 
@@ -10,62 +11,43 @@ def _export_state_bytes(state, prompt: str):
     return _rpc(state, prompt)
 
 
-def _apply_state(*args) -> None:
-    # Flexible: _apply_state(new_state) or _apply_state(st, new_state)
-    if len(args) == 1:
-        st_local, new_state = st, args[0]
-    elif len(args) == 2:
-        st_local, new_state = args  # type: ignore[misc]
-    else:
-        raise TypeError("_apply_state() expects 1 or 2 arguments")
-
-    def _init_pair_for_state() -> None:
-        try:
-            from latent_opt import propose_next_pair
-
-            z1, z2 = propose_next_pair(new_state, st.session_state.prompt)
-            st.session_state.lz_pair = (z1, z2)
-            return
-        except Exception:
-            pass
-        try:
-            from latent_logic import propose_latent_pair_ridge
-
-            st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
-            return
-        except Exception:
-            pass
-        try:
-            d = int(getattr(new_state, "d", 0))
-            st.session_state.lz_pair = (_np.zeros(d, dtype=float), _np.zeros(d, dtype=float))
-        except Exception:
-            st.session_state.lz_pair = (None, None)
-
-    def _reset_derived_state() -> None:
-        st.session_state[Keys.IMAGES] = (None, None)
-        st.session_state[Keys.MU_IMAGE] = None
-        if getattr(new_state, "mu", None) is None:
-            new_state.mu = _np.zeros(int(getattr(new_state, "d", 0)), dtype=float)
-        _mh = getattr(new_state, "mu_hist", None) or []
-        st.session_state.mu_history = [m.copy() for m in _mh] or [new_state.mu.copy()]
-        st.session_state.mu_best_idx = 0
-        st.session_state.prompt_image = None
-        for k in ("next_prefetch", "_bg_exec"):
-            st.session_state.pop(k, None)
-
-    st_local.session_state.lstate = new_state
+def _init_pair_for_state(new_state) -> None:
     try:
-        use_rand = bool(getattr(st_local.session_state, Keys.USE_RANDOM_ANCHOR, False))
-        setattr(new_state, "use_random_anchor", use_rand)
-        setattr(new_state, "random_anchor_z", None)
+        from latent_opt import propose_next_pair
+        z1, z2 = propose_next_pair(new_state, st.session_state.prompt)
+        st.session_state.lz_pair = (z1, z2)
+        return
     except Exception:
         pass
-    _init_pair_for_state()
-    _reset_derived_state()
-    # Random μ init around the prompt anchor when μ is all zeros.
+    try:
+        from latent_logic import propose_latent_pair_ridge
+        st.session_state.lz_pair = propose_latent_pair_ridge(new_state)
+        return
+    except Exception:
+        pass
+    try:
+        d = int(getattr(new_state, "d", 0))
+        st.session_state.lz_pair = (_np.zeros(d, dtype=float), _np.zeros(d, dtype=float))
+    except Exception:
+        st.session_state.lz_pair = (None, None)
+
+
+def _reset_derived_state(new_state) -> None:
+    st.session_state[Keys.IMAGES] = (None, None)
+    st.session_state[Keys.MU_IMAGE] = None
+    if getattr(new_state, "mu", None) is None:
+        new_state.mu = _np.zeros(int(getattr(new_state, "d", 0)), dtype=float)
+    _mh = getattr(new_state, "mu_hist", None) or []
+    st.session_state.mu_history = [m.copy() for m in _mh] or [new_state.mu.copy()]
+    st.session_state.mu_best_idx = 0
+    st.session_state.prompt_image = None
+    for k in ("next_prefetch", "_bg_exec"):
+        st.session_state.pop(k, None)
+
+
+def _randomize_mu_if_zero(st_local, new_state) -> None:
     try:
         from latent_logic import z_from_prompt as _zfp
-
         if _np.allclose(new_state.mu, 0.0):
             pr = st_local.session_state.get(Keys.PROMPT) or st_local.session_state.get("prompt") or DEFAULT_PROMPT
             z_p = _zfp(new_state, pr)
@@ -78,11 +60,35 @@ def _apply_state(*args) -> None:
         pass
 
 
+def _apply_state(*args) -> None:
+    # Flexible: _apply_state(new_state) or _apply_state(st, new_state)
+    if len(args) == 1:
+        st_local, new_state = st, args[0]
+    elif len(args) == 2:
+        st_local, new_state = args  # type: ignore[misc]
+    else:
+        raise TypeError("_apply_state() expects 1 or 2 arguments")
+
+    st_local.session_state.lstate = new_state
+    try:
+        use_rand = bool(getattr(st_local.session_state, Keys.USE_RANDOM_ANCHOR, False))
+        setattr(new_state, "use_random_anchor", use_rand)
+        setattr(new_state, "random_anchor_z", None)
+    except Exception:
+        pass
+    _init_pair_for_state(new_state)
+    _reset_derived_state(new_state)
+    # Random μ init around the prompt anchor when μ is all zeros.
+    _randomize_mu_if_zero(st_local, new_state)
+
+
 def build_controls(st, lstate, base_prompt):
     from .ui_sidebar import (
+        render_model_decode_settings,
         render_modes_and_value_model,
         render_rows_and_last_action,
-        render_model_decode_settings,
+    )
+    from .ui_sidebar import (
         render_sidebar_tail as render_sidebar_tail_module,
     )
     # number_input helper
@@ -139,8 +145,8 @@ def build_controls(st, lstate, base_prompt):
 
 
 def generate_pair(base_prompt: str) -> None:
-    from latent_opt import z_to_latents as _z2l
     from ipo.infra.pipeline_local import generate_flux_image_latents as _gen
+    from latent_opt import z_to_latents as _z2l
     try:
         lstate = st.session_state.lstate
         if st.session_state.get("lz_pair") is None:

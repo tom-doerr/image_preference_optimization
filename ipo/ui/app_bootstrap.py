@@ -1,7 +1,9 @@
 import hashlib
 import os
 import types
+
 import streamlit as st
+
 from ipo.infra.constants import DEFAULT_PROMPT, Keys
 from ipo.infra.util import enable_file_logging, safe_write
 
@@ -110,6 +112,7 @@ def _resolve_state_path() -> None:
 
 def _apply_or_init_state() -> None:
     from latent_state import init_latent_state, load_state
+
     from .app_api import _apply_state
 
     path = st.session_state.get("state_path")
