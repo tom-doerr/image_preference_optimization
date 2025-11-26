@@ -33,7 +33,7 @@ DEFAULT_LR_MU = 0.3
 DEFAULT_GAMMA_ORTH = 0.2
 DEFAULT_ITER_STEPS = 1000
 DEFAULT_QUEUE_SIZE = 6
-DEFAULT_BATCH_SIZE = 4
+DEFAULT_BATCH_SIZE = 3
 
 # Scoring defaults (legacy non‑ridge modes removed)
 
