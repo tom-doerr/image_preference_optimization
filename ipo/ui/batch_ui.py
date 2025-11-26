@@ -37,11 +37,13 @@ def _optim_xgb(z, ls, ss, n):
     mdl = _get_xgb_model(ss)
     if mdl is None: return z
     best, bs = z.copy(), _xgb_proba(mdl, z)
-    for _ in range(n):
+    print(f"[xgb] start: {bs:.4f}")
+    for i in range(n):
         c = best + np.random.randn(len(z)) * 0.1 * ls.sigma
         s = _xgb_proba(mdl, c)
+        print(f"[xgb] {i}: {s:.4f}{' *' if s > bs else ''}")
         if s > bs: best, bs = c, s
-    print(f"[optim] XGB hill climb: {bs:.4f}")
+    print(f"[xgb] best: {bs:.4f}")
     return best
 
 def _optimize_z(z, lstate, ss, steps, eta=0.01):
