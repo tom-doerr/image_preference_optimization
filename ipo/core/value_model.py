@@ -38,7 +38,8 @@ def _has_two_classes(y): return len(set(np.asarray(y).astype(int).tolist())) > 1
 def _maybe_fit_xgb(X, y, lam, ss):
     if X.shape[0] <= 0 or not _has_two_classes(y): return
     n_estim, max_depth = _get_xgb_params(ss)
-    mdl = XGBTrainer(n_estim, max_depth).fit(X, y)
+    y01 = ((np.asarray(y) + 1) / 2).astype(int)  # -1,1 -> 0,1
+    mdl = XGBTrainer(n_estim, max_depth).fit(X, y01)
     _set_xgb_model(ss, mdl, X.shape[0])
 
 def _train_optionals(vm_choice, lstate, X, y, lam, ss):
