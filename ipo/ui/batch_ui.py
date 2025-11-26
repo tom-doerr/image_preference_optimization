@@ -93,6 +93,9 @@ def _curation_add(label: int, z: np.ndarray, img=None) -> None:
     lstate.step = getattr(lstate, "step", 0) + 1
     print(f"[label] {'Good' if label > 0 else 'Bad'} (step {lstate.step})")
     _update_rows_display(st, Keys)
+    # Train after each label
+    if st.session_state.get("train_on_new_data", True):
+        _train_if_data(st, lstate, prompt)
 
 
 def _render_good_bad(st, i, z_i, img_i):
