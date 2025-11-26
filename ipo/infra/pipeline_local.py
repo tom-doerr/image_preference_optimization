@@ -143,8 +143,11 @@ def _get_prompt_embeds(prompt, guidance):
 def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20, guidance=3.5):
     _ensure_pipe(None)
     latents = _to_cuda_fp16(latents)
+    # Scale latents by scheduler init_noise_sigma
+    sigma = float(getattr(PIPE.scheduler, "init_noise_sigma", 1.0))
+    latents = latents * sigma
     g = _eff_g(CURRENT_MODEL_ID or "", guidance)
-    print(f"[gen] latents std={latents.std().item():.3f} g={g} steps={steps} {width}x{height}")
+    print(f"[gen] sigma={sigma:.2f} std={latents.std().item():.3f} g={g} steps={steps}")
     h, w = latents.shape[2] * 8, latents.shape[3] * 8
     kw = dict(num_inference_steps=int(steps or 4), guidance_scale=float(g), latents=latents, prompt=prompt, height=h, width=w)
     return _run_pipe(**kw)
@@ -153,9 +156,12 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
 
 
 def set_model(model_id):
+    global CURRENT_MODEL_ID
     with PIPE_LOCK: pipe = _ensure_pipe(model_id)
+    mid = CURRENT_MODEL_ID or ""
     try:
-        if "sd-turbo" in str(model_id) or "sdxl-turbo" in str(model_id):
+        if "sd-turbo" in mid or "sdxl-turbo" in mid:
             from diffusers import LCMScheduler
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+            print(f"[set_model] LCMScheduler set for {mid}")
     except Exception: pass
