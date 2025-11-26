@@ -76,66 +76,15 @@ def _apply_state(*args) -> None:
 
 
 def build_controls(st, lstate, base_prompt):
-    from .sidebar.controls import render_model_decode_settings, render_rows_and_last_action
-    from .ui_sidebar import render_modes_and_value_model
-    # number_input helper
-    def safe_sidebar_num(_st, label, *, value, step=None, format=None):
-        num = getattr(
-            getattr(_st, "sidebar", _st),
-            "number_input",
-            getattr(_st, "number_input", None),
-        )
-        if callable(num):
-            return num(label, value=value, step=step, format=format)
-        return value
-    vm_choice, selected_gen_mode, _batch_sz, _ = render_modes_and_value_model(st)
-    render_rows_and_last_action(st, base_prompt, lstate)
-    selected_model, width, height, steps, guidance, _apply_clicked = (
-        render_model_decode_settings(st, lstate)
-    )
-    st.session_state[Keys.STEPS] = int(steps)
-    st.session_state[Keys.GUIDANCE] = float(guidance)
-    reg_lambda = safe_sidebar_num(st, "Ridge λ", value=1e300, step=0.1, format="%.6f") or 1e300
-    st.session_state[Keys.REG_LAMBDA] = float(reg_lambda)
-    eta_default = float(st.session_state.get(Keys.ITER_ETA) or 0.00001)
-    iter_eta_num = (
-        safe_sidebar_num(
-            st,
-            "Iterative step (eta)",
-            value=eta_default,
-            step=0.000000000001,
-            format="%.12f",
-        )
-        or eta_default
-    )
-    st.session_state[Keys.ITER_ETA] = float(iter_eta_num)
-    iter_eta = float(st.session_state.get(Keys.ITER_ETA) or eta_default)
-    from ipo.infra.constants import DEFAULT_ITER_STEPS as _DEF_STEPS
-
-    steps_default = int(st.session_state.get(Keys.ITER_STEPS) or _DEF_STEPS)
-    iter_steps_num = (
-        safe_sidebar_num(
-            st, "Optimization steps (latent)", value=steps_default, step=1
-        )
-        or steps_default
-    )
-    st.session_state[Keys.ITER_STEPS] = int(iter_steps_num)
-    iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or steps_default)
-    # Sidebar tail is rendered in app.py to avoid duplicates
-    st.session_state[Keys.GUIDANCE_EFF] = 0.0
-    return (
-        vm_choice,
-        selected_gen_mode,
-        selected_model,
-        int(width),
-        int(height),
-        int(steps),
-        float(guidance),
-        float(reg_lambda),
-        int(iter_steps),
-        float(iter_eta),
-        False,
-    )
+    vm_choice = st.session_state.get(Keys.VM_CHOICE) or "XGBoost"
+    width, height = int(getattr(lstate, "width", 512)), int(getattr(lstate, "height", 512))
+    steps = int(st.session_state.get(Keys.STEPS) or 6)
+    guidance = float(st.session_state.get(Keys.GUIDANCE) or 0.0)
+    reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA) or 1e300)
+    iter_eta = float(st.session_state.get(Keys.ITER_ETA) or 0.00001)
+    iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or 10)
+    st.session_state[Keys.GUIDANCE_EFF] = guidance
+    return vm_choice, "batch", None, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, False
 
 
 def generate_pair(base_prompt: str) -> None:
