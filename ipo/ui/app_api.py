@@ -80,11 +80,12 @@ def build_controls(st, lstate, base_prompt):
     width, height = int(getattr(lstate, "width", 512)), int(getattr(lstate, "height", 512))
     steps = int(st.session_state.get(Keys.STEPS) or 6)
     guidance = float(st.session_state.get(Keys.GUIDANCE) or 0.0)
-    reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA) or 1e300)
+    reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA) or 1.0)
     iter_eta = float(st.session_state.get(Keys.ITER_ETA) or 0.00001)
     iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or 10)
     st.session_state[Keys.GUIDANCE_EFF] = guidance
-    return vm_choice, "batch", None, width, height, steps, guidance, reg_lambda, iter_steps, iter_eta, False
+    return (vm_choice, "batch", None, width, height, steps, guidance,
+            reg_lambda, iter_steps, iter_eta, False)
 
 
 def generate_pair(base_prompt: str) -> None:

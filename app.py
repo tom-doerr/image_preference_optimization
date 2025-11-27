@@ -9,14 +9,19 @@ from ipo.ui.app_api import run_app as _run_app_impl
 
 
 def init_latent_state(*a, **k):
-    from ipo.core.latent_state import init_latent_state as _f; return _f(*a, **k)
+    from ipo.core.latent_state import init_latent_state as _f
+    return _f(*a, **k)
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
-if Keys.VM_CHOICE not in st.session_state: st.session_state[Keys.VM_CHOICE] = "XGBoost"
-if Keys.ITER_ETA not in st.session_state: st.session_state[Keys.ITER_ETA] = 1.0
+if Keys.VM_CHOICE not in st.session_state:
+    st.session_state[Keys.VM_CHOICE] = "XGBoost"
+if Keys.ITER_ETA not in st.session_state:
+    st.session_state[Keys.ITER_ETA] = 100.0
 
-if "prompt" not in st.session_state: st.session_state.prompt = DEFAULT_PROMPT
-base_prompt = st.sidebar.text_input("Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
+if "prompt" not in st.session_state:
+    st.session_state.prompt = DEFAULT_PROMPT
+base_prompt = st.sidebar.text_input(
+    "Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
 st.session_state.prompt = base_prompt
 # Value function algo selection
 vm_opts = ["Ridge", "XGBoost"]
@@ -25,45 +30,74 @@ st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, 
 st.sidebar.markdown("---")
 st.sidebar.subheader("XGBoost")
 xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
-st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", 1, 500, xgb_n)
+st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", min_value=1, value=xgb_n)
 xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 3)
-st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", 1, 10, xgb_d)
-trust_r = float(st.session_state.get(Keys.TRUST_R) or 1.0)
+st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", min_value=1, value=xgb_d)
+trust_r = float(st.session_state.get(Keys.TRUST_R) or 100.0)
 st.session_state[Keys.TRUST_R] = st.sidebar.number_input("Max Dist", 0.0, value=trust_r, step=0.1)
 xgb_modes = ["Line", "Hill"]
 xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or "Line"
-st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox("Optim", xgb_modes, index=xgb_modes.index(xgb_m))
+st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox(
+    "Optim", xgb_modes, index=xgb_modes.index(xgb_m))
+samp_modes = ["AvgGood", "Prompt+AvgGood", "Prompt", "Random"]
+samp_m = st.session_state.get(Keys.SAMPLE_MODE) or "AvgGood"
+st.session_state[Keys.SAMPLE_MODE] = st.sidebar.selectbox(
+    "Start", samp_modes, index=samp_modes.index(samp_m))
+st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(
+    "Regen All", value=st.session_state.get(Keys.REGEN_ALL, False))
+st.session_state[Keys.BATCH_LABEL] = st.sidebar.checkbox(
+    "Batch Label", value=st.session_state.get(Keys.BATCH_LABEL, True))
+# Ridge alpha (regularization)
+alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1.0)
+st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
+    "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
 # Latent optimization steps
-iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 10)
-st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input("Optim Steps", min_value=0, value=iter_val)
-eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 1.0))
-st.session_state[Keys.ITER_ETA] = st.sidebar.number_input("Step Size", min_value=0.0001, value=eta_val, format="%.4f")
+iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 100)
+st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input(
+    "Optim Steps", min_value=0, value=iter_val)
+eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 100.0))
+st.session_state[Keys.ITER_ETA] = st.sidebar.number_input(
+    "Step Size", min_value=0.0001, value=eta_val, format="%.4f")
+# Diffusion steps
+diff_steps = int(st.session_state.get(Keys.STEPS) or 10)
+st.session_state[Keys.STEPS] = st.sidebar.number_input("Diff Steps", min_value=1, value=diff_steps)
 # Batch size
 batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
-st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input("Batch Size", min_value=1, max_value=20, value=batch_val)
+st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input(
+    "Batch Size", min_value=1, value=batch_val)
+# Images per row (-1 = auto)
+ipr_val = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
+st.session_state[Keys.IMAGES_PER_ROW] = st.sidebar.number_input(
+    "Imgs/Row", min_value=-1, value=ipr_val)
 # Training stats
 st.sidebar.markdown("---")
 st.sidebar.subheader("Training Stats")
-from ipo.core.persistence import state_path_for_prompt
+from ipo.core.persistence import state_path_for_prompt  # noqa: E402
 
 st.session_state.state_path = state_path_for_prompt(base_prompt)
 if "lstate" not in st.session_state:
     from ipo.core.latent_state import load_state
     p = st.session_state.state_path
     if os.path.exists(p):
-        try: _apply_state(st, load_state(p))
-        except: _apply_state(st, init_latent_state())
-    else: _apply_state(st, init_latent_state())
+        try:
+            _apply_state(st, load_state(p))
+        except Exception:
+            _apply_state(st, init_latent_state())
+    else:
+        _apply_state(st, init_latent_state())
 lstate = st.session_state.lstate
-import numpy as np
-from ipo.core.persistence import get_dataset_for_prompt_or_session
+import numpy as np  # noqa: E402
+
+from ipo.core.persistence import get_dataset_for_prompt_or_session  # noqa: E402
+
 X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
 print(f"[app] prompt='{base_prompt[:30]}...' X={X.shape if X is not None else None}")
 # Train on page load if data exists
 if X is not None and X.shape[0] > 0:
     from ipo.core.value_model import fit_value_model
     vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
-    fit_value_model(vm, lstate, X, y, 1e300, st.session_state)
+    alpha = float(st.session_state.get(Keys.REG_LAMBDA) or 1.0)
+    fit_value_model(vm, lstate, X, y, alpha, st.session_state)
 # Display training stats
 
 w = getattr(lstate, "w", None)
@@ -95,7 +129,7 @@ st.sidebar.text(f"Samples: {n_total} (+{n_pos} / -{n_neg})")
 _run_app_impl(st, vm_choice, selected_gen_mode)
 
 st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
-from ipo.core.latent_state import save_state
+from ipo.core.latent_state import save_state  # noqa: E402
 
 if st.button("Reset", type="secondary"):
     _apply_state(st, init_latent_state(width=int(width), height=int(height)))

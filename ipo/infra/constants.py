@@ -65,6 +65,9 @@ class Keys:
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
     XGB_OPTIM_MODE = "xgb_optim_mode"
+    SAMPLE_MODE = "sample_mode"
+    REGEN_ALL = "regen_all"
+    BATCH_LABEL = "batch_label"
     XGB_CV_FOLDS = "xgb_cv_folds"
     # Logistic weights cache (simple numpy vector)
     LOGIT_W = "logit_w"
@@ -98,3 +101,4 @@ class Keys:
     IMATCH_MU = "imatch_mu"
     IMATCH_LAST_IMG = "imatch_last_img"
     IMATCH_LAST_MSE = "imatch_last_mse"
+    IMAGES_PER_ROW = "images_per_row"
