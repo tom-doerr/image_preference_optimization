@@ -31,7 +31,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("XGBoost")
 xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
 st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", min_value=1, value=xgb_n)
-xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 3)
+xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 8)
 st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", min_value=1, value=xgb_d)
 trust_r = float(st.session_state.get(Keys.TRUST_R) or 100.0)
 st.session_state[Keys.TRUST_R] = st.sidebar.number_input("Max Dist", 0.0, value=trust_r, step=0.1)
@@ -40,7 +40,7 @@ xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or "Line"
 st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox(
     "Optim", xgb_modes, index=xgb_modes.index(xgb_m))
 samp_modes = ["AvgGood", "Prompt+AvgGood", "Prompt", "Random"]
-samp_m = st.session_state.get(Keys.SAMPLE_MODE) or "AvgGood"
+samp_m = st.session_state.get(Keys.SAMPLE_MODE) or "Random"
 st.session_state[Keys.SAMPLE_MODE] = st.sidebar.selectbox(
     "Start", samp_modes, index=samp_modes.index(samp_m))
 st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(

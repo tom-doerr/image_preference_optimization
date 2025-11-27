@@ -253,7 +253,7 @@ def _render_batch_form(ls, pr, n, z2l, gen):
     ipr = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
     per_row = ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
     checks = []
-    css = "<style>div[data-testid='stCheckbox'] input {transform:scale(1.5)}</style>"
+    css = "<style>div[data-testid='stCheckbox'] input {transform:scale(5)}</style>"
     st.markdown(css, unsafe_allow_html=True)
     with st.form("batch_form"):
         for row in range(0, n, per_row):
