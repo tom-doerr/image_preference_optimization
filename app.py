@@ -29,7 +29,7 @@ vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
 st.sidebar.markdown("---")
 st.sidebar.subheader("XGBoost")
-xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
+xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 500)
 st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", min_value=1, value=xgb_n)
 xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 8)
 st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", min_value=1, value=xgb_d)
@@ -48,7 +48,7 @@ st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(
 st.session_state[Keys.BATCH_LABEL] = st.sidebar.checkbox(
     "Batch Label", value=st.session_state.get(Keys.BATCH_LABEL, True))
 # Ridge alpha (regularization)
-alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1.0)
+alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
 st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
     "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
 # Latent optimization steps
@@ -96,7 +96,7 @@ print(f"[app] prompt='{base_prompt[:30]}...' X={X.shape if X is not None else No
 if X is not None and X.shape[0] > 0:
     from ipo.core.value_model import fit_value_model
     vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
-    alpha = float(st.session_state.get(Keys.REG_LAMBDA) or 1.0)
+    alpha = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
     fit_value_model(vm, lstate, X, y, alpha, st.session_state)
 # Display training stats
 

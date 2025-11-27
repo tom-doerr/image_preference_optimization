@@ -197,7 +197,7 @@ def _train_if_data(st, lstate, prompt):
     if X is not None and X.shape[0] > 0:
         n_pos, n_neg = int((y > 0).sum()), int((y < 0).sum())
         print(f"[train] {vm} on {X.shape[0]} samples (+{n_pos} / -{n_neg})")
-        fv(vm, lstate, X, y, float(st.session_state.get(Keys.REG_LAMBDA) or 1.0), st.session_state)
+        fv(vm, lstate, X, y, float(st.session_state.get(Keys.REG_LAMBDA) or 1000), st.session_state)
 
 def _curation_train_and_next():
     import streamlit as st
