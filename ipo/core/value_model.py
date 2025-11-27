@@ -3,7 +3,7 @@ import numpy as np
 from ipo.infra.constants import Keys
 
 class XGBTrainer:
-    def __init__(self, n_estimators=50, max_depth=3):
+    def __init__(self, n_estimators=50, max_depth=8):
         self.n_estimators, self.max_depth = int(n_estimators), int(max_depth)
     def fit(self, X, y, warm_model=None):
         import xgboost as xgb
@@ -17,9 +17,9 @@ def _xgb_proba(model, fvec):
 def _get_xgb_params(ss):
     try:
         n = ss.get(Keys.XGB_N_ESTIMATORS, 50) if hasattr(ss, "get") else getattr(ss, Keys.XGB_N_ESTIMATORS, 50)
-        d = ss.get(Keys.XGB_MAX_DEPTH, 3) if hasattr(ss, "get") else getattr(ss, Keys.XGB_MAX_DEPTH, 3)
-        return int(n or 50), int(d or 3)
-    except Exception: return 50, 3
+        d = ss.get(Keys.XGB_MAX_DEPTH, 8) if hasattr(ss, "get") else getattr(ss, Keys.XGB_MAX_DEPTH, 8)
+        return int(n or 50), int(d or 8)
+    except Exception: return 50, 8
 
 def _set_xgb_model(ss, model, n):
     try: ss.XGB_MODEL = model; ss.xgb_cache = {"model": model, "n": n}

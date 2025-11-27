@@ -102,3 +102,5 @@ class Keys:
     IMATCH_LAST_IMG = "imatch_last_img"
     IMATCH_LAST_MSE = "imatch_last_mse"
     IMAGES_PER_ROW = "images_per_row"
+    XGB_GRAD_ASCENT = "xgb_grad_ascent"
+    XGB_MOMENTUM = "xgb_momentum"

@@ -50,6 +50,23 @@ def _line_xgb(z, z0, w, mdl, n, eta, mr):
             best, bs = c, s
     return best
 
+
+def _grad_xgb(z, z0, mdl, n, eta, max_r, eps=1e-4, momentum=0.9):
+    from ipo.core.value_model import _xgb_proba
+    best, vel = z.copy(), np.zeros_like(z)
+    for _ in range(n):
+        grad, f0 = np.zeros_like(best), _xgb_proba(mdl, best)
+        for j in range(len(best)):
+            best[j] += eps
+            grad[j] = (_xgb_proba(mdl, best) - f0) / eps
+            best[j] -= eps
+        vel = momentum * vel + grad
+        best = best + eta * vel
+        if max_r > 0 and np.linalg.norm(best - z0) > max_r:
+            best = z0 + (best - z0) * max_r / np.linalg.norm(best - z0)
+    return best
+
+
 def _optim_xgb(z, ls, ss, n, eta=0.1):
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
@@ -57,7 +74,11 @@ def _optim_xgb(z, ls, ss, n, eta=0.1):
         print("[xgb] no model trained yet")
         return z
     z0, max_r = z.copy(), float(ss.get(Keys.TRUST_R, 0) or 0)
-    mode = ss.get(Keys.XGB_OPTIM_MODE) or "Line"
+    mode = ss.get(Keys.XGB_OPTIM_MODE) or "Grad"
+    if mode == "Grad":
+        mom = 0.9 if ss.get(Keys.XGB_MOMENTUM) else 0.0
+        print(f"[xgb] gradient ascent (momentum={mom})")
+        return _grad_xgb(z, z0, mdl, n, eta, max_r, momentum=mom)
     w = getattr(ls, "w", None)
     if mode == "Line" and w is not None and not np.allclose(w, 0):
         print("[xgb] line search along Ridge direction")
@@ -238,17 +259,20 @@ def run_batch_mode():
     if "batch_z" not in st.session_state or len(st.session_state.batch_z) != n:
         st.session_state.batch_z = [None] * n
         st.session_state.batch_img = [None] * n
-    _render_batch(lstate, prompt, n)
+    gen_count = sum(1 for img in st.session_state.batch_img if img is not None)
+    counter = st.sidebar.empty()
+    counter.text(f"Generated: {gen_count}/{n}")
+    _render_batch(lstate, prompt, n, counter)
 
-def _render_batch(lstate, prompt, n):
+def _render_batch(lstate, prompt, n, counter=None):
     from ipo.core.latent_state import z_to_latents
     from ipo.infra.pipeline_local import generate_flux_image_latents as gen
     if st.session_state.get(Keys.BATCH_LABEL):
-        _render_batch_form(lstate, prompt, n, z_to_latents, gen)
+        _render_batch_form(lstate, prompt, n, z_to_latents, gen, counter)
     else:
-        _render_batch_buttons(lstate, prompt, n, z_to_latents, gen)
+        _render_batch_buttons(lstate, prompt, n, z_to_latents, gen, counter)
 
-def _render_batch_form(ls, pr, n, z2l, gen):
+def _render_batch_form(ls, pr, n, z2l, gen, counter=None):
     import math
     ipr = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
     per_row = ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
@@ -260,12 +284,12 @@ def _render_batch_form(ls, pr, n, z2l, gen):
             cols = st.columns(min(per_row, n - row))
             for j, col in enumerate(cols):
                 with col:
-                    _render_tile_chk(row + j, ls, pr, z2l, gen, checks)
+                    _render_tile_chk(row + j, ls, pr, z2l, gen, checks, n, counter)
         if st.form_submit_button("Submit"):
             _submit_batch(ls, pr, checks)
 
-def _render_tile_chk(i, ls, pr, z2l, gen, checks):
-    _ensure_tile(i, ls, pr, z2l, gen)
+def _render_tile_chk(i, ls, pr, z2l, gen, checks, n=0, counter=None):
+    _ensure_tile(i, ls, pr, z2l, gen, n, counter)
     z = st.session_state.batch_z[i]
     sc, d = _get_score(z, ls, st.session_state), _get_dist(z, ls, pr)
     st.image(st.session_state.batch_img[i], caption=f"#{i} s={sc:.3f} d={d:.2f}")
@@ -285,7 +309,7 @@ def _submit_batch(ls, pr, checks):
     st.session_state.batch_img = [None] * n
     st.rerun()
 
-def _ensure_tile(i, ls, pr, z2l, gen):
+def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
     if st.session_state.batch_z[i] is None:
         s = int(st.session_state.get(Keys.ITER_STEPS, 0))
         e = float(st.session_state.get(Keys.ITER_ETA, 0.01))
@@ -294,8 +318,11 @@ def _ensure_tile(i, ls, pr, z2l, gen):
         steps = int(st.session_state.get(Keys.STEPS) or 6)
         lat = z2l(ls, st.session_state.batch_z[i])
         st.session_state.batch_img[i] = gen(pr, lat, ls.width, ls.height, steps, 0.0)
+        if counter and n > 0:
+            gc = sum(1 for img in st.session_state.batch_img if img is not None)
+            counter.text(f"Generated: {gc}/{n}")
 
-def _render_batch_buttons(ls, pr, n, z2l, gen):
+def _render_batch_buttons(ls, pr, n, z2l, gen, counter=None):
     import math
     ipr = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
     per_row = ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
@@ -303,9 +330,9 @@ def _render_batch_buttons(ls, pr, n, z2l, gen):
         cols = st.columns(min(per_row, n - row))
         for j, col in enumerate(cols):
             with col:
-                _render_tile(row + j, ls, pr, z2l, gen)
+                _render_tile(row + j, ls, pr, z2l, gen, n, counter)
 
-def _render_tile(i, ls, pr, z2l, gen):
+def _render_tile(i, ls, pr, z2l, gen, n=0, counter=None):
     if st.session_state.batch_z[i] is None:
         steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
         eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
@@ -314,6 +341,9 @@ def _render_tile(i, ls, pr, z2l, gen):
     z = st.session_state.batch_z[i]
     if st.session_state.batch_img[i] is None:
         st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, 6, 0.0)
+        if counter and n > 0:
+            gc = sum(1 for img in st.session_state.batch_img if img is not None)
+            counter.text(f"Generated: {gc}/{n}")
     sc = _get_score(z, ls, st.session_state)
     d = _get_dist(z, ls, pr)
     st.image(st.session_state.batch_img[i], caption=f"#{i} s={sc:.3f} d={d:.2f}")
