@@ -3,9 +3,11 @@ import os
 import streamlit as st
 
 from ipo.infra.constants import (
+    DEFAULT_BATCH_SIZE,
     DEFAULT_ITER_ETA,
     DEFAULT_ITER_STEPS,
     DEFAULT_PROMPT,
+    DEFAULT_SPACE_MODE,
     DEFAULT_XGB_OPTIM_MODE,
     Keys,
 )
@@ -29,6 +31,18 @@ if "prompt" not in st.session_state:
 base_prompt = st.sidebar.text_input(
     "Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
 st.session_state.prompt = base_prompt
+# Space mode selection
+space_modes = ["PooledEmbed", "PromptEmbed", "Latent"]
+space_m = st.session_state.get(Keys.SPACE_MODE) or DEFAULT_SPACE_MODE
+st.session_state[Keys.SPACE_MODE] = st.sidebar.selectbox(
+    "Space", space_modes, index=space_modes.index(space_m))
+# Noise seed for generation
+noise_seed = int(st.session_state.get(Keys.NOISE_SEED) or 42)
+st.session_state[Keys.NOISE_SEED] = st.sidebar.number_input("Noise Seed", value=noise_seed)
+# Delta scale for PooledEmbed mode
+delta_scale = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+st.session_state[Keys.DELTA_SCALE] = st.sidebar.number_input(
+    "Delta Scale", min_value=0.0, value=delta_scale, step=0.01, format="%.2f")
 # Value function algo selection
 vm_opts = ["Ridge", "XGBoost"]
 vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
@@ -70,7 +84,7 @@ st.session_state[Keys.ITER_ETA] = st.sidebar.number_input(
 diff_steps = int(st.session_state.get(Keys.STEPS) or 10)
 st.session_state[Keys.STEPS] = st.sidebar.number_input("Diff Steps", min_value=1, value=diff_steps)
 # Batch size
-batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or 1000)
+batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
 st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input(
     "Batch Size", min_value=1, value=batch_val)
 # Images per row (-1 = auto)
@@ -90,9 +104,11 @@ if "lstate" not in st.session_state:
         try:
             _apply_state(st, load_state(p))
         except Exception:
-            _apply_state(st, init_latent_state())
+            sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
+            _apply_state(st, init_latent_state(space_mode=sm))
     else:
-        _apply_state(st, init_latent_state())
+        sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
+        _apply_state(st, init_latent_state(space_mode=sm))
 lstate = st.session_state.lstate
 import numpy as np  # noqa: E402
 
@@ -144,6 +160,7 @@ st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
 from ipo.core.latent_state import save_state  # noqa: E402
 
 if st.button("Reset", type="secondary"):
-    _apply_state(st, init_latent_state(width=int(width), height=int(height)))
+    sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
+    _apply_state(st, init_latent_state(width=int(width), height=int(height), space_mode=sm))
     save_state(st.session_state.lstate, st.session_state.state_path)
     st.rerun()

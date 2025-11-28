@@ -2,6 +2,7 @@ import numpy as np
 import streamlit as st
 
 from ipo.infra.constants import (
+    DEFAULT_BATCH_SIZE,
     DEFAULT_ITER_ETA,
     DEFAULT_ITER_STEPS,
     DEFAULT_PROMPT,
@@ -20,7 +21,8 @@ def _lstate_and_prompt():
     lstate = getattr(st.session_state, "lstate", None)
     if lstate is None:
         from ipo.core.latent_state import init_latent_state
-        lstate = init_latent_state()
+        sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
+        lstate = init_latent_state(space_mode=sm)
         st.session_state.lstate = lstate
     return lstate, st.session_state.get("prompt") or DEFAULT_PROMPT
 
@@ -108,7 +110,7 @@ def _curation_init_batch():
 def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
-    n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
+    n = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
     steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
     eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
     zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
@@ -213,7 +215,7 @@ def run_batch_mode():
     from ipo.infra.pipeline_local import set_model
     set_model(None)
     lstate, prompt = _lstate_and_prompt()
-    n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
+    n = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
     if "batch_z" not in st.session_state or len(st.session_state.batch_z) != n:
         st.session_state.batch_z = [None] * n
         st.session_state.batch_img = [None] * n
@@ -280,9 +282,20 @@ def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
         print(f"[_ensure_tile] i={i} z optimized")
     if st.session_state.batch_img[i] is None:
         steps = int(st.session_state.get(Keys.STEPS) or 6)
-        lat = z2l(ls, st.session_state.batch_z[i])
-        print(f"[_ensure_tile] i={i} generating img")
-        st.session_state.batch_img[i] = gen(pr, lat, ls.width, ls.height, steps, 0.0)
+        z = st.session_state.batch_z[i]
+        mode = getattr(ls, "space_mode", "Latent")
+        print(f"[_ensure_tile] i={i} gen mode={mode}")
+        seed = int(st.session_state.get(Keys.NOISE_SEED) or 42)
+        if mode == "PooledEmbed":
+            from ipo.infra.pipeline_local import gen_from_pooled
+            scale = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+            st.session_state.batch_img[i] = gen_from_pooled(
+                z, ls.width, ls.height, steps, seed=seed, base_prompt=pr, scale=scale)
+        elif mode == "PromptEmbed":
+            from ipo.infra.pipeline_local import gen_from_embed
+            st.session_state.batch_img[i] = gen_from_embed(z, ls.width, ls.height, steps, seed=seed)
+        else:
+            st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, steps, 0.0)
         print(f"[_ensure_tile] i={i} img done")
         if counter and n > 0:
             gc = sum(1 for img in st.session_state.batch_img if img is not None)

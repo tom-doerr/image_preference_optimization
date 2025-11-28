@@ -34,8 +34,9 @@ DEFAULT_GAMMA_ORTH = 0.2
 DEFAULT_ITER_STEPS = 100
 DEFAULT_ITER_ETA = 10.0
 DEFAULT_XGB_OPTIM_MODE = "Hill"
+DEFAULT_SPACE_MODE = "PooledEmbed"  # "Latent", "PromptEmbed", or "PooledEmbed"
 DEFAULT_QUEUE_SIZE = 6
-DEFAULT_BATCH_SIZE = 3
+DEFAULT_BATCH_SIZE = 48
 
 # Scoring defaults (legacy non‑ridge modes removed)
 
@@ -106,3 +107,6 @@ class Keys:
     IMAGES_PER_ROW = "images_per_row"
     XGB_GRAD_ASCENT = "xgb_grad_ascent"
     XGB_MOMENTUM = "xgb_momentum"
+    SPACE_MODE = "space_mode"  # "Latent" or "PromptEmbed"
+    NOISE_SEED = "noise_seed"
+    DELTA_SCALE = "delta_scale"

@@ -196,3 +196,83 @@ def set_model(model_id):
             print(f"[set_model] LCMScheduler set for {mid}")
     except Exception:
         pass
+
+
+def get_pooled_embed_dim():
+    """Pooled (CLS) embedding dim - just hidden_size."""
+    import torch
+    _ensure_pipe(None)
+    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
+    if not tok or not enc:
+        return 0
+    d = tok("x", return_tensors="pt", padding="max_length", truncation=True)
+    with torch.no_grad():
+        out = enc(d.input_ids.to("cuda"))[0]
+    return out.shape[-1]  # hidden_size only
+
+
+def get_prompt_embed_dim():
+    """Flattened prompt embedding dim."""
+    import torch
+    _ensure_pipe(None)
+    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
+    if not tok or not enc:
+        return 0
+    d = tok("x", return_tensors="pt", padding="max_length", truncation=True)
+    with torch.no_grad():
+        return enc(d.input_ids.to("cuda"))[0].numel()
+
+
+def get_base_pooled_embed(pr):
+    """Mean-pooled embedding."""
+    import numpy as np
+    import torch
+    _ensure_pipe(None)
+    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
+    if not tok or not enc:
+        return np.zeros(0)
+    inp = tok(pr, return_tensors="pt", padding="max_length", truncation=True)
+    with torch.no_grad():
+        o = enc(inp.input_ids.to("cuda"))[0]
+    return o.mean(dim=1).cpu().numpy().flatten()
+
+
+def get_base_prompt_embed(pr):
+    import numpy as np
+    import torch
+    _ensure_pipe(None)
+    tok = getattr(PIPE, "tokenizer", None)
+    enc = getattr(PIPE, "text_encoder", None)
+    if not tok or not enc:
+        return np.zeros(0)
+    inp = tok(pr, return_tensors="pt", padding="max_length", truncation=True)
+    with torch.no_grad():
+        o = enc(inp.input_ids.to("cuda"))[0]
+    return o.cpu().numpy().flatten()
+
+
+def gen_from_pooled(emb, w=512, h=512, steps=4, g=0.0, seed=42, base_prompt="", scale=0.1):
+    import torch
+    _ensure_pipe(None)
+    base = get_base_prompt_embed(base_prompt or "a photo")
+    tok = getattr(PIPE, "tokenizer", None)
+    sl, hd = tok.model_max_length, len(base) // tok.model_max_length
+    base_t = torch.tensor(base, dtype=torch.float16, device="cuda").reshape(1, sl, hd)
+    delta = torch.tensor(emb, dtype=torch.float16, device="cuda") * float(scale)
+    e = base_t + delta.unsqueeze(0).unsqueeze(0).expand(1, sl, -1)
+    gg = _eff_g(CURRENT_MODEL_ID or "", g)
+    gen = torch.Generator("cuda").manual_seed(int(seed))
+    return _run_pipe(prompt_embeds=e, num_inference_steps=steps,
+                     guidance_scale=gg, height=h, width=w, generator=gen)
+
+
+def gen_from_embed(emb, w=512, h=512, steps=4, g=0.0, seed=42):
+    import torch
+    _ensure_pipe(None)
+    tok = getattr(PIPE, "tokenizer", None)
+    sl, hd = tok.model_max_length, len(emb) // tok.model_max_length
+    e = torch.tensor(emb, dtype=torch.float16, device="cuda").reshape(1, sl, hd)
+    gg = _eff_g(CURRENT_MODEL_ID or "", g)
+    gen = torch.Generator("cuda").manual_seed(int(seed))
+    return _run_pipe(prompt_embeds=e, num_inference_steps=steps,
+                     guidance_scale=gg, height=h, width=w, generator=gen)
