@@ -1,7 +1,7 @@
 import numpy as _np
 import streamlit as st
 
-from ipo.infra.constants import DEFAULT_PROMPT, Keys
+from ipo.infra.constants import DEFAULT_ITER_ETA, DEFAULT_ITER_STEPS, DEFAULT_PROMPT, Keys
 from ipo.ui import batch_ui as _batch_ui
 
 
@@ -81,8 +81,8 @@ def build_controls(st, lstate, base_prompt):
     steps = int(st.session_state.get(Keys.STEPS) or 6)
     guidance = float(st.session_state.get(Keys.GUIDANCE) or 0.0)
     reg_lambda = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
-    iter_eta = float(st.session_state.get(Keys.ITER_ETA) or 0.00001)
-    iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or 10)
+    iter_eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
+    iter_steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
     st.session_state[Keys.GUIDANCE_EFF] = guidance
     return (vm_choice, "batch", None, width, height, steps, guidance,
             reg_lambda, iter_steps, iter_eta, False)

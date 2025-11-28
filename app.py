@@ -2,7 +2,13 @@ import os
 
 import streamlit as st
 
-from ipo.infra.constants import DEFAULT_PROMPT, Keys
+from ipo.infra.constants import (
+    DEFAULT_ITER_ETA,
+    DEFAULT_ITER_STEPS,
+    DEFAULT_PROMPT,
+    DEFAULT_XGB_OPTIM_MODE,
+    Keys,
+)
 from ipo.ui.app_api import _apply_state
 from ipo.ui.app_api import build_controls as _build_controls
 from ipo.ui.app_api import run_app as _run_app_impl
@@ -16,7 +22,7 @@ st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 if Keys.VM_CHOICE not in st.session_state:
     st.session_state[Keys.VM_CHOICE] = "XGBoost"
 if Keys.ITER_ETA not in st.session_state:
-    st.session_state[Keys.ITER_ETA] = 1.0
+    st.session_state[Keys.ITER_ETA] = DEFAULT_ITER_ETA
 
 if "prompt" not in st.session_state:
     st.session_state.prompt = DEFAULT_PROMPT
@@ -36,7 +42,7 @@ st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", min_valu
 trust_r = float(st.session_state.get(Keys.TRUST_R) or 200.0)
 st.session_state[Keys.TRUST_R] = st.sidebar.number_input("Max Dist", 0.0, value=trust_r, step=0.1)
 xgb_modes = ["Grad", "Line", "Hill"]
-xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or "Grad"
+xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or DEFAULT_XGB_OPTIM_MODE
 st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox(
     "Optim", xgb_modes, index=xgb_modes.index(xgb_m))
 st.session_state[Keys.XGB_MOMENTUM] = st.sidebar.checkbox(
@@ -54,10 +60,10 @@ alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
 st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
     "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
 # Latent optimization steps
-iter_val = int(st.session_state.get(Keys.ITER_STEPS) or 100)
+iter_val = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input(
     "Optim Steps", min_value=0, value=iter_val)
-eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or 1.0))
+eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA))
 st.session_state[Keys.ITER_ETA] = st.sidebar.number_input(
     "Step Size", min_value=0.0001, value=eta_val, format="%.4f")
 # Diffusion steps
@@ -93,13 +99,17 @@ import numpy as np  # noqa: E402
 from ipo.core.persistence import get_dataset_for_prompt_or_session  # noqa: E402
 
 X, y = get_dataset_for_prompt_or_session(base_prompt, st.session_state)
-print(f"[app] prompt='{base_prompt[:30]}...' X={X.shape if X is not None else None}")
+st.session_state[Keys.DATASET_X] = X
+st.session_state[Keys.DATASET_Y] = y
+print(f"[app] prompt='{base_prompt[:30]}...' n={X.shape[0] if X is not None else 0}")
 # Train on page load if data exists
 if X is not None and X.shape[0] > 0:
+    print(f"[app] training {X.shape[0]} samples...")
     from ipo.core.value_model import fit_value_model
     vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
     alpha = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
     fit_value_model(vm, lstate, X, y, alpha, st.session_state)
+    print("[app] training done")
 # Display training stats
 
 w = getattr(lstate, "w", None)

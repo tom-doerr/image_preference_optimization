@@ -1,4 +1,6 @@
-import os, threading
+import os
+import threading
+
 PIPE = None
 CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.RLock()
@@ -80,23 +82,31 @@ def _load_pipeline(mid: str):
 
 def _disable_safety(pipe) -> None:
     try:
-        if hasattr(pipe, "safety_checker"): pipe.safety_checker = None
-        if hasattr(pipe, "feature_extractor"): pipe.feature_extractor = None
-    except Exception: pass
+        if hasattr(pipe, "safety_checker"):
+            pipe.safety_checker = None
+        if hasattr(pipe, "feature_extractor"):
+            pipe.feature_extractor = None
+    except Exception:
+        pass
 
 
 def _ensure_pipe(model_id=None):
     global PIPE, CURRENT_MODEL_ID
     import torch
-    if not torch.cuda.is_available(): raise ValueError("CUDA not available")
+    if not torch.cuda.is_available():
+        raise ValueError("CUDA not available")
 
     with PIPE_LOCK:
-        if PIPE and (model_id is None or CURRENT_MODEL_ID == model_id): return PIPE
+        if PIPE and (model_id is None or CURRENT_MODEL_ID == model_id):
+            return PIPE
     mid = model_id or CURRENT_MODEL_ID or _get_default_model_id()
-    if PIPE and CURRENT_MODEL_ID != mid: _free_pipe()
+    if PIPE and CURRENT_MODEL_ID != mid:
+        _free_pipe()
     PIPE = _load_pipeline(mid)
-    _disable_safety(PIPE); _post_load_toggles(PIPE)
-    CURRENT_MODEL_ID = mid; PROMPT_CACHE.clear()
+    _disable_safety(PIPE)
+    _post_load_toggles(PIPE)
+    CURRENT_MODEL_ID = mid
+    PROMPT_CACHE.clear()
     return PIPE
 
 
@@ -104,9 +114,12 @@ def _prepare_scheduler_locked(steps):
     try:
         sched = getattr(PIPE, "scheduler", None)
         if sched and hasattr(sched, "set_timesteps"):
-            try: sched.set_timesteps(int(steps), device="cuda")
-            except TypeError: sched.set_timesteps(int(steps))
-    except Exception: pass
+            try:
+                sched.set_timesteps(int(steps), device="cuda")
+            except TypeError:
+                sched.set_timesteps(int(steps))
+    except Exception:
+        pass
 
 
 def _run_pipe(**kwargs):
@@ -125,21 +138,29 @@ def _run_pipe(**kwargs):
 
 def _post_load_toggles(pipe):
     try:
-        if hasattr(pipe, "enable_attention_slicing"): pipe.enable_attention_slicing()
-        if hasattr(pipe, "enable_vae_slicing"): pipe.enable_vae_slicing()
-    except Exception: pass
+        if hasattr(pipe, "enable_attention_slicing"):
+            pipe.enable_attention_slicing()
+        if hasattr(pipe, "enable_vae_slicing"):
+            pipe.enable_vae_slicing()
+    except Exception:
+        pass
 
 
 def _get_prompt_embeds(prompt, guidance):
-    if not guidance or guidance <= 1e-6: return (None, None)
+    if not guidance or guidance <= 1e-6:
+        return (None, None)
     key = (CURRENT_MODEL_ID, prompt)
-    if key in PROMPT_CACHE: return PROMPT_CACHE[key]
+    if key in PROMPT_CACHE:
+        return PROMPT_CACHE[key]
     try:
         enc = getattr(PIPE, "encode_prompt", None)
-        if not enc: return (None, None)
+        if not enc:
+            return (None, None)
         pe, ne = enc(prompt=prompt, device="cuda", num_images_per_prompt=1, do_classifier_free_guidance=True, negative_prompt=None)  # noqa: E501
-        PROMPT_CACHE[key] = (pe, ne); return pe, ne
-    except Exception: return (None, None)
+        PROMPT_CACHE[key] = (pe, ne)
+        return pe, ne
+    except Exception:
+        return (None, None)
 
 
 def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20, guidance=3.5):
@@ -151,7 +172,10 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
     g = _eff_g(CURRENT_MODEL_ID or "", guidance)
     print(f"[gen] sigma={sigma:.2f} std={latents.std().item():.3f} g={g} steps={steps}")
     h, w = latents.shape[2] * 8, latents.shape[3] * 8
-    kw = dict(num_inference_steps=int(steps or 4), guidance_scale=float(g), latents=latents, prompt=prompt, height=h, width=w)
+    kw = dict(
+        num_inference_steps=int(steps or 4), guidance_scale=float(g),
+        latents=latents, prompt=prompt, height=h, width=w
+    )
     return _run_pipe(**kw)
 
 
@@ -159,8 +183,10 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
 
 def set_model(model_id):
     global CURRENT_MODEL_ID, _LCM_SET
-    with PIPE_LOCK: pipe = _ensure_pipe(model_id)
-    if _LCM_SET: return
+    with PIPE_LOCK:
+        pipe = _ensure_pipe(model_id)
+    if _LCM_SET:
+        return
     mid = CURRENT_MODEL_ID or ""
     try:
         if "sd-turbo" in mid or "sdxl-turbo" in mid:
@@ -168,4 +194,5 @@ def set_model(model_id):
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
             _LCM_SET = True
             print(f"[set_model] LCMScheduler set for {mid}")
-    except Exception: pass
+    except Exception:
+        pass

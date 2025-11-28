@@ -1,17 +1,18 @@
 import numpy as np
 import streamlit as st
 
-from ipo.infra.constants import DEFAULT_PROMPT, Keys
+from ipo.infra.constants import (
+    DEFAULT_ITER_ETA,
+    DEFAULT_ITER_STEPS,
+    DEFAULT_PROMPT,
+    DEFAULT_XGB_OPTIM_MODE,
+    Keys,
+)
 
 
 def _update_rows_display(st, Keys):
-    try:
-        from ipo.core.persistence import get_dataset_for_prompt_or_session
-        prompt = st.session_state.get('prompt', '')
-        X, y = get_dataset_for_prompt_or_session(prompt, st.session_state)
-        st.session_state[Keys.ROWS_DISPLAY] = str(X.shape[0] if X is not None else 0)
-    except Exception:
-        pass
+    X = st.session_state.get(Keys.DATASET_X)
+    st.session_state[Keys.ROWS_DISPLAY] = str(X.shape[0] if X is not None else 0)
 
 def _lstate_and_prompt():
     import streamlit as st
@@ -35,92 +36,49 @@ def _render_tiles_row(st, idxs, lstate, prompt, steps, guidance_eff, cur_batch):
             _render_batch_tile_body(*args)
 
 
-def _line_xgb(z, z0, w, mdl, n, eta, mr):
-    from ipo.core.value_model import _xgb_proba
-    wd = w / (np.linalg.norm(w) + 1e-12)
-    best, bs = z.copy(), _xgb_proba(mdl, z)
-    for i in range(n):
-        c = z + eta * (i + 1) * wd
-        if mr > 0:
-            dn = np.linalg.norm(c - z0)
-            if dn > mr:
-                c = z0 + (c - z0) * mr / dn
-        s = _xgb_proba(mdl, c)
-        if s > bs:
-            best, bs = c, s
-    return best
 
-
-def _grad_xgb(z, z0, mdl, n, eta, max_r, eps=1e-4, momentum=0.9):
-    from ipo.core.value_model import _xgb_proba
-    best, vel = z.copy(), np.zeros_like(z)
-    for _ in range(n):
-        grad, f0 = np.zeros_like(best), _xgb_proba(mdl, best)
-        for j in range(len(best)):
-            best[j] += eps
-            grad[j] = (_xgb_proba(mdl, best) - f0) / eps
-            best[j] -= eps
-        vel = momentum * vel + grad
-        best = best + eta * vel
-        if max_r > 0 and np.linalg.norm(best - z0) > max_r:
-            best = z0 + (best - z0) * max_r / np.linalg.norm(best - z0)
-    return best
-
-
-def _optim_xgb(z, ls, ss, n, eta=0.1):
+def _optim_xgb(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
+    print(f"[_optim_xgb] START n={n} eta={eta}")
+    from ipo.core.optimizer import HillClimbOptimizer, LineSearchOptimizer, SPSAOptimizer
     from ipo.core.value_model import _get_xgb_model, _xgb_proba
     mdl = _get_xgb_model(ss)
+    print(f"[_optim_xgb] model={mdl is not None}")
     if mdl is None:
-        print("[xgb] no model trained yet")
         return z
-    z0, max_r = z.copy(), float(ss.get(Keys.TRUST_R, 0) or 0)
-    mode = ss.get(Keys.XGB_OPTIM_MODE) or "Grad"
+    max_r = float(ss.get(Keys.TRUST_R, 0) or 0)
+    mode = ss.get(Keys.XGB_OPTIM_MODE) or DEFAULT_XGB_OPTIM_MODE
+    def vf(x): return _xgb_proba(mdl, x)
+    w = getattr(ls, "w", None)
     if mode == "Grad":
         mom = 0.9 if ss.get(Keys.XGB_MOMENTUM) else 0.0
-        print(f"[xgb] gradient ascent (momentum={mom})")
-        return _grad_xgb(z, z0, mdl, n, eta, max_r, momentum=mom)
-    w = getattr(ls, "w", None)
-    if mode == "Line" and w is not None and not np.allclose(w, 0):
-        print("[xgb] line search along Ridge direction")
-        return _line_xgb(z, z0, w, mdl, n, eta, max_r)
-    best, bs = z.copy(), _xgb_proba(mdl, z)
-    print(f"[xgb] start: {bs:.4f}")
-    for i in range(n):
-        c = best + np.random.randn(len(z)) * eta * ls.sigma
-        if max_r > 0:
-            d = np.linalg.norm(c - z0)
-            if d > max_r:
-                c = z0 + (c - z0) * max_r / d
-        s = _xgb_proba(mdl, c)
-        print(f"[xgb] {i}: {s:.4f}{' *' if s > bs else ''}")
-        if s > bs:
-            best, bs = c, s
-    print(f"[xgb] best: {bs:.4f}")
-    return best
+        print(f"[_optim_xgb] Grad mom={mom}")
+        opt = SPSAOptimizer(eta=eta, momentum=mom, max_dist=max_r)
+    elif mode == "Line" and w is not None and not np.allclose(w, 0):
+        opt = LineSearchOptimizer(direction=w, eta=eta, max_dist=max_r)
+    else:
+        opt = HillClimbOptimizer(sigma=ls.sigma, eta=eta, max_dist=max_r)
+    print(f"[_optim_xgb] calling optimize n={n}")
+    result = opt.optimize(z, vf, n)
+    print("[_optim_xgb] DONE")
+    return result.z
 
-def _optimize_z(z, lstate, ss, steps, eta=0.01):
+def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""
     if steps <= 0:
-        print("[optim] steps=0, skipping")
         return z
     vm = ss.get(Keys.VM_CHOICE) or "Ridge"
-    print(f"[optim] vm={vm} steps={steps}")
     if vm == "XGBoost":
         return _optim_xgb(z, lstate, ss, steps, eta)
+    from ipo.core.optimizer import RidgeOptimizer
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0):
         return z
-    w_norm = np.linalg.norm(w) + 1e-12
-    for i in range(int(steps)):
-        if i % max(1, steps // 5) == 0:
-            print(f"[optim] step {i}: score={float(np.dot(w, z)):.4f}")
-        z = z + eta * w / w_norm
-    print(f"[optim] final: score={float(np.dot(w, z)):.4f}")
-    return z
+    opt = RidgeOptimizer(w=w, eta=eta)
+    return opt.optimize(z, lambda x: float(np.dot(w, x)), steps).z
 
 def _get_good_mean(prompt, ss):
-    from ipo.core.persistence import get_dataset_for_prompt_or_session
-    X, y = get_dataset_for_prompt_or_session(prompt, ss)
+    X = ss.get(Keys.DATASET_X)
+    y = ss.get(Keys.DATASET_Y)
     if X is not None and y is not None and (y > 0).sum() > 0:
         return X[y > 0].mean(axis=0)
     return None
@@ -151,8 +109,8 @@ def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
     n = int(st.session_state.get(Keys.BATCH_SIZE) or 3)
-    steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-    eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+    steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
+    eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
     zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
           for _ in range(n)]
     st.session_state.cur_batch = zs
@@ -167,8 +125,8 @@ def _curation_replace_at(idx: int) -> None:
         _curation_new_batch()
         return
     lstate, prompt = _lstate_and_prompt()
-    steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-    eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
+    steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
+    eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
     z_new = _optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
     zs[int(idx) % len(zs)] = z_new
     st.session_state.cur_batch = zs
@@ -211,9 +169,9 @@ def _render_batch_tile_body(i, lstate, prompt, steps, guidance_eff, cur_batch):
     _render_good_bad(st, i, z_i, img_i)
 
 def _train_if_data(st, lstate, prompt):
-    from ipo.core.persistence import get_dataset_for_prompt_or_session as gd
     from ipo.core.value_model import fit_value_model as fv
-    X, y = gd(prompt, st.session_state)
+    X = st.session_state.get(Keys.DATASET_X)
+    y = st.session_state.get(Keys.DATASET_Y)
     vm = st.session_state.get(Keys.VM_CHOICE) or "Ridge"
     if X is not None and X.shape[0] > 0:
         n_pos, n_neg = int((y > 0).sum()), int((y < 0).sum())
@@ -301,7 +259,11 @@ def _submit_batch(ls, pr, checks):
         label = 1 if good else -1
         z, img = st.session_state.batch_z[i], st.session_state.batch_img[i]
         _curation_add(label, z, img, skip_train=True)
-    print(f"[submit] {len(checks)} samples")
+    print(f"[submit] {len(checks)} samples, reloading")
+    from ipo.core.persistence import get_dataset_for_prompt_or_session
+    X, y = get_dataset_for_prompt_or_session(pr, st.session_state)
+    st.session_state[Keys.DATASET_X] = X
+    st.session_state[Keys.DATASET_Y] = y
     _train_if_data(st, ls, pr)
     _update_rows_display(st, Keys)
     n = len(checks)
@@ -310,14 +272,18 @@ def _submit_batch(ls, pr, checks):
     st.rerun()
 
 def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
+    print(f"[_ensure_tile] i={i}")
     if st.session_state.batch_z[i] is None:
-        s = int(st.session_state.get(Keys.ITER_STEPS, 0))
-        e = float(st.session_state.get(Keys.ITER_ETA, 0.01))
+        s = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
+        e = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
         st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, s, e)
+        print(f"[_ensure_tile] i={i} z optimized")
     if st.session_state.batch_img[i] is None:
         steps = int(st.session_state.get(Keys.STEPS) or 6)
         lat = z2l(ls, st.session_state.batch_z[i])
+        print(f"[_ensure_tile] i={i} generating img")
         st.session_state.batch_img[i] = gen(pr, lat, ls.width, ls.height, steps, 0.0)
+        print(f"[_ensure_tile] i={i} img done")
         if counter and n > 0:
             gc = sum(1 for img in st.session_state.batch_img if img is not None)
             counter.text(f"Generated: {gc}/{n}")
@@ -333,17 +299,8 @@ def _render_batch_buttons(ls, pr, n, z2l, gen, counter=None):
                 _render_tile(row + j, ls, pr, z2l, gen, n, counter)
 
 def _render_tile(i, ls, pr, z2l, gen, n=0, counter=None):
-    if st.session_state.batch_z[i] is None:
-        steps = int(st.session_state.get(Keys.ITER_STEPS) or 0)
-        eta = float(st.session_state.get(Keys.ITER_ETA) or 0.01)
-        z_opt = _optimize_z(_sample_z(ls, pr), ls, st.session_state, steps, eta)
-        st.session_state.batch_z[i] = z_opt
+    _ensure_tile(i, ls, pr, z2l, gen, n, counter)
     z = st.session_state.batch_z[i]
-    if st.session_state.batch_img[i] is None:
-        st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, 6, 0.0)
-        if counter and n > 0:
-            gc = sum(1 for img in st.session_state.batch_img if img is not None)
-            counter.text(f"Generated: {gc}/{n}")
     sc = _get_score(z, ls, st.session_state)
     d = _get_dist(z, ls, pr)
     st.image(st.session_state.batch_img[i], caption=f"#{i} s={sc:.3f} d={d:.2f}")
