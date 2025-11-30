@@ -64,6 +64,16 @@ def _optim_xgb(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
     print("[_optim_xgb] DONE")
     return result.z
 
+def _optim_gauss(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
+    from ipo.core.optimizer import HillClimbOptimizer
+    from ipo.core.value_model import _gauss_logp
+    mu, sig = ss.get("gauss_mu"), ss.get("gauss_sigma")
+    if mu is None:
+        return z
+    max_r = float(ss.get(Keys.TRUST_R, 0) or 0)
+    opt = HillClimbOptimizer(sigma=ls.sigma, eta=eta, max_dist=max_r)
+    return opt.optimize(z, lambda x: _gauss_logp(mu, sig, x), n).z
+
 def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""
     if steps <= 0:
@@ -71,6 +81,8 @@ def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     vm = ss.get(Keys.VM_CHOICE) or "Ridge"
     if vm == "XGBoost":
         return _optim_xgb(z, lstate, ss, steps, eta)
+    if vm == "Gaussian":
+        return _optim_gauss(z, lstate, ss, steps, eta)
     from ipo.core.optimizer import RidgeOptimizer
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0):
