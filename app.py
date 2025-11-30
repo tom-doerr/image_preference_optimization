@@ -47,20 +47,25 @@ st.session_state[Keys.DELTA_SCALE] = st.sidebar.number_input(
 vm_opts = ["Ridge", "XGBoost", "Gaussian"]
 vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
+vm_sel = st.session_state[Keys.VM_CHOICE]
+if vm_sel == "XGBoost":
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("XGBoost")
+    xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
+    st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input(
+        "Trees", min_value=1, value=xgb_n)
+    xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 8)
+    st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input(
+        "Depth", min_value=1, value=xgb_d)
+    xgb_modes = ["Grad", "Line", "Hill"]
+    xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or DEFAULT_XGB_OPTIM_MODE
+    st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox(
+        "Optim", xgb_modes, index=xgb_modes.index(xgb_m))
+    st.session_state[Keys.XGB_MOMENTUM] = st.sidebar.checkbox(
+        "Momentum", value=st.session_state.get(Keys.XGB_MOMENTUM, True))
 st.sidebar.markdown("---")
-st.sidebar.subheader("XGBoost")
-xgb_n = int(st.session_state.get(Keys.XGB_N_ESTIMATORS) or 50)
-st.session_state[Keys.XGB_N_ESTIMATORS] = st.sidebar.number_input("Trees", min_value=1, value=xgb_n)
-xgb_d = int(st.session_state.get(Keys.XGB_MAX_DEPTH) or 8)
-st.session_state[Keys.XGB_MAX_DEPTH] = st.sidebar.number_input("Depth", min_value=1, value=xgb_d)
 trust_r = float(st.session_state.get(Keys.TRUST_R) or 200.0)
 st.session_state[Keys.TRUST_R] = st.sidebar.number_input("Max Dist", 0.0, value=trust_r, step=0.1)
-xgb_modes = ["Grad", "Line", "Hill"]
-xgb_m = st.session_state.get(Keys.XGB_OPTIM_MODE) or DEFAULT_XGB_OPTIM_MODE
-st.session_state[Keys.XGB_OPTIM_MODE] = st.sidebar.selectbox(
-    "Optim", xgb_modes, index=xgb_modes.index(xgb_m))
-st.session_state[Keys.XGB_MOMENTUM] = st.sidebar.checkbox(
-    "Momentum", value=st.session_state.get(Keys.XGB_MOMENTUM, True))
 samp_modes = ["AvgGood", "GoodDist", "Prompt+AvgGood", "Prompt", "Random"]
 samp_m = st.session_state.get(Keys.SAMPLE_MODE) or "Random"
 st.session_state[Keys.SAMPLE_MODE] = st.sidebar.selectbox(
@@ -69,10 +74,10 @@ st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(
     "Regen All", value=st.session_state.get(Keys.REGEN_ALL, False))
 st.session_state[Keys.BATCH_LABEL] = st.sidebar.checkbox(
     "Batch Label", value=st.session_state.get(Keys.BATCH_LABEL, True))
-# Ridge alpha (regularization)
-alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
-st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
-    "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
+if vm_sel == "Ridge":
+    alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
+    st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
+        "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
 # Latent optimization steps
 iter_val = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
 st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input(
