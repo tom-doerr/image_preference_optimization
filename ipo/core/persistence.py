@@ -13,7 +13,12 @@ from ipo.infra.constants import APP_VERSION
 
 def _hash(prompt): return hashlib.sha1(prompt.encode()).hexdigest()[:10]
 def _base_dir(): return os.getenv("IPO_DATA_ROOT") or "data"
-def data_root_for_prompt(prompt): return os.path.join(_base_dir(), _hash(prompt))
+_SLOT = ""  # module-level slot suffix
+def set_slot(s): global _SLOT; _SLOT = s or ""
+def get_slot(): return _SLOT
+def data_root_for_prompt(prompt):
+    h = _hash(prompt) + (f"_{_SLOT}" if _SLOT else "")
+    return os.path.join(_base_dir(), h)
 
 
 def state_path_for_prompt(prompt):

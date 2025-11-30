@@ -31,6 +31,11 @@ if "prompt" not in st.session_state:
 base_prompt = st.sidebar.text_input(
     "Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
 st.session_state.prompt = base_prompt
+# Dataset slot for multiple experiments
+from ipo.core.persistence import set_slot
+slot = st.sidebar.text_input("Slot", value=st.session_state.get("slot") or "")
+st.session_state.slot = slot
+set_slot(slot)
 # Space mode selection
 space_modes = ["PooledEmbed", "PromptEmbed", "Latent"]
 space_m = st.session_state.get(Keys.SPACE_MODE) or DEFAULT_SPACE_MODE
