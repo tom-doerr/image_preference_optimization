@@ -23,7 +23,7 @@ def _init_pair_for_state(new_state) -> None:
 
 def _reset_derived_state(new_state) -> None:
     st.session_state[Keys.IMAGES] = (None, None)
-    st.session_state[Keys.MU_IMAGE] = None
+    st.session_state["mu_image"] = None
     if getattr(new_state, "mu", None) is None:
         new_state.mu = _np.zeros(int(getattr(new_state, "d", 0)), dtype=float)
     _mh = getattr(new_state, "mu_hist", None) or []
