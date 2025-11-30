@@ -79,12 +79,16 @@ def _optim_xgb(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
     return result.z
 
 def _optim_gauss(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
-    """Sample from fitted Gaussian distribution."""
+    """Sample from fitted Gaussian, clamp per-dim deviation by Max Dist."""
     mu, sigma = ss.get("gauss_mu"), ss.get("gauss_sigma")
     if mu is None:
         return z
     rng = getattr(ls, "rng", None) or np.random.default_rng()
-    return mu + sigma * rng.standard_normal(len(mu))
+    delta = sigma * rng.standard_normal(len(mu))
+    max_d = float(ss.get(Keys.TRUST_R, 0) or 0)
+    if max_d > 0:
+        delta = np.clip(delta, -max_d, max_d)
+    return mu + delta
 
 def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""
