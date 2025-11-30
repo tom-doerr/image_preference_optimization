@@ -323,23 +323,24 @@ def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
     if st.session_state.batch_img[i] is None:
         steps = int(st.session_state.get(Keys.STEPS) or 6)
         z = st.session_state.batch_z[i]
-        mode = getattr(ls, "space_mode", "Latent")
-        print(f"[_ensure_tile] i={i} gen mode={mode}")
         seed = int(st.session_state.get(Keys.NOISE_SEED) or 42)
-        if mode == "PooledEmbed":
-            from ipo.infra.pipeline_local import gen_from_pooled
-            scale = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
-            st.session_state.batch_img[i] = gen_from_pooled(
-                z, ls.width, ls.height, steps, seed=seed, base_prompt=pr, scale=scale)
-        elif mode == "PromptEmbed":
-            from ipo.infra.pipeline_local import gen_from_embed
-            st.session_state.batch_img[i] = gen_from_embed(z, ls.width, ls.height, steps, seed=seed)
-        else:
-            st.session_state.batch_img[i] = gen(pr, z2l(ls, z), ls.width, ls.height, steps, 0.0)
+        st.session_state.batch_img[i] = _gen_img(z, ls, pr, steps, seed, z2l, gen)
         print(f"[_ensure_tile] i={i} img done")
         if counter and n > 0:
             gc = sum(1 for img in st.session_state.batch_img if img is not None)
             counter.text(f"Generated: {gc}/{n}")
+
+def _gen_img(z, ls, pr, steps, seed, z2l, gen):
+    m = getattr(ls, "space_mode", "Latent")
+    if m == "PooledEmbed":
+        from ipo.infra.pipeline_local import gen_from_pooled
+        sc = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+        return gen_from_pooled(z, ls.width, ls.height, steps, seed=seed, base_prompt=pr, scale=sc)
+    if m == "PromptEmbed":
+        from ipo.infra.pipeline_local import gen_from_embed
+        return gen_from_embed(z, ls.width, ls.height, steps, seed=seed)
+    return gen(pr, z2l(ls, z), ls.width, ls.height, steps, 0.0)
+
 
 def _render_batch_buttons(ls, pr, n, z2l, gen, counter=None):
     per_row = _get_per_row(st.session_state, n)
