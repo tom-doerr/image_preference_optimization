@@ -80,11 +80,18 @@ def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     return opt.optimize(z, lambda x: float(np.dot(w, x)), steps).z
 
 def _get_good_mean(prompt, ss):
-    X = ss.get(Keys.DATASET_X)
-    y = ss.get(Keys.DATASET_Y)
+    X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
     if X is not None and y is not None and (y > 0).sum() > 0:
         return X[y > 0].mean(axis=0)
     return None
+
+def _get_good_dist(ss):
+    """Per-dim mean/std from good samples."""
+    X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
+    if X is not None and y is not None and (y > 0).sum() >= 2:
+        Xg = X[y > 0]
+        return Xg.mean(axis=0), Xg.std(axis=0) + 1e-6
+    return None, None
 
 def _sample_z(lstate, prompt, scale=0.8):
     import streamlit as st
@@ -99,6 +106,11 @@ def _sample_z(lstate, prompt, scale=0.8):
         return z_p + gm * 0.5
     if mode == "Prompt":
         return z_p
+    if mode == "GoodDist":
+        mu, sigma = _get_good_dist(st.session_state)
+        if mu is not None:
+            rng = getattr(lstate, "rng", None) or np.random.default_rng(0)
+            return mu + sigma * rng.standard_normal(len(mu))
     rng = getattr(lstate, "rng", None) or np.random.default_rng(0)
     r = rng.standard_normal(lstate.d)
     r = r / (np.linalg.norm(r) + 1e-12)
