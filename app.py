@@ -22,7 +22,7 @@ def init_latent_state(*a, **k):
 
 st.set_page_config(page_title="Latent Preference Optimizer", layout="wide")
 if Keys.VM_CHOICE not in st.session_state:
-    st.session_state[Keys.VM_CHOICE] = "XGBoost"
+    st.session_state[Keys.VM_CHOICE] = "Gaussian"
 if Keys.ITER_ETA not in st.session_state:
     st.session_state[Keys.ITER_ETA] = DEFAULT_ITER_ETA
 
@@ -44,8 +44,8 @@ delta_scale = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
 st.session_state[Keys.DELTA_SCALE] = st.sidebar.number_input(
     "Delta Scale", min_value=0.0, value=delta_scale, step=0.01, format="%.2f")
 # Value function algo selection
-vm_opts = ["Ridge", "XGBoost", "Gaussian"]
-vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "XGBoost")
+vm_opts = ["Gaussian", "XGBoost", "Ridge"]
+vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "Gaussian")
 st.session_state[Keys.VM_CHOICE] = st.sidebar.selectbox("Value Model", vm_opts, index=vm_idx)
 vm_sel = st.session_state[Keys.VM_CHOICE]
 if vm_sel == "XGBoost":
