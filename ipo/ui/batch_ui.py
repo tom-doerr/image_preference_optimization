@@ -122,9 +122,9 @@ def _sample_z(lstate, prompt, scale=0.8):
     if mode == "GoodDist":
         mu, sigma = _get_good_dist(st.session_state)
         if mu is not None:
-            rng = getattr(lstate, "rng", None) or np.random.default_rng(0)
+            rng = getattr(lstate, "rng", None) or np.random.default_rng()
             return mu + sigma * rng.standard_normal(len(mu))
-    rng = getattr(lstate, "rng", None) or np.random.default_rng(0)
+    rng = getattr(lstate, "rng", None) or np.random.default_rng()
     r = rng.standard_normal(lstate.d)
     r = r / (np.linalg.norm(r) + 1e-12)
     return z_p + float(lstate.sigma) * scale * r

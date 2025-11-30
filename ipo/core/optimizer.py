@@ -44,7 +44,7 @@ class SPSAOptimizer(Optimizer):
     """SPSA gradient approximation optimizer."""
 
     def __init__(  # noqa: E501
-        self, eta=1.0, eps=0.5, momentum=0.9, max_dist=0.0, max_time=30.0, seed=42, verbose=True
+        self, eta=1.0, eps=0.5, momentum=0.9, max_dist=0.0, max_time=30.0, seed=None, verbose=True
     ):
         super().__init__(max_dist, max_time, verbose)
         self.eta = max(1e-6, float(eta))
@@ -135,7 +135,7 @@ class LineSearchOptimizer(Optimizer):
 class HillClimbOptimizer(Optimizer):
     """Random hill climbing."""
 
-    def __init__(self, sigma=1.0, eta=0.1, max_dist=0.0, max_time=30.0, seed=42, verbose=True):
+    def __init__(self, sigma=1.0, eta=0.1, max_dist=0.0, max_time=30.0, seed=None, verbose=True):
         super().__init__(max_dist, max_time, verbose)
         self.sigma = max(1e-6, float(sigma))
         self.eta = max(1e-6, float(eta))
