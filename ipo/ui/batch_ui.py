@@ -11,6 +11,20 @@ from ipo.infra.constants import (
 )
 
 
+def _get_steps(ss):
+    return int(ss.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
+
+
+def _get_eta(ss):
+    return float(ss.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
+
+
+def _get_per_row(ss, n):
+    import math
+    ipr = int(ss.get(Keys.IMAGES_PER_ROW) or -1)
+    return ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
+
+
 def _update_rows_display(st, Keys):
     X = st.session_state.get(Keys.DATASET_X)
     st.session_state[Keys.ROWS_DISPLAY] = str(X.shape[0] if X is not None else 0)
@@ -138,8 +152,7 @@ def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
     n = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
-    steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
-    eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
+    steps, eta = _get_steps(st.session_state), _get_eta(st.session_state)
     zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
           for _ in range(n)]
     st.session_state.cur_batch = zs
@@ -154,8 +167,7 @@ def _curation_replace_at(idx: int) -> None:
         _curation_new_batch()
         return
     lstate, prompt = _lstate_and_prompt()
-    steps = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
-    eta = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
+    steps, eta = _get_steps(st.session_state), _get_eta(st.session_state)
     z_new = _optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
     zs[int(idx) % len(zs)] = z_new
     st.session_state.cur_batch = zs
@@ -260,9 +272,7 @@ def _render_batch(lstate, prompt, n, counter=None):
         _render_batch_buttons(lstate, prompt, n, z_to_latents, gen, counter)
 
 def _render_batch_form(ls, pr, n, z2l, gen, counter=None):
-    import math
-    ipr = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
-    per_row = ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
+    per_row = _get_per_row(st.session_state, n)
     checks = []
     css = "<style>div[data-testid='stCheckbox'] input {transform:scale(5)}</style>"
     st.markdown(css, unsafe_allow_html=True)
@@ -303,8 +313,7 @@ def _submit_batch(ls, pr, checks):
 def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
     print(f"[_ensure_tile] i={i}")
     if st.session_state.batch_z[i] is None:
-        s = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
-        e = float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA)
+        s, e = _get_steps(st.session_state), _get_eta(st.session_state)
         st.session_state.batch_z[i] = _optimize_z(_sample_z(ls, pr), ls, st.session_state, s, e)
         print(f"[_ensure_tile] i={i} z optimized")
     if st.session_state.batch_img[i] is None:
@@ -329,9 +338,7 @@ def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
             counter.text(f"Generated: {gc}/{n}")
 
 def _render_batch_buttons(ls, pr, n, z2l, gen, counter=None):
-    import math
-    ipr = int(st.session_state.get(Keys.IMAGES_PER_ROW) or -1)
-    per_row = ipr if ipr > 0 else max(1, int(math.ceil(math.sqrt(n))))
+    per_row = _get_per_row(st.session_state, n)
     for row in range(0, n, per_row):
         cols = st.columns(min(per_row, n - row))
         for j, col in enumerate(cols):
