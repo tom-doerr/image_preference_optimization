@@ -136,6 +136,11 @@ xgb_n = xgb_cache.get("n", 0)
 st.sidebar.text(f"XGB samples: {xgb_n}")
 last_train = st.session_state.get(Keys.LAST_TRAIN_AT) or "never"
 st.sidebar.text(f"Last train: {last_train}")
+if st.sidebar.button("HP Search"):
+    from ipo.core.hparam_search import xgb_hparam_search
+    if X is not None and X.shape[0] >= 6:
+        best_p, best_sc = xgb_hparam_search(X, y)
+        st.sidebar.success(f"Best: n={best_p['n']} d={best_p['d']} lr={best_p['lr']}")
 # Dataset stats
 n_total = 0 if X is None else X.shape[0]
 n_pos = int((y > 0).sum()) if y is not None else 0
