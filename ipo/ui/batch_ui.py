@@ -79,8 +79,12 @@ def _optim_xgb(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
     return result.z
 
 def _optim_gauss(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
-    # Gaussian samples directly from learned distribution; no optimization needed
-    return z
+    """Sample from fitted Gaussian distribution."""
+    mu, sigma = ss.get("gauss_mu"), ss.get("gauss_sigma")
+    if mu is None:
+        return z
+    rng = getattr(ls, "rng", None) or np.random.default_rng()
+    return mu + sigma * rng.standard_normal(len(mu))
 
 def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""
