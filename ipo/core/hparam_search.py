@@ -21,7 +21,8 @@ def xgb_hparam_search(X, y, n_trials=100, cv=3):
         col = trial.suggest_float("colsample_bytree", 0.5, 1.0)
         m = xgb.XGBClassifier(
             n_estimators=n, max_depth=d, learning_rate=lr, reg_lambda=reg,
-            min_child_weight=mcw, subsample=sub, colsample_bytree=col, verbosity=0)
+            min_child_weight=mcw, subsample=sub, colsample_bytree=col,
+            verbosity=0, n_jobs=1)
         return cross_val_score(m, X, y01, cv=tscv).mean()
 
     study = optuna.create_study(direction="maximize")
