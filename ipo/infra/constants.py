@@ -26,19 +26,11 @@ class Config:
 DECODE_TIMEOUT_S = 3.0
 
 # UI defaults (centralized)
-DEFAULT_ALPHA = 0.5
-DEFAULT_BETA = 0.5
-DEFAULT_TRUST_R = 2.5
-DEFAULT_LR_MU = 0.3
-DEFAULT_GAMMA_ORTH = 0.2
 DEFAULT_ITER_STEPS = 100
 DEFAULT_ITER_ETA = 10.0
 DEFAULT_XGB_OPTIM_MODE = "Hill"
 DEFAULT_SPACE_MODE = "PooledEmbed"  # "Latent", "PromptEmbed", or "PooledEmbed"
-DEFAULT_QUEUE_SIZE = 6
 DEFAULT_BATCH_SIZE = 48
-
-# Scoring defaults (legacy non‑ridge modes removed)
 
 
 class Keys:
@@ -47,65 +39,29 @@ class Keys:
     ITER_ETA = "iter_eta"
     XGB_CACHE = "xgb_cache"
     LAST_TRAIN_AT = "last_train_at"
-    LAST_TRAIN_MS = "last_train_ms"
     VM_CHOICE = "vm_choice"
     TRUST_R = "trust_r"
-    LR_MU_UI = "lr_mu_ui"
-    DATASET_DIM_MISMATCH = "dataset_dim_mismatch"
-    CV_CACHE = "cv_cache"
-    CV_LAST_AT = "cv_last_at"
     # Common app keys (queue removed)
     PROMPT = "prompt"
     STATE_PATH = "state_path"
-    VM_TRAIN_CHOICE = "vm_train_choice"
     BATCH_SIZE = "batch_size"
     STEPS = "steps"
     GUIDANCE = "guidance"
     GUIDANCE_EFF = "guidance_eff"
-    SIDEBAR_COMPACT = "sidebar_compact"
-    DEBUG_LOGS = "debug_logs"
-    DEBUG_TAIL_LINES = "debug_tail_lines"
     XGB_N_ESTIMATORS = "xgb_n_estimators"
     XGB_MAX_DEPTH = "xgb_max_depth"
     XGB_OPTIM_MODE = "xgb_optim_mode"
     SAMPLE_MODE = "sample_mode"
     REGEN_ALL = "regen_all"
     BATCH_LABEL = "batch_label"
-    XGB_CV_FOLDS = "xgb_cv_folds"
-    # Logistic weights cache (simple numpy vector)
-    LOGIT_W = "logit_w"
-    LOGIT_STEPS = "logit_steps"
-    LOGIT_L2 = "logit_l2"
-    # Training status (sync-only)
-    XGB_TRAIN_STATUS = "xgb_train_status"
-    # Distance scorer exponent (p)
-    DIST_EXP = "dist_exp"
-    # Additional app keys for consistency
-    MIN_TRAIN_INTERVAL_S = "min_train_interval_s"
-    RECENT_PROMPTS = "recent_prompts"
-    PAIR_LOG = "pair_log"
     CUR_BATCH_NONCE = "cur_batch_nonce"
     DATASET_Y = "dataset_y"
     DATASET_X = "dataset_X"
     TRAIN_ON_NEW_DATA = "train_on_new_data"
     IMAGES = "images"
-    GAMMA_ORTH = "gamma_orth"
-    # 199f: removed Ridge captions toggle
-    # Latent anchor/images keys
-    USE_RANDOM_ANCHOR = "use_random_anchor"
-    MU_IMAGE = "mu_image"
     # UI computed display values
     ROWS_DISPLAY = "rows_display"
-    # Last action toast line
-    LAST_ACTION_TEXT = "last_action_text"
-    LAST_ACTION_TS = "last_action_ts"
-    # Image-match page state
-    IMATCH_TARGET = "imatch_target"
-    IMATCH_MU = "imatch_mu"
-    IMATCH_LAST_IMG = "imatch_last_img"
-    IMATCH_LAST_MSE = "imatch_last_mse"
     IMAGES_PER_ROW = "images_per_row"
-    XGB_GRAD_ASCENT = "xgb_grad_ascent"
     XGB_MOMENTUM = "xgb_momentum"
     SPACE_MODE = "space_mode"  # "Latent" or "PromptEmbed"
     NOISE_SEED = "noise_seed"
