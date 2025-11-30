@@ -121,6 +121,13 @@ def _get_good_dist(ss):
         return Xg.mean(axis=0), Xg.std(axis=0) + 1e-6
     return None, None
 
+
+def _random_offset(lstate, scale=0.8):
+    """Random unit direction scaled by sigma."""
+    rng = getattr(lstate, "rng", None) or np.random.default_rng()
+    r = rng.standard_normal(lstate.d)
+    return float(lstate.sigma) * scale * r / (np.linalg.norm(r) + 1e-12)
+
 def _sample_z(lstate, prompt, scale=0.8):
     import streamlit as st
 
@@ -139,10 +146,7 @@ def _sample_z(lstate, prompt, scale=0.8):
         if mu is not None:
             rng = getattr(lstate, "rng", None) or np.random.default_rng()
             return mu + sigma * rng.standard_normal(len(mu))
-    rng = getattr(lstate, "rng", None) or np.random.default_rng()
-    r = rng.standard_normal(lstate.d)
-    r = r / (np.linalg.norm(r) + 1e-12)
-    return z_p + float(lstate.sigma) * scale * r
+    return z_p + _random_offset(lstate, scale)
 
 
 def _curation_init_batch():
