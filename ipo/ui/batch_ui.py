@@ -75,7 +75,8 @@ def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     w = getattr(lstate, "w", None)
     if w is None or np.allclose(w, 0):
         return z
-    opt = RidgeOptimizer(w=w, eta=eta)
+    max_r = float(ss.get(Keys.TRUST_R, 0) or 0)
+    opt = RidgeOptimizer(w=w, eta=eta, max_dist=max_r)
     return opt.optimize(z, lambda x: float(np.dot(w, x)), steps).z
 
 def _get_good_mean(prompt, ss):
