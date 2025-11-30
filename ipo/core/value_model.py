@@ -67,9 +67,9 @@ def _fit_gaussian(X, y, ss):
     mu, sigma = Xg.mean(axis=0), Xg.std(axis=0) + 1e-6
     ss["gauss_mu"], ss["gauss_sigma"] = mu, sigma
 
-def _gauss_logp(mu, sigma, z):
-    """Log prob under diagonal Gaussian (unnormalized)."""
-    return -0.5 * np.sum(((z - mu) / sigma) ** 2)
+def _gauss_logp(mu, sigma, z, temp=1.0):
+    """Log prob under diagonal Gaussian. temp>1 flattens, temp<1 sharpens."""
+    return -0.5 * np.sum(((z - mu) / sigma) ** 2) / max(temp, 0.01)
 
 def _maybe_fit_xgb(X, y, lam, ss):
     import time
@@ -120,8 +120,9 @@ def get_value_scorer(vm_choice, lstate, prompt, ss):
         return None, "xgb_unavailable"
     if c == "Gaussian":
         mu, sig = ss.get("gauss_mu"), ss.get("gauss_sigma")
+        temp = float(ss.get(Keys.GAUSS_TEMP) or 1.0)
         if mu is not None:
-            return (lambda f: _gauss_logp(mu, sig, f)), "Gauss"
+            return (lambda f: _gauss_logp(mu, sig, f, temp)), "Gauss"
         return None, "gauss_unavailable"
     w = getattr(lstate, "w", None)
     if w is None:

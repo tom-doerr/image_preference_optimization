@@ -71,8 +71,9 @@ def _optim_gauss(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
     if mu is None:
         return z
     max_r = float(ss.get(Keys.TRUST_R, 0) or 0)
+    temp = float(ss.get(Keys.GAUSS_TEMP) or 1.0)
     opt = HillClimbOptimizer(sigma=ls.sigma, eta=eta, max_dist=max_r)
-    return opt.optimize(z, lambda x: _gauss_logp(mu, sig, x), n).z
+    return opt.optimize(z, lambda x: _gauss_logp(mu, sig, x, temp), n).z
 
 def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""

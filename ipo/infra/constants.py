@@ -110,3 +110,4 @@ class Keys:
     SPACE_MODE = "space_mode"  # "Latent" or "PromptEmbed"
     NOISE_SEED = "noise_seed"
     DELTA_SCALE = "delta_scale"
+    GAUSS_TEMP = "gauss_temp"

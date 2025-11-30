@@ -74,6 +74,10 @@ st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(
     "Regen All", value=st.session_state.get(Keys.REGEN_ALL, False))
 st.session_state[Keys.BATCH_LABEL] = st.sidebar.checkbox(
     "Batch Label", value=st.session_state.get(Keys.BATCH_LABEL, True))
+if vm_sel == "Gaussian":
+    temp_val = float(st.session_state.get(Keys.GAUSS_TEMP) or 1.0)
+    st.session_state[Keys.GAUSS_TEMP] = st.sidebar.number_input(
+        "Temperature", min_value=0.01, value=temp_val, step=0.1, format="%.2f")
 if vm_sel == "Ridge":
     alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
     st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
