@@ -82,13 +82,14 @@ if vm_sel == "Ridge":
     alpha_val = float(st.session_state.get(Keys.REG_LAMBDA) or 1000)
     st.session_state[Keys.REG_LAMBDA] = st.sidebar.number_input(
         "Ridge Alpha", min_value=0.0, value=alpha_val, format="%.4f")
-# Latent optimization steps
-iter_val = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
-st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input(
-    "Optim Steps", min_value=0, value=iter_val)
-eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA))
-st.session_state[Keys.ITER_ETA] = st.sidebar.number_input(
-    "Step Size", min_value=0.0001, value=eta_val, format="%.4f")
+# Latent optimization steps (not used for Gaussian)
+if vm_sel != "Gaussian":
+    iter_val = int(st.session_state.get(Keys.ITER_STEPS) or DEFAULT_ITER_STEPS)
+    st.session_state[Keys.ITER_STEPS] = st.sidebar.number_input(
+        "Optim Steps", min_value=0, value=iter_val)
+    eta_val = max(0.0001, float(st.session_state.get(Keys.ITER_ETA) or DEFAULT_ITER_ETA))
+    st.session_state[Keys.ITER_ETA] = st.sidebar.number_input(
+        "Step Size", min_value=0.0001, value=eta_val, format="%.4f")
 # Diffusion steps
 diff_steps = int(st.session_state.get(Keys.STEPS) or 10)
 st.session_state[Keys.STEPS] = st.sidebar.number_input("Diff Steps", min_value=1, value=diff_steps)

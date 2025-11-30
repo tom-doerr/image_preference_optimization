@@ -79,16 +79,8 @@ def _optim_xgb(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
     return result.z
 
 def _optim_gauss(z, ls, ss, n, eta=DEFAULT_ITER_ETA):
-    from ipo.core.optimizer import HillClimbOptimizer
-    from ipo.core.value_model import _gauss_logp
-    mu, sig = ss.get("gauss_mu"), ss.get("gauss_sigma")
-    if mu is None:
-        return z
-    max_r = float(ss.get(Keys.TRUST_R, 0) or 0)
-    temp = float(ss.get(Keys.GAUSS_TEMP) or 1.0)
-    # Gaussian log-prob is steep; scale eta down for effective optimization
-    opt = HillClimbOptimizer(sigma=ls.sigma, eta=eta * 0.01, max_dist=max_r)
-    return opt.optimize(z, lambda x: _gauss_logp(mu, sig, x, temp), n).z
+    # Gaussian samples directly from learned distribution; no optimization needed
+    return z
 
 def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     """Optimize z using value function."""
