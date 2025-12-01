@@ -149,7 +149,7 @@ class HillClimbOptimizer(Optimizer):
             cand = self._clip(cand, z0)
             v = value_fn(cand)
             self._log(f"[hill] step {i}: v={v:.4f}")
-            if v > best_val:
+            if v >= best_val:
                 best, best_val = cand, v
         dist = np.linalg.norm(best - z0)
         self._log(f"[hill] {v0:.4f}->{best_val:.4f} d={dist:.1f}")
