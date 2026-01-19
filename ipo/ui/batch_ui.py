@@ -2,10 +2,11 @@ import numpy as np
 import streamlit as st
 
 from ipo.infra.constants import (
-    DEFAULT_BATCH_SIZE,
+    DEFAULT_CURATION_SIZE,
     DEFAULT_ITER_ETA,
     DEFAULT_ITER_STEPS,
     DEFAULT_PROMPT,
+    DEFAULT_SERVER_URL,
     DEFAULT_XGB_OPTIM_MODE,
     Keys,
 )
@@ -155,13 +156,13 @@ def _curation_init_batch():
 def _curation_new_batch() -> None:
     import streamlit as st
     lstate, prompt = _lstate_and_prompt()
-    n = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
+    n = int(st.session_state.get(Keys.CURATION_SIZE) or DEFAULT_CURATION_SIZE)
     steps, eta = _get_steps(st.session_state), _get_eta(st.session_state)
     zs = [_optimize_z(_sample_z(lstate, prompt), lstate, st.session_state, steps, eta)
           for _ in range(n)]
     st.session_state.cur_batch = zs
     st.session_state.cur_labels = [None] * n
-    st.session_state["cur_batch_nonce"] = int(st.session_state.get("cur_batch_nonce", 0)) + 1
+    st.session_state[Keys.CURATION_NONCE] = int(st.session_state.get(Keys.CURATION_NONCE, 0)) + 1
 
 
 def _curation_replace_at(idx: int) -> None:
@@ -194,7 +195,7 @@ def _curation_add(label: int, z: np.ndarray, img=None, skip_train=False) -> None
 
 def _render_good_bad(st, i, z_i, img_i):
     c1, c2 = st.columns(2)
-    n = st.session_state.get("cur_batch_nonce", 0)
+    n = st.session_state.get(Keys.CURATION_NONCE, 0)
     with c1:
         if st.button(f"Good {i}", key=f"g_{n}_{i}"):
             print(f"[btn] Good {i} clicked")
@@ -258,7 +259,7 @@ def run_batch_mode():
     from ipo.infra.pipeline_local import set_model
     set_model(None)
     lstate, prompt = _lstate_and_prompt()
-    n = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
+    n = int(st.session_state.get(Keys.CURATION_SIZE) or DEFAULT_CURATION_SIZE)
     if "batch_z" not in st.session_state or len(st.session_state.batch_z) != n:
         st.session_state.batch_z = [None] * n
         st.session_state.batch_img = [None] * n
@@ -270,7 +271,7 @@ def run_batch_mode():
 def _render_batch(lstate, prompt, n, counter=None):
     from ipo.core.latent_state import z_to_latents
     from ipo.infra.pipeline_local import generate_flux_image_latents as gen
-    if st.session_state.get(Keys.BATCH_LABEL):
+    if st.session_state.get(Keys.CURATION_FORM_MODE):
         _render_batch_form(lstate, prompt, n, z_to_latents, gen, counter)
     else:
         _render_batch_buttons(lstate, prompt, n, z_to_latents, gen, counter)
@@ -331,6 +332,20 @@ def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
             counter.text(f"Generated: {gc}/{n}")
 
 def _gen_img(z, ls, pr, steps, seed, z2l, gen):
+    # Check if using server mode
+    if st.session_state.get(Keys.GEN_MODE) == "server":
+        return _gen_img_server(z, ls, pr, steps, seed)
+    return _gen_img_local(z, ls, pr, steps, seed, z2l, gen)
+
+
+def _gen_img_server(z, ls, pr, steps, seed):
+    from ipo.server.gen_client import GenerationClient
+    url = st.session_state.get(Keys.GEN_SERVER_URL) or DEFAULT_SERVER_URL
+    sc = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+    return GenerationClient(url).generate(pr, z.tolist(), "pooled", ls.width, ls.height, steps, 0.0, seed, sc)
+
+
+def _gen_img_local(z, ls, pr, steps, seed, z2l, gen):
     m = getattr(ls, "space_mode", "Latent")
     if m == "PooledEmbed":
         from ipo.infra.pipeline_local import gen_from_pooled

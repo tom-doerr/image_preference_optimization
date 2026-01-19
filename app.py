@@ -3,12 +3,17 @@ import os
 import streamlit as st
 
 from ipo.infra.constants import (
-    DEFAULT_BATCH_SIZE,
+    DEFAULT_CURATION_SIZE,
+    DEFAULT_GEN_MODE,
+    DEFAULT_INFERENCE_BATCH,
     DEFAULT_ITER_ETA,
     DEFAULT_ITER_STEPS,
+    DEFAULT_MODEL,
     DEFAULT_PROMPT,
+    DEFAULT_SERVER_URL,
     DEFAULT_SPACE_MODE,
     DEFAULT_XGB_OPTIM_MODE,
+    MODEL_OPTIONS,
     Keys,
 )
 from ipo.ui.app_api import _apply_state
@@ -36,7 +41,17 @@ from ipo.core.persistence import set_slot
 slot = st.sidebar.text_input("Slot", value=st.session_state.get("slot") or "")
 st.session_state.slot = slot
 set_slot(slot)
-# Space mode selection
+# Generation mode and model
+st.sidebar.markdown("---")
+st.sidebar.subheader("Generation")
+gen_modes = ["local", "server"]
+gen_m = st.session_state.get(Keys.GEN_MODE) or DEFAULT_GEN_MODE
+st.session_state[Keys.GEN_MODE] = st.sidebar.selectbox("Mode", gen_modes, index=gen_modes.index(gen_m))
+if st.session_state[Keys.GEN_MODE] == "server":
+    srv_url = st.session_state.get(Keys.GEN_SERVER_URL) or DEFAULT_SERVER_URL
+    st.session_state[Keys.GEN_SERVER_URL] = st.sidebar.text_input("Server URL", value=srv_url)
+model_sel = st.session_state.get(Keys.SELECTED_MODEL) or DEFAULT_MODEL
+st.session_state[Keys.SELECTED_MODEL] = st.sidebar.selectbox("Model", MODEL_OPTIONS, index=MODEL_OPTIONS.index(model_sel))
 space_modes = ["PooledEmbed", "PromptEmbed", "Latent"]
 space_m = st.session_state.get(Keys.SPACE_MODE) or DEFAULT_SPACE_MODE
 st.session_state[Keys.SPACE_MODE] = st.sidebar.selectbox(
@@ -77,8 +92,8 @@ st.session_state[Keys.SAMPLE_MODE] = st.sidebar.selectbox(
     "Start", samp_modes, index=samp_modes.index(samp_m))
 st.session_state[Keys.REGEN_ALL] = st.sidebar.checkbox(
     "Regen All", value=st.session_state.get(Keys.REGEN_ALL, False))
-st.session_state[Keys.BATCH_LABEL] = st.sidebar.checkbox(
-    "Batch Label", value=st.session_state.get(Keys.BATCH_LABEL, True))
+st.session_state[Keys.CURATION_FORM_MODE] = st.sidebar.checkbox(
+    "Form Submit", value=st.session_state.get(Keys.CURATION_FORM_MODE, True))
 if vm_sel == "Gaussian":
     temp_val = float(st.session_state.get(Keys.GAUSS_TEMP) or 1.0)
     st.session_state[Keys.GAUSS_TEMP] = st.sidebar.number_input(
@@ -98,10 +113,14 @@ if vm_sel != "Gaussian":
 # Diffusion steps
 diff_steps = int(st.session_state.get(Keys.STEPS) or 10)
 st.session_state[Keys.STEPS] = st.sidebar.number_input("Diff Steps", min_value=1, value=diff_steps)
-# Batch size
-batch_val = int(st.session_state.get(Keys.BATCH_SIZE) or DEFAULT_BATCH_SIZE)
-st.session_state[Keys.BATCH_SIZE] = st.sidebar.number_input(
-    "Batch Size", min_value=1, value=batch_val)
+# Curation size (images to display)
+curation_val = int(st.session_state.get(Keys.CURATION_SIZE) or DEFAULT_CURATION_SIZE)
+st.session_state[Keys.CURATION_SIZE] = st.sidebar.number_input(
+    "Curation Size", min_value=1, value=curation_val)
+# Inference batch (images per forward pass)
+infer_batch = int(st.session_state.get(Keys.INFERENCE_BATCH) or DEFAULT_INFERENCE_BATCH)
+st.session_state[Keys.INFERENCE_BATCH] = st.sidebar.number_input(
+    "Inference Batch", min_value=1, max_value=16, value=infer_batch)
 # Images per row (-1 = auto)
 ipr_val = int(st.session_state.get(Keys.IMAGES_PER_ROW) or 8)
 st.session_state[Keys.IMAGES_PER_ROW] = st.sidebar.number_input(

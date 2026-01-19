@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+diffusers>=0.30.0
+transformers
+accelerate
+bitsandbytes>=0.43.0
+pillow
+numpy
+sentencepiece
+requests

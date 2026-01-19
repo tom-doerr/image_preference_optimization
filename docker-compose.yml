@@ -48,5 +48,34 @@ services:
               capabilities: [gpu]
     profiles: ["gen"]
 
+  gen-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: gen-server:latest
+    ports:
+      - "8580:8580"
+    environment:
+      - GEN_SERVER_MODEL=${GEN_SERVER_MODEL:-stabilityai/sd-turbo}
+      - HUGGINGFACE_HUB_TOKEN
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8580/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    profiles: ["server"]
+    restart: unless-stopped
+
 volumes:
   hf_cache:

@@ -30,7 +30,14 @@ DEFAULT_ITER_STEPS = 100
 DEFAULT_ITER_ETA = 10.0
 DEFAULT_XGB_OPTIM_MODE = "Hill"
 DEFAULT_SPACE_MODE = "PooledEmbed"  # "Latent", "PromptEmbed", or "PooledEmbed"
-DEFAULT_BATCH_SIZE = 48
+DEFAULT_CURATION_SIZE = 48
+DEFAULT_INFERENCE_BATCH = 1  # images generated per forward pass
+
+# Generation mode and model selection
+DEFAULT_MODEL = "sd-turbo"
+DEFAULT_GEN_MODE = "local"  # "local" or "server"
+DEFAULT_SERVER_URL = "http://localhost:8580"
+MODEL_OPTIONS = ["sd-turbo", "flux-schnell", "flux-dev"]
 
 
 class Keys:
@@ -44,7 +51,8 @@ class Keys:
     # Common app keys (queue removed)
     PROMPT = "prompt"
     STATE_PATH = "state_path"
-    BATCH_SIZE = "batch_size"
+    CURATION_SIZE = "curation_size"
+    INFERENCE_BATCH = "inference_batch"
     STEPS = "steps"
     GUIDANCE = "guidance"
     GUIDANCE_EFF = "guidance_eff"
@@ -53,8 +61,8 @@ class Keys:
     XGB_OPTIM_MODE = "xgb_optim_mode"
     SAMPLE_MODE = "sample_mode"
     REGEN_ALL = "regen_all"
-    BATCH_LABEL = "batch_label"
-    CUR_BATCH_NONCE = "cur_batch_nonce"
+    CURATION_FORM_MODE = "curation_form_mode"
+    CURATION_NONCE = "curation_nonce"
     DATASET_Y = "dataset_y"
     DATASET_X = "dataset_X"
     TRAIN_ON_NEW_DATA = "train_on_new_data"
@@ -67,3 +75,7 @@ class Keys:
     NOISE_SEED = "noise_seed"
     DELTA_SCALE = "delta_scale"
     GAUSS_TEMP = "gauss_temp"
+    # Generation mode
+    GEN_MODE = "gen_mode"
+    GEN_SERVER_URL = "gen_server_url"
+    SELECTED_MODEL = "selected_model"

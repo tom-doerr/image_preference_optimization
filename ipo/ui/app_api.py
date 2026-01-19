@@ -1,8 +1,11 @@
+import logging
 import numpy as _np
 import streamlit as st
 
 from ipo.infra.constants import DEFAULT_ITER_ETA, DEFAULT_ITER_STEPS, DEFAULT_PROMPT, Keys
 from ipo.ui import batch_ui as _batch_ui
+
+log = logging.getLogger(__name__)
 
 
 def _export_state_bytes(state, prompt: str):
@@ -16,7 +19,8 @@ def _init_pair_for_state(new_state) -> None:
         from ipo.core.latent_state import propose_pair_prompt_anchor
         z1, z2 = propose_pair_prompt_anchor(new_state, st.session_state.prompt)
         st.session_state.lz_pair = (z1, z2)
-    except Exception:
+    except Exception as e:
+        log.warning("_init_pair_for_state failed: %s", e)
         d = int(getattr(new_state, "d", 0))
         st.session_state.lz_pair = (_np.zeros(d), _np.zeros(d))
 
@@ -49,8 +53,8 @@ def _randomize_mu_if_zero(st_local, new_state) -> None:
             if nr > 0.0:
                 r = r / nr
             new_state.mu = z_p + float(new_state.sigma) * r
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("_randomize_mu_if_zero failed: %s", e)
 
 
 def _apply_state(*args) -> None:
@@ -67,8 +71,8 @@ def _apply_state(*args) -> None:
         use_rand = bool(getattr(st_local.session_state, Keys.USE_RANDOM_ANCHOR, False))
         setattr(new_state, "use_random_anchor", use_rand)
         setattr(new_state, "random_anchor_z", None)
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("_apply_state anchor setup: %s", e)
     _init_pair_for_state(new_state)
     _reset_derived_state(new_state)
     # Random μ init around the prompt anchor when μ is all zeros.
@@ -121,8 +125,8 @@ def generate_pair(base_prompt: str) -> None:
             guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
         )
         st.session_state[Keys.IMAGES] = (img_a, img_b)
-    except Exception:
-        pass
+    except Exception as e:
+        log.error("generate_pair failed: %s", e)
 
 
 def render_sidebar_tail(*_args, **_kwargs) -> None:
@@ -137,8 +141,8 @@ def _render_batch_ui() -> None:
 def _curation_init_batch() -> None:
     try:
         _batch_ui._curation_init_batch()
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("_curation_init_batch primary: %s", e)
     try:
         if not getattr(st.session_state, "cur_batch", None):
             from ipo.core.latent_state import z_from_prompt as _zfp
@@ -149,27 +153,27 @@ def _curation_init_batch() -> None:
             zs = [z_p + 0.01 * rng.standard_normal(z_p.shape) for _ in range(n)]
             st.session_state.cur_batch = zs
             st.session_state.cur_labels = [None] * n
-    except Exception:
-        pass
+    except Exception as e:
+        log.error("_curation_init_batch fallback: %s", e)
 
 
 def _curation_new_batch() -> None:
     try:
         _batch_ui._curation_new_batch()
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("_curation_new_batch: %s", e)
     try:
         if not getattr(st.session_state, "cur_batch", None):
             _curation_init_batch()
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("_curation_new_batch fallback: %s", e)
 
 
 def _curation_replace_at(idx: int) -> None:
     try:
         _batch_ui._curation_replace_at(idx)
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("_curation_replace_at: %s", e)
     try:
         zs = getattr(st.session_state, "cur_batch", None)
         if isinstance(zs, list) and len(zs) > 0:
@@ -179,21 +183,23 @@ def _curation_replace_at(idx: int) -> None:
             rng = _np.random.default_rng(idx + 1)
             zs[idx % len(zs)] = z_p + 0.01 * rng.standard_normal(z_p.shape)
             st.session_state.cur_batch = zs
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("_curation_replace_at fallback: %s", e)
 
 
 def _curation_add(label: int, z, img=None) -> None:
     try:
         return _batch_ui._curation_add(label, z, img)
-    except Exception:
+    except Exception as e:
+        log.error("_curation_add failed: %s", e)
         return None
 
 
 def _curation_train_and_next() -> None:
     try:
         return _batch_ui._curation_train_and_next()
-    except Exception:
+    except Exception as e:
+        log.error("_curation_train_and_next: %s", e)
         return None
 
 

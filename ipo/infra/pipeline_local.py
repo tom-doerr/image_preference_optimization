@@ -122,12 +122,14 @@ def _prepare_scheduler_locked(steps):
         pass
 
 
-def _run_pipe(**kwargs):
+def _run_pipe(return_all=False, **kwargs):
     steps = int(kwargs.get("num_inference_steps", 20))
     with PIPE_LOCK:
         _prepare_scheduler_locked(steps)
         out = PIPE(**kwargs)
     if hasattr(out, "images") and out.images:
+        if return_all:
+            return list(out.images)
         img = out.images[0]
         import numpy as np
         arr = np.array(img)
@@ -276,3 +278,25 @@ def gen_from_embed(emb, w=512, h=512, steps=4, g=0.0, seed=42):
     gen = torch.Generator("cuda").manual_seed(int(seed))
     return _run_pipe(prompt_embeds=e, num_inference_steps=steps,
                      guidance_scale=gg, height=h, width=w, generator=gen)
+
+
+def gen_batch_pooled(embs, w, h, steps, g, seed, base_prompt, scale):
+    """Batched image gen from pooled embeddings."""
+    import torch
+    _ensure_pipe(None)
+    base = get_base_prompt_embed(base_prompt or "a photo")
+    tok = getattr(PIPE, "tokenizer", None)
+    sl, hd = tok.model_max_length, len(base) // tok.model_max_length
+    base_t = torch.tensor(base, dtype=torch.float16, device="cuda")
+    base_t = base_t.reshape(1, sl, hd)
+    batch = []
+    for emb in embs:
+        d = torch.tensor(emb, dtype=torch.float16, device="cuda") * scale
+        e = base_t + d.unsqueeze(0).unsqueeze(0).expand(1, sl, -1)
+        batch.append(e)
+    embeds = torch.cat(batch, dim=0)
+    gg = _eff_g(CURRENT_MODEL_ID or "", g)
+    gen = torch.Generator("cuda").manual_seed(int(seed))
+    return _run_pipe(return_all=True, prompt_embeds=embeds,
+                     num_inference_steps=steps, guidance_scale=gg,
+                     height=h, width=w, generator=gen)

@@ -1,0 +1,27 @@
+FROM nvcr.io/nvidia/cuda:13.0.1-runtime-ubuntu24.04
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3-pip git curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements-server.txt ./
+
+RUN pip install --index-url https://download.pytorch.org/whl/cu130 \
+    torch torchvision --break-system-packages && \
+    pip install -r requirements-server.txt --break-system-packages
+
+COPY ipo/ /app/ipo/
+
+ENV GEN_SERVER_MODEL=stabilityai/sd-turbo \
+    GEN_SERVER_PORT=8580 \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+EXPOSE 8580
+
+CMD ["python3", "-m", "uvicorn", "ipo.server.gen_server:app", "--host", "0.0.0.0", "--port", "8580"]
