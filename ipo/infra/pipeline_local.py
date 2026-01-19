@@ -185,8 +185,12 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
 
 def set_model(model_id):
     global CURRENT_MODEL_ID, _LCM_SET
+    target = model_id if model_id is not None else _get_default_model_id()
     with PIPE_LOCK:
-        pipe = _ensure_pipe(model_id)
+        if PIPE is not None and CURRENT_MODEL_ID == target:
+            print(f"[set_model] {target} already loaded, skip")
+            return
+        pipe = _ensure_pipe(target)
     if _LCM_SET:
         return
     mid = CURRENT_MODEL_ID or ""

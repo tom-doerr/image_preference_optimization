@@ -256,8 +256,8 @@ def _render_batch_ui() -> None:
 
 
 def run_batch_mode():
-    from ipo.infra.pipeline_local import set_model
-    set_model(None)
+    from ipo.core.model_manager import ModelManager
+    ModelManager.ensure_ready()
     lstate, prompt = _lstate_and_prompt()
     n = int(st.session_state.get(Keys.CURATION_SIZE) or DEFAULT_CURATION_SIZE)
     if "batch_z" not in st.session_state or len(st.session_state.batch_z) != n:
@@ -332,7 +332,8 @@ def _ensure_tile(i, ls, pr, z2l, gen, n=0, counter=None):
             counter.text(f"Generated: {gc}/{n}")
 
 def _gen_img(z, ls, pr, steps, seed, z2l, gen):
-    # Check if using server mode
+    from ipo.core.model_manager import ModelManager
+    ModelManager.ensure_ready()
     if st.session_state.get(Keys.GEN_MODE) == "server":
         return _gen_img_server(z, ls, pr, steps, seed)
     return _gen_img_local(z, ls, pr, steps, seed, z2l, gen)

@@ -24,9 +24,10 @@ Uses NVIDIA CUDA 13.0.1 base image for GB10 GPU compatibility.
 ## Architecture
 
 - `ipo/core/` - Core algorithms (optimizer, latent_state, value_model)
+- `ipo/core/model_manager.py` - Unified model management (local/server)
 - `ipo/ui/` - Streamlit UI (sampling.py, curation.py, batch_ui.py)
 - `ipo/infra/` - Infrastructure (pipeline, constants)
-- `ipo/core/app_state.py` - Typed AppState dataclass
+- `ipo/server/` - FastAPI generation server + client
 
 ## Inference Batching
 
@@ -50,6 +51,14 @@ batch=4 gives ~65% speedup; larger batches don't help.
 | flux-dev | black-forest-labs/FLUX.1-dev | NF4 | 3.5 |
 
 Select via sidebar "Model" dropdown. Flux models use bitsandbytes NF4 quantization.
+
+## Model Management
+
+`ModelManager.ensure_ready()` routes to local or server backend based on mode:
+- Local: calls `pipeline_local.set_model()`
+- Server: calls `gen_client.set_model()` → server `/model` endpoint
+
+Both backends cache loaded models to avoid redundant reloads.
 
 ## Development
 

@@ -36,7 +36,7 @@ DEFAULT_INFERENCE_BATCH = 1  # images generated per forward pass
 # Generation mode and model selection
 DEFAULT_MODEL = "sd-turbo"
 DEFAULT_GEN_MODE = "local"  # "local" or "server"
-DEFAULT_SERVER_URL = "http://localhost:8580"
+DEFAULT_SERVER_URL = "http://gen-server:8580"
 MODEL_OPTIONS = ["sd-turbo", "flux-schnell", "flux-dev"]
 
 
