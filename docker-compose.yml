@@ -2,8 +2,8 @@ services:
   app:
     build: .
     image: image-preference-optimizer:latest
-    ports:
-      - "8577:8577"
+    user: "1000:1000"
+    # ports not needed with network_mode: host
     environment:
       - FLUX_LOCAL_MODEL=${FLUX_LOCAL_MODEL:-stabilityai/sd-turbo}
       - HUGGINGFACE_HUB_TOKEN
@@ -11,6 +11,8 @@ services:
     volumes:
       - .:/app
       - hf_cache:/root/.cache/huggingface
+      - /var/run/postgresql:/var/run/postgresql
+    network_mode: host
     deploy:
       resources:
         reservations:

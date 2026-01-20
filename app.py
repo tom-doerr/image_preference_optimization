@@ -36,6 +36,9 @@ if "prompt" not in st.session_state:
 base_prompt = st.sidebar.text_input(
     "Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
 st.session_state.prompt = base_prompt
+# App mode selector
+app_modes = ["Batch", "CLIP"]
+app_mode = st.sidebar.selectbox("App Mode", app_modes, index=0)
 # Dataset slot for multiple experiments
 from ipo.core.persistence import set_slot
 slot = st.sidebar.text_input("Slot", value=st.session_state.get("slot") or "")
@@ -60,7 +63,7 @@ st.session_state[Keys.SPACE_MODE] = st.sidebar.selectbox(
 noise_seed = int(st.session_state.get(Keys.NOISE_SEED) or 42)
 st.session_state[Keys.NOISE_SEED] = st.sidebar.number_input("Noise Seed", value=noise_seed)
 # Delta scale for PooledEmbed mode
-delta_scale = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+delta_scale = float(st.session_state.get(Keys.DELTA_SCALE) or 10)
 st.session_state[Keys.DELTA_SCALE] = st.sidebar.number_input(
     "Delta Scale", min_value=0.0, value=delta_scale, step=0.01, format="%.2f")
 # Value function algo selection
@@ -193,13 +196,17 @@ st.sidebar.text(f"Samples: {n_total} (+{n_pos} / -{n_neg})")
     iter_eta,
     _,
 ) = _build_controls(st, lstate, base_prompt)
-_run_app_impl(st, vm_choice, selected_gen_mode)
-
-st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
+if app_mode == "CLIP":
+    from ipo.ui.clip_mode import run_clip_mode
+    run_clip_mode()
+else:
+    _run_app_impl(st, vm_choice, selected_gen_mode)
+    st.write(f"Interactions: {getattr(lstate, 'step', 0)}")
 from ipo.core.latent_state import save_state  # noqa: E402
 
-if st.button("Reset", type="secondary"):
-    sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
-    _apply_state(st, init_latent_state(width=int(width), height=int(height), space_mode=sm))
-    save_state(st.session_state.lstate, st.session_state.state_path)
-    st.rerun()
+if app_mode != "CLIP":
+    if st.button("Reset", type="secondary"):
+        sm = st.session_state.get(Keys.SPACE_MODE, "Latent")
+        _apply_state(st, init_latent_state(width=int(width), height=int(height), space_mode=sm))
+        save_state(st.session_state.lstate, st.session_state.state_path)
+        st.rerun()

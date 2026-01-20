@@ -27,7 +27,7 @@ class GenerateRequest(BaseModel):
     steps: int = 4
     guidance: float = 0.0
     seed: int = 42
-    delta_scale: float = 0.1
+    delta_scale: float = 10
 
 
 class BatchRequest(BaseModel):
@@ -39,7 +39,7 @@ class BatchRequest(BaseModel):
     steps: int = 4
     guidance: float = 0.0
     seed: int = 42
-    delta_scale: float = 0.1
+    delta_scale: float = 10
 
 
 class ModelRequest(BaseModel):

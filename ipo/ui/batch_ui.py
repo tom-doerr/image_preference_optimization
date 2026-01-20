@@ -109,25 +109,20 @@ def _optimize_z(z, lstate, ss, steps, eta=DEFAULT_ITER_ETA):
     return opt.optimize(z, lambda x: float(np.dot(w, x)), steps).z
 
 def _get_good_mean(prompt, ss):
+    from ipo.ui.sampling import get_good_mean
     X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
-    if X is not None and y is not None and (y > 0).sum() > 0:
-        return X[y > 0].mean(axis=0)
-    return None
+    return get_good_mean(X, y)
 
 def _get_good_dist(ss):
-    """Per-dim mean/std from good samples."""
+    from ipo.ui.sampling import get_good_dist
     X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
-    if X is not None and y is not None and (y > 0).sum() >= 2:
-        Xg = X[y > 0]
-        return Xg.mean(axis=0), Xg.std(axis=0) + 1e-6
-    return None, None
+    return get_good_dist(X, y)
 
 
 def _random_offset(lstate, scale=0.8):
-    """Random unit direction scaled by sigma."""
+    from ipo.ui.sampling import random_offset
     rng = getattr(lstate, "rng", None) or np.random.default_rng()
-    r = rng.standard_normal(lstate.d)
-    return float(lstate.sigma) * scale * r / (np.linalg.norm(r) + 1e-12)
+    return random_offset(lstate.d, float(lstate.sigma), rng, scale)
 
 def _sample_z(lstate, prompt, scale=0.8):
     import streamlit as st
@@ -342,7 +337,7 @@ def _gen_img(z, ls, pr, steps, seed, z2l, gen):
 def _gen_img_server(z, ls, pr, steps, seed):
     from ipo.server.gen_client import GenerationClient
     url = st.session_state.get(Keys.GEN_SERVER_URL) or DEFAULT_SERVER_URL
-    sc = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+    sc = float(st.session_state.get(Keys.DELTA_SCALE) or 10)
     return GenerationClient(url).generate(pr, z.tolist(), "pooled", ls.width, ls.height, steps, 0.0, seed, sc)
 
 
@@ -350,7 +345,7 @@ def _gen_img_local(z, ls, pr, steps, seed, z2l, gen):
     m = getattr(ls, "space_mode", "Latent")
     if m == "PooledEmbed":
         from ipo.infra.pipeline_local import gen_from_pooled
-        sc = float(st.session_state.get(Keys.DELTA_SCALE) or 0.1)
+        sc = float(st.session_state.get(Keys.DELTA_SCALE) or 10)
         return gen_from_pooled(z, ls.width, ls.height, steps, seed=seed, base_prompt=pr, scale=sc)
     if m == "PromptEmbed":
         from ipo.infra.pipeline_local import gen_from_embed

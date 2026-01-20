@@ -60,10 +60,24 @@ Select via sidebar "Model" dropdown. Flux models use bitsandbytes NF4 quantizati
 
 Both backends cache loaded models to avoid redundant reloads.
 
+## CLIP Mode
+
+SigLIP image embeddings + Ridge regression. Select "CLIP" in sidebar.
+
+- `ipo/ui/clip_mode.py` - Rating UI
+- `ipo/infra/clip_embed.py` - SigLIP embedder
+- `ipo/core/clip_db.py` - PostgreSQL persistence
+
+**DB Setup:** `createdb clip_preferences`
+
+**Connection:** `postgresql://tom@/clip_preferences` (Unix socket, peer auth)
+
+**Docker:** `network_mode: host`, mounts `/var/run/postgresql`, runs as `user: 1000:1000`
+
 ## Development
 
 ```bash
-pytest tests/ -v              # Run tests (19 tests)
+pytest tests/ -v              # Run tests (24 tests)
 python scripts/benchmark_batch.py   # Benchmark inference batching
 python scripts/benchmark_models.py  # Benchmark all models
 ```

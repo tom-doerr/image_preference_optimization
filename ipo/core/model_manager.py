@@ -89,3 +89,10 @@ class ModelManager:
         """Call before any generation. Safe to call multiple times."""
         backend = cls.get_backend()
         backend.ensure_model(cls.get_selected_model())
+
+    @classmethod
+    def generate(cls, prompt: str, width=512, height=512, steps=4, guidance=0.0, seed=42):
+        """Generate image from prompt."""
+        cls.ensure_ready()
+        from ipo.infra.pipeline_local import generate
+        return generate(prompt, width, height, steps, guidance, seed)

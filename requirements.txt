@@ -2,3 +2,6 @@ streamlit
 numpy
 diffusers
 optuna
+sqlalchemy
+psycopg2-binary
+sentencepiece

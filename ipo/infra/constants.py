@@ -37,7 +37,8 @@ DEFAULT_INFERENCE_BATCH = 1  # images generated per forward pass
 DEFAULT_MODEL = "sd-turbo"
 DEFAULT_GEN_MODE = "local"  # "local" or "server"
 DEFAULT_SERVER_URL = "http://gen-server:8580"
-MODEL_OPTIONS = ["sd-turbo", "flux-schnell", "flux-dev"]
+# MODEL_OPTIONS imported from model_registry for single source of truth
+from ipo.infra.model_registry import MODEL_OPTIONS
 
 
 class Keys:
@@ -79,3 +80,8 @@ class Keys:
     GEN_MODE = "gen_mode"
     GEN_SERVER_URL = "gen_server_url"
     SELECTED_MODEL = "selected_model"
+    # CLIP mode keys
+    CLIP_IMAGES = "clip_images"
+    CLIP_EMBEDS = "clip_embeds"
+    CLIP_W = "clip_w"
+    CLIP_MAX = "clip_max"

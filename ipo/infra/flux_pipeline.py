@@ -1,31 +1,10 @@
 """Unified pipeline loader for SD and Flux models with quantization support."""
-import os
 import torch
 
-SUPPORTED_MODELS = {
-    "sd-turbo": {
-        "hf_id": "stabilityai/sd-turbo",
-        "pipeline": "DiffusionPipeline",
-        "dtype": torch.float16,
-        "quantize": False,
-        "guidance": 0.0,
-        "scheduler": "LCM",
-    },
-    "flux-schnell": {
-        "hf_id": "black-forest-labs/FLUX.1-schnell",
-        "pipeline": "FluxPipeline",
-        "dtype": torch.bfloat16,
-        "quantize": True,
-        "guidance": 0.0,
-    },
-    "flux-dev": {
-        "hf_id": "black-forest-labs/FLUX.1-dev",
-        "pipeline": "FluxPipeline",
-        "dtype": torch.bfloat16,
-        "quantize": True,
-        "guidance": 3.5,
-    },
-}
+from ipo.infra.model_registry import MODELS
+
+# Alias for backward compatibility
+SUPPORTED_MODELS = MODELS
 
 
 def _get_bnb_config():
@@ -53,9 +32,11 @@ def _load_by_config(cfg):
     pipe_type = cfg["pipeline"]
 
     if pipe_type == "FluxPipeline":
-        from diffusers import FluxPipeline
+        from diffusers import FluxPipeline, FluxTransformer2DModel
         if quantize:
-            pipe = FluxPipeline.from_pretrained(hf_id, quantization_config=_get_bnb_config(), torch_dtype=dtype)
+            transformer = FluxTransformer2DModel.from_pretrained(
+                hf_id, subfolder="transformer", quantization_config=_get_bnb_config(), torch_dtype=dtype)
+            pipe = FluxPipeline.from_pretrained(hf_id, transformer=transformer, torch_dtype=dtype)
         else:
             pipe = FluxPipeline.from_pretrained(hf_id, torch_dtype=dtype).to("cuda")
     else:

@@ -1,6 +1,8 @@
 import os
 import threading
 
+from ipo.infra.model_registry import resolve_model_id as _resolve_model_id
+
 PIPE = None
 CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.RLock()
@@ -181,11 +183,23 @@ def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20
     return _run_pipe(**kw)
 
 
+def generate(prompt, width=512, height=512, steps=4, guidance=0.0, seed=42):
+    """Simple text-to-image generation."""
+    import torch
+    _ensure_pipe(None)
+    g = _eff_g(CURRENT_MODEL_ID or "", guidance)
+    gen = torch.Generator(device="cuda").manual_seed(int(seed))
+    return _run_pipe(prompt=prompt, width=width, height=height,
+        num_inference_steps=int(steps), guidance_scale=float(g), generator=gen)
 
 
 def set_model(model_id):
     global CURRENT_MODEL_ID, _LCM_SET
-    target = model_id if model_id is not None else _get_default_model_id()
+    raw = model_id if model_id is not None else _get_default_model_id()
+    target = _resolve_model_id(raw)
+    if "flux" in raw.lower():
+        print(f"[set_model] Flux needs server mode, falling back to sd-turbo")
+        target = "stabilityai/sd-turbo"
     with PIPE_LOCK:
         if PIPE is not None and CURRENT_MODEL_ID == target:
             print(f"[set_model] {target} already loaded, skip")
