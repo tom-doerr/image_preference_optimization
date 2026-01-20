@@ -34,9 +34,11 @@ def _render_sidebar():
 
 def _gen_loop(prompt, n, mm, embed_fn):
     """Inner loop for generation."""
-    for _ in range(n):
-        img = mm.generate(prompt, seed=np.random.randint(1e9))
-        emb = embed_fn(img)
+    for i in range(n):
+        with st.spinner(f"Generating image {i+1}/{n}..."):
+            img = mm.generate(prompt, seed=np.random.randint(1e9))
+        with st.spinner(f"Embedding image {i+1}/{n}..."):
+            emb = embed_fn(img)
         st.session_state[Keys.CLIP_IMAGES].append(img)
         st.session_state[Keys.CLIP_EMBEDS].append(emb)
 
@@ -47,7 +49,8 @@ def _generate_batch():
     from ipo.infra.clip_embed import embed_image
     prompt = st.session_state.get(Keys.PROMPT, "a photo")
     n = st.session_state.get(Keys.CLIP_MAX, 8)
-    ModelManager.ensure_ready()
+    with st.spinner("Loading generation model..."):
+        ModelManager.ensure_ready()
     _gen_loop(prompt, n, ModelManager, embed_image)
 
 

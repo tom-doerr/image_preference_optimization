@@ -52,6 +52,10 @@ batch=4 gives ~65% speedup; larger batches don't help.
 
 Select via sidebar "Model" dropdown. Flux models use bitsandbytes NF4 quantization.
 
+**NF4 Models Downloaded:**
+- `lllyasviel/flux1-dev-bnb-nf4` (22GB)
+- `duuuuuuuden/flux1-schnell-nf4-v2` (12GB)
+
 ## Model Management
 
 `ModelManager.ensure_ready()` routes to local or server backend based on mode:
@@ -59,6 +63,10 @@ Select via sidebar "Model" dropdown. Flux models use bitsandbytes NF4 quantizati
 - Server: calls `gen_client.set_model()` → server `/model` endpoint
 
 Both backends cache loaded models to avoid redundant reloads.
+
+`ModelManager.generate(prompt, seed=...)` - Simple text-to-image generation.
+
+**Default Delta Scale:** 10 (sidebar control for PooledEmbed mode)
 
 ## CLIP Mode
 
@@ -73,6 +81,14 @@ SigLIP image embeddings + Ridge regression. Select "CLIP" in sidebar.
 **Connection:** `postgresql://tom@/clip_preferences` (Unix socket, peer auth)
 
 **Docker:** `network_mode: host`, mounts `/var/run/postgresql`, runs as `user: 1000:1000`
+
+UI shows spinners during model loading, image generation, and embedding.
+
+## HuggingFace Token
+
+Token in `.env`: `HUGGINGFACE_HUB_TOKEN=hf_...`
+
+Also available in `~/git/x_twitter/.env`
 
 ## Development
 
