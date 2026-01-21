@@ -69,8 +69,7 @@ def get_dataset_for_prompt_or_session(prompt, ss):
         if Xi is None or yi is None:
             continue
         if target_d and Xi.shape[1] != target_d:
-            print(f"[data] dim mismatch {Xi.shape[1]}!={target_d}")
-            continue
+            continue  # skip old samples with wrong dim
         xs.append(Xi)
         ys.append(yi)
     if xs:

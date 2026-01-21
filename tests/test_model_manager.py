@@ -21,3 +21,17 @@ def test_gen_client_caching():
     c = GenerationClient("http://fake:8580")
     c._current_model = "sd-turbo"
     assert c.set_model("sd-turbo")["status"] == "cached"
+
+
+def test_server_backend_url():
+    """ServerBackend stores base URL."""
+    from ipo.core.model_manager import ServerBackend
+    sb = ServerBackend("http://test:8580")
+    assert sb.base_url == "http://test:8580"
+
+
+def test_local_backend_type():
+    """LocalBackend can be instantiated."""
+    from ipo.core.model_manager import LocalBackend
+    lb = LocalBackend()
+    assert lb is not None

@@ -9,6 +9,8 @@ MODELS = {
         "quantize": False,
         "guidance": 0.0,
         "scheduler": "LCM",
+        "size": "1.3GB",
+        "precision": "FP16",
     },
     "flux-schnell": {
         "hf_id": "black-forest-labs/FLUX.1-schnell",
@@ -16,6 +18,8 @@ MODELS = {
         "dtype": torch.bfloat16,
         "quantize": True,
         "guidance": 0.0,
+        "size": "23GB",
+        "precision": "NF4",
     },
     "flux-dev": {
         "hf_id": "black-forest-labs/FLUX.1-dev",
@@ -23,6 +27,8 @@ MODELS = {
         "dtype": torch.bfloat16,
         "quantize": True,
         "guidance": 3.5,
+        "size": "23GB",
+        "precision": "NF4",
     },
 }
 

@@ -108,22 +108,24 @@ def generate_pair(base_prompt: str) -> None:
         z_a, z_b = st.session_state.lz_pair
         la = _z2l(lstate, z_a)
         lb = _z2l(lstate, z_b)
-        img_a = _gen(
-            base_prompt,
-            latents=la,
-            width=lstate.width,
-            height=lstate.height,
-            steps=int(st.session_state.get("steps", 6) or 6),
-            guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
-        )
-        img_b = _gen(
-            base_prompt,
-            latents=lb,
-            width=lstate.width,
-            height=lstate.height,
-            steps=int(st.session_state.get("steps", 6) or 6),
-            guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
-        )
+        with st.spinner("Generating image A..."):
+            img_a = _gen(
+                base_prompt,
+                latents=la,
+                width=lstate.width,
+                height=lstate.height,
+                steps=int(st.session_state.get("steps", 6) or 6),
+                guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
+            )
+        with st.spinner("Generating image B..."):
+            img_b = _gen(
+                base_prompt,
+                latents=lb,
+                width=lstate.width,
+                height=lstate.height,
+                steps=int(st.session_state.get("steps", 6) or 6),
+                guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
+            )
         st.session_state[Keys.IMAGES] = (img_a, img_b)
     except Exception as e:
         log.error("generate_pair failed: %s", e)
@@ -132,10 +134,6 @@ def generate_pair(base_prompt: str) -> None:
 def render_sidebar_tail(*_args, **_kwargs) -> None:
     """Sidebar removed; no-op stub for backwards compatibility."""
     pass
-
-
-def _render_batch_ui() -> None:
-    return _batch_ui._render_batch_ui()
 
 
 def _curation_init_batch() -> None:

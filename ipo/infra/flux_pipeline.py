@@ -1,7 +1,11 @@
 """Unified pipeline loader for SD and Flux models with quantization support."""
+import os
 import torch
 
 from ipo.infra.model_registry import MODELS
+
+def _get_token():
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
 
 # Alias for backward compatibility
 SUPPORTED_MODELS = MODELS
@@ -35,10 +39,11 @@ def _load_by_config(cfg):
         from diffusers import FluxPipeline, FluxTransformer2DModel
         if quantize:
             transformer = FluxTransformer2DModel.from_pretrained(
-                hf_id, subfolder="transformer", quantization_config=_get_bnb_config(), torch_dtype=dtype)
-            pipe = FluxPipeline.from_pretrained(hf_id, transformer=transformer, torch_dtype=dtype)
+                hf_id, subfolder="transformer", quantization_config=_get_bnb_config(), torch_dtype=dtype, token=_get_token())
+            pipe = FluxPipeline.from_pretrained(hf_id, transformer=transformer, torch_dtype=dtype, token=_get_token())
+            pipe.to("cuda")
         else:
-            pipe = FluxPipeline.from_pretrained(hf_id, torch_dtype=dtype).to("cuda")
+            pipe = FluxPipeline.from_pretrained(hf_id, torch_dtype=dtype, token=_get_token()).to("cuda")
     else:
         from diffusers import DiffusionPipeline
         pipe = DiffusionPipeline.from_pretrained(hf_id, torch_dtype=dtype, low_cpu_mem_usage=False).to("cuda")
@@ -58,8 +63,8 @@ def _disable_safety(pipe):
             pipe.safety_checker = None
         if hasattr(pipe, "feature_extractor"):
             pipe.feature_extractor = None
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[_disable_safety] failed: {e}")
 
 
 def generate_image(pipe, prompt, embedding, emb_type, w, h, steps, guidance, seed, scale):

@@ -29,14 +29,14 @@ DECODE_TIMEOUT_S = 3.0
 DEFAULT_ITER_STEPS = 100
 DEFAULT_ITER_ETA = 10.0
 DEFAULT_XGB_OPTIM_MODE = "Hill"
-DEFAULT_SPACE_MODE = "PooledEmbed"  # "Latent", "PromptEmbed", or "PooledEmbed"
+DEFAULT_SPACE_MODE = "Latent"
 DEFAULT_CURATION_SIZE = 48
 DEFAULT_INFERENCE_BATCH = 1  # images generated per forward pass
 
 # Generation mode and model selection
 DEFAULT_MODEL = "sd-turbo"
 DEFAULT_GEN_MODE = "local"  # "local" or "server"
-DEFAULT_SERVER_URL = "http://gen-server:8580"
+DEFAULT_SERVER_URL = "http://localhost:8580"
 # MODEL_OPTIONS imported from model_registry for single source of truth
 from ipo.infra.model_registry import MODEL_OPTIONS
 
@@ -72,7 +72,7 @@ class Keys:
     ROWS_DISPLAY = "rows_display"
     IMAGES_PER_ROW = "images_per_row"
     XGB_MOMENTUM = "xgb_momentum"
-    SPACE_MODE = "space_mode"  # "Latent" or "PromptEmbed"
+    SPACE_MODE = "space_mode"
     NOISE_SEED = "noise_seed"
     DELTA_SCALE = "delta_scale"
     GAUSS_TEMP = "gauss_temp"
@@ -85,3 +85,5 @@ class Keys:
     CLIP_EMBEDS = "clip_embeds"
     CLIP_W = "clip_w"
     CLIP_MAX = "clip_max"
+    CLIP_ALPHA = "clip_alpha"
+    CLIP_CV_SCORES = "clip_cv_scores"

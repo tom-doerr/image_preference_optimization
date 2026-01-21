@@ -37,7 +37,7 @@ base_prompt = st.sidebar.text_input(
     "Prompt", value=st.session_state.get("prompt") or DEFAULT_PROMPT)
 st.session_state.prompt = base_prompt
 # App mode selector
-app_modes = ["Batch", "CLIP"]
+app_modes = ["CLIP", "Batch"]
 app_mode = st.sidebar.selectbox("App Mode", app_modes, index=0)
 # Dataset slot for multiple experiments
 from ipo.core.persistence import set_slot
@@ -55,17 +55,11 @@ if st.session_state[Keys.GEN_MODE] == "server":
     st.session_state[Keys.GEN_SERVER_URL] = st.sidebar.text_input("Server URL", value=srv_url)
 model_sel = st.session_state.get(Keys.SELECTED_MODEL) or DEFAULT_MODEL
 st.session_state[Keys.SELECTED_MODEL] = st.sidebar.selectbox("Model", MODEL_OPTIONS, index=MODEL_OPTIONS.index(model_sel))
-space_modes = ["PooledEmbed", "PromptEmbed", "Latent"]
-space_m = st.session_state.get(Keys.SPACE_MODE) or DEFAULT_SPACE_MODE
-st.session_state[Keys.SPACE_MODE] = st.sidebar.selectbox(
-    "Space", space_modes, index=space_modes.index(space_m))
+# Latent mode only (PromptEmbed removed)
+st.session_state[Keys.SPACE_MODE] = "Latent"
 # Noise seed for generation
 noise_seed = int(st.session_state.get(Keys.NOISE_SEED) or 42)
 st.session_state[Keys.NOISE_SEED] = st.sidebar.number_input("Noise Seed", value=noise_seed)
-# Delta scale for PooledEmbed mode
-delta_scale = float(st.session_state.get(Keys.DELTA_SCALE) or 10)
-st.session_state[Keys.DELTA_SCALE] = st.sidebar.number_input(
-    "Delta Scale", min_value=0.0, value=delta_scale, step=0.01, format="%.2f")
 # Value function algo selection
 vm_opts = ["Gaussian", "XGBoost", "Ridge"]
 vm_idx = vm_opts.index(st.session_state.get(Keys.VM_CHOICE) or "Gaussian")

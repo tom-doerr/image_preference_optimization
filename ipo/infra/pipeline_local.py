@@ -7,7 +7,6 @@ PIPE = None
 CURRENT_MODEL_ID = None
 PIPE_LOCK = threading.RLock()
 _LCM_SET = False
-PROMPT_CACHE: dict = {}
 
 def _get_default_model_id() -> str:
     return os.getenv("FLUX_LOCAL_MODEL") or "stabilityai/sd-turbo"
@@ -22,11 +21,6 @@ def _to_cuda_fp16(latents):
         return torch.tensor(latents, dtype=torch.float16, device="cuda")
     except Exception:
         return latents
-
-def _normalize_to_init_sigma(pipe, latents, steps=None):
-    # Skip normalization - latents already have std~1
-    return latents
-
 
 def _free_pipe() -> None:
     """Best-effort free of cached pipeline and CUDA memory."""
@@ -43,42 +37,44 @@ def _free_pipe() -> None:
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()  # type: ignore[attr-defined]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[_free_pipe] cleanup failed: {e}")
+
+
+def _load_flux_nf4(mid):
+    from ipo.infra.flux_pipeline import _load_by_config
+    from ipo.infra.model_registry import MODELS
+    cfg = next((v for v in MODELS.values() if v["hf_id"] == mid), None)
+    return _load_by_config(cfg)
 
 
 def _load_pipeline(mid: str):
-    """Load Diffusers pipeline with the small set of guarded fallbacks we support.
-
-    Kept separate to reduce branching in _ensure_pipe without changing behavior.
-    """
+    """Load Diffusers pipeline, with NF4 quantization for Flux models."""
     try:
-        import torch  # type: ignore
-        from diffusers import DiffusionPipeline  # type: ignore
+        import torch
+        from diffusers import DiffusionPipeline, FluxPipeline
     except Exception as e:
         raise ValueError("torch/diffusers not installed") from e
+
+    from ipo.infra.model_registry import MODELS
+    cfg = next((v for v in MODELS.values() if v["hf_id"] == mid), None)
+    is_flux = "flux" in mid.lower()
+
+    if cfg and cfg.get("quantize") and is_flux:
+        return _load_flux_nf4(mid)
+
+    dtype = torch.bfloat16 if is_flux else torch.float16
+    Pipe = FluxPipeline if is_flux else DiffusionPipeline
+    print(f"[load] {mid} pipe={Pipe.__name__}")
     try:
-        pipe = DiffusionPipeline.from_pretrained(
-            mid,
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=False,
-        ).to("cuda")
+        pipe = Pipe.from_pretrained(mid, torch_dtype=dtype).to("cuda")
     except NotImplementedError:
         try:
-            pipe = DiffusionPipeline.from_pretrained(
-                mid,
-                torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
-                device_map="cuda",
-            )
+            pipe = Pipe.from_pretrained(mid, torch_dtype=dtype, device_map="cuda")
         except (NotImplementedError, ValueError) as e2:
             if "meta tensor" not in str(e2) and "device_map" not in str(e2):
                 raise
-            pipe = DiffusionPipeline.from_pretrained(
-                mid,
-                torch_dtype=torch.float16,
-                low_cpu_mem_usage=True,
-            ).to("cuda")
+            pipe = Pipe.from_pretrained(mid, torch_dtype=dtype).to("cuda")
     return pipe
 
 
@@ -88,8 +84,8 @@ def _disable_safety(pipe) -> None:
             pipe.safety_checker = None
         if hasattr(pipe, "feature_extractor"):
             pipe.feature_extractor = None
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[_disable_safety] failed: {e}")
 
 
 def _ensure_pipe(model_id=None):
@@ -108,7 +104,6 @@ def _ensure_pipe(model_id=None):
     _disable_safety(PIPE)
     _post_load_toggles(PIPE)
     CURRENT_MODEL_ID = mid
-    PROMPT_CACHE.clear()
     return PIPE
 
 
@@ -120,8 +115,8 @@ def _prepare_scheduler_locked(steps):
                 sched.set_timesteps(int(steps), device="cuda")
             except TypeError:
                 sched.set_timesteps(int(steps))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[_prepare_scheduler] failed: {e}")
 
 
 def _run_pipe(return_all=False, **kwargs):
@@ -146,25 +141,8 @@ def _post_load_toggles(pipe):
             pipe.enable_attention_slicing()
         if hasattr(pipe, "enable_vae_slicing"):
             pipe.enable_vae_slicing()
-    except Exception:
-        pass
-
-
-def _get_prompt_embeds(prompt, guidance):
-    if not guidance or guidance <= 1e-6:
-        return (None, None)
-    key = (CURRENT_MODEL_ID, prompt)
-    if key in PROMPT_CACHE:
-        return PROMPT_CACHE[key]
-    try:
-        enc = getattr(PIPE, "encode_prompt", None)
-        if not enc:
-            return (None, None)
-        pe, ne = enc(prompt=prompt, device="cuda", num_images_per_prompt=1, do_classifier_free_guidance=True, negative_prompt=None)  # noqa: E501
-        PROMPT_CACHE[key] = (pe, ne)
-        return pe, ne
-    except Exception:
-        return (None, None)
+    except Exception as e:
+        print(f"[_post_load_toggles] failed: {e}")
 
 
 def generate_flux_image_latents(prompt, latents, width=768, height=768, steps=20, guidance=3.5):
@@ -188,7 +166,8 @@ def generate(prompt, width=512, height=512, steps=4, guidance=0.0, seed=42):
     import torch
     _ensure_pipe(None)
     g = _eff_g(CURRENT_MODEL_ID or "", guidance)
-    gen = torch.Generator(device="cuda").manual_seed(int(seed))
+    dev = "cuda"
+    gen = torch.Generator(device=dev).manual_seed(int(seed))
     return _run_pipe(prompt=prompt, width=width, height=height,
         num_inference_steps=int(steps), guidance_scale=float(g), generator=gen)
 
@@ -197,9 +176,6 @@ def set_model(model_id):
     global CURRENT_MODEL_ID, _LCM_SET
     raw = model_id if model_id is not None else _get_default_model_id()
     target = _resolve_model_id(raw)
-    if "flux" in raw.lower():
-        print(f"[set_model] Flux needs server mode, falling back to sd-turbo")
-        target = "stabilityai/sd-turbo"
     with PIPE_LOCK:
         if PIPE is not None and CURRENT_MODEL_ID == target:
             print(f"[set_model] {target} already loaded, skip")
@@ -214,107 +190,9 @@ def set_model(model_id):
             pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
             _LCM_SET = True
             print(f"[set_model] LCMScheduler set for {mid}")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[set_model] LCMScheduler setup failed: {e}")
 
 
-def get_pooled_embed_dim():
-    """Pooled (CLS) embedding dim - just hidden_size."""
-    import torch
-    _ensure_pipe(None)
-    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
-    if not tok or not enc:
-        return 0
-    d = tok("x", return_tensors="pt", padding="max_length", truncation=True)
-    with torch.no_grad():
-        out = enc(d.input_ids.to("cuda"))[0]
-    return out.shape[-1]  # hidden_size only
 
 
-def get_prompt_embed_dim():
-    """Flattened prompt embedding dim."""
-    import torch
-    _ensure_pipe(None)
-    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
-    if not tok or not enc:
-        return 0
-    d = tok("x", return_tensors="pt", padding="max_length", truncation=True)
-    with torch.no_grad():
-        return enc(d.input_ids.to("cuda"))[0].numel()
-
-
-def get_base_pooled_embed(pr):
-    """Mean-pooled embedding."""
-    import numpy as np
-    import torch
-    _ensure_pipe(None)
-    tok, enc = getattr(PIPE, "tokenizer", None), getattr(PIPE, "text_encoder", None)
-    if not tok or not enc:
-        return np.zeros(0)
-    inp = tok(pr, return_tensors="pt", padding="max_length", truncation=True)
-    with torch.no_grad():
-        o = enc(inp.input_ids.to("cuda"))[0]
-    return o.mean(dim=1).cpu().numpy().flatten()
-
-
-def get_base_prompt_embed(pr):
-    import numpy as np
-    import torch
-    _ensure_pipe(None)
-    tok = getattr(PIPE, "tokenizer", None)
-    enc = getattr(PIPE, "text_encoder", None)
-    if not tok or not enc:
-        return np.zeros(0)
-    inp = tok(pr, return_tensors="pt", padding="max_length", truncation=True)
-    with torch.no_grad():
-        o = enc(inp.input_ids.to("cuda"))[0]
-    return o.cpu().numpy().flatten()
-
-
-def gen_from_pooled(emb, w=512, h=512, steps=4, g=0.0, seed=42, base_prompt="", scale=0.1):
-    import torch
-    _ensure_pipe(None)
-    base = get_base_prompt_embed(base_prompt or "a photo")
-    tok = getattr(PIPE, "tokenizer", None)
-    sl, hd = tok.model_max_length, len(base) // tok.model_max_length
-    base_t = torch.tensor(base, dtype=torch.float16, device="cuda").reshape(1, sl, hd)
-    delta = torch.tensor(emb, dtype=torch.float16, device="cuda") * float(scale)
-    e = base_t + delta.unsqueeze(0).unsqueeze(0).expand(1, sl, -1)
-    gg = _eff_g(CURRENT_MODEL_ID or "", g)
-    gen = torch.Generator("cuda").manual_seed(int(seed))
-    return _run_pipe(prompt_embeds=e, num_inference_steps=steps,
-                     guidance_scale=gg, height=h, width=w, generator=gen)
-
-
-def gen_from_embed(emb, w=512, h=512, steps=4, g=0.0, seed=42):
-    import torch
-    _ensure_pipe(None)
-    tok = getattr(PIPE, "tokenizer", None)
-    sl, hd = tok.model_max_length, len(emb) // tok.model_max_length
-    e = torch.tensor(emb, dtype=torch.float16, device="cuda").reshape(1, sl, hd)
-    gg = _eff_g(CURRENT_MODEL_ID or "", g)
-    gen = torch.Generator("cuda").manual_seed(int(seed))
-    return _run_pipe(prompt_embeds=e, num_inference_steps=steps,
-                     guidance_scale=gg, height=h, width=w, generator=gen)
-
-
-def gen_batch_pooled(embs, w, h, steps, g, seed, base_prompt, scale):
-    """Batched image gen from pooled embeddings."""
-    import torch
-    _ensure_pipe(None)
-    base = get_base_prompt_embed(base_prompt or "a photo")
-    tok = getattr(PIPE, "tokenizer", None)
-    sl, hd = tok.model_max_length, len(base) // tok.model_max_length
-    base_t = torch.tensor(base, dtype=torch.float16, device="cuda")
-    base_t = base_t.reshape(1, sl, hd)
-    batch = []
-    for emb in embs:
-        d = torch.tensor(emb, dtype=torch.float16, device="cuda") * scale
-        e = base_t + d.unsqueeze(0).unsqueeze(0).expand(1, sl, -1)
-        batch.append(e)
-    embeds = torch.cat(batch, dim=0)
-    gg = _eff_g(CURRENT_MODEL_ID or "", g)
-    gen = torch.Generator("cuda").manual_seed(int(seed))
-    return _run_pipe(return_all=True, prompt_embeds=embeds,
-                     num_inference_steps=steps, guidance_scale=gg,
-                     height=h, width=w, generator=gen)

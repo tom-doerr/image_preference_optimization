@@ -5,3 +5,6 @@ optuna
 sqlalchemy
 psycopg2-binary
 sentencepiece
+bitsandbytes
+accelerate
+scikit-learn

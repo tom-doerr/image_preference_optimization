@@ -18,7 +18,7 @@ COPY requirements.txt ./
 RUN pip install --index-url https://download.pytorch.org/whl/cu130 \
     torch torchvision torchaudio --break-system-packages && \
     pip install -r requirements.txt --break-system-packages && \
-    pip install transformers accelerate pillow --break-system-packages
+    pip install transformers accelerate pillow scikit-learn --break-system-packages
 
 COPY . /app
 

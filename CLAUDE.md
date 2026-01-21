@@ -19,7 +19,7 @@ Uses NVIDIA CUDA 13.0.1 base image for GB10 GPU compatibility.
 - Generation server on port 8580 (optional)
 - PyTorch + Diffusers
 - Models: sd-turbo (default), flux-schnell, flux-dev (NF4 quantized)
-- File-based storage in `data/`
+- File-based storage in `data/` (Batch mode), PostgreSQL (CLIP mode)
 
 ## Architecture
 
@@ -52,9 +52,11 @@ batch=4 gives ~65% speedup; larger batches don't help.
 
 Select via sidebar "Model" dropdown. Flux models use bitsandbytes NF4 quantization.
 
-**NF4 Models Downloaded:**
-- `lllyasviel/flux1-dev-bnb-nf4` (22GB)
-- `duuuuuuuden/flux1-schnell-nf4-v2` (12GB)
+**Flux Notes:**
+- Uses `.to("cuda")` after NF4 quantized transformer load
+- NF4 loading takes ~30-60s on first run (downloads + quantization)
+
+**Performance (512x512, 4 steps):** sd-turbo ~3s, flux-schnell ~15s
 
 ## Model Management
 
@@ -66,15 +68,15 @@ Both backends cache loaded models to avoid redundant reloads.
 
 `ModelManager.generate(prompt, seed=...)` - Simple text-to-image generation.
 
-**Default Delta Scale:** 10 (sidebar control for PooledEmbed mode)
+## CLIP Mode (Default)
 
-## CLIP Mode
+SigLIP image embeddings + Ridge regression with alpha cross-validation.
 
-SigLIP image embeddings + Ridge regression. Select "CLIP" in sidebar.
-
-- `ipo/ui/clip_mode.py` - Rating UI
-- `ipo/infra/clip_embed.py` - SigLIP embedder
+- `ipo/ui/clip_mode.py` - Two-column UI (current + sorted gallery)
+- `ipo/infra/clip_embed.py` - SigLIP embedder (768-dim)
 - `ipo/core/clip_db.py` - PostgreSQL persistence
+
+**UI:** Left col shows generating image + stats. Right col shows sorted gallery with vote buttons. Images removed after voting.
 
 **DB Setup:** `createdb clip_preferences`
 
@@ -82,13 +84,13 @@ SigLIP image embeddings + Ridge regression. Select "CLIP" in sidebar.
 
 **Docker:** `network_mode: host`, mounts `/var/run/postgresql`, runs as `user: 1000:1000`
 
-UI shows spinners during model loading, image generation, and embedding.
+**Stats:** Sample counts (+/-), best alpha, CV R² scores for alphas [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
 
-## HuggingFace Token
+## Troubleshooting
 
-Token in `.env`: `HUGGINGFACE_HUB_TOKEN=hf_...`
+**App hangs on load:** Check if model loading triggered. Use Generate button (not auto-gen) to avoid race conditions with browser refresh.
 
-Also available in `~/git/x_twitter/.env`
+**Flux model slow:** NF4 quantization loading takes 30-60s. Default is sd-turbo for faster startup.
 
 ## Development
 

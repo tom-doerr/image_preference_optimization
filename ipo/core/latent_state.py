@@ -25,7 +25,7 @@ class LatentState:
     z_pairs: Optional[np.ndarray] = None
     choices: Optional[np.ndarray] = None
     mu_hist: Optional[np.ndarray] = None
-    space_mode: str = "Latent"  # "Latent" or "PromptEmbed"
+    space_mode: str = "Latent"
     # Per-state lock for async updates to w
     w_lock: Any = field(default_factory=_threading.Lock, repr=False, compare=False)
 
@@ -39,14 +39,7 @@ def init_latent_state(
 ) -> LatentState:
     h8, w8 = height // 8, width // 8
     rng = np.random.default_rng(seed)
-    if space_mode == "PooledEmbed":
-        from ipo.infra.pipeline_local import get_pooled_embed_dim
-        d_eff = get_pooled_embed_dim() or 1024
-    elif space_mode == "PromptEmbed":
-        from ipo.infra.pipeline_local import get_prompt_embed_dim
-        d_eff = get_prompt_embed_dim() or 59136
-    else:
-        d_eff = 4 * h8 * w8
+    d_eff = 4 * h8 * w8
     mu = np.zeros(d_eff, dtype=float)
     w = np.zeros(d_eff, dtype=float)
     return LatentState(width, height, d_eff, mu, 1.0, rng, w, space_mode=space_mode)
@@ -204,13 +197,6 @@ def z_to_latents(state, z, noise_gamma=0.0):
     return x
 
 def z_from_prompt(state, prompt):
-    mode = getattr(state, "space_mode", "Latent")
-    if mode == "PooledEmbed":
-        # Return zeros - we optimize a delta added to base prompt
-        return np.zeros(state.d, dtype=float)
-    if mode == "PromptEmbed":
-        from ipo.infra.pipeline_local import get_base_prompt_embed
-        return get_base_prompt_embed(prompt).astype(float)
     h = int.from_bytes(_hashlib.sha1(prompt.encode()).digest()[:8], "big")
     rng = np.random.default_rng(h)
     return rng.standard_normal(state.d).astype(float) * state.sigma

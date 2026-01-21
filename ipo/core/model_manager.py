@@ -92,7 +92,10 @@ class ModelManager:
 
     @classmethod
     def generate(cls, prompt: str, width=512, height=512, steps=4, guidance=0.0, seed=42):
-        """Generate image from prompt."""
+        """Generate image from prompt, routing through appropriate backend."""
         cls.ensure_ready()
+        backend = cls.get_backend()
+        if isinstance(backend, ServerBackend):
+            return backend.client.generate(prompt, None, "text", width, height, steps, guidance, seed, 1.0)
         from ipo.infra.pipeline_local import generate
         return generate(prompt, width, height, steps, guidance, seed)

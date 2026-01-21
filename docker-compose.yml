@@ -7,6 +7,7 @@ services:
     environment:
       - FLUX_LOCAL_MODEL=${FLUX_LOCAL_MODEL:-stabilityai/sd-turbo}
       - HUGGINGFACE_HUB_TOKEN
+      - HF_TOKEN=${HUGGINGFACE_HUB_TOKEN}
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     volumes:
       - .:/app
@@ -62,6 +63,7 @@ services:
       - HUGGINGFACE_HUB_TOKEN
       - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     volumes:
+      - .:/app
       - hf_cache:/root/.cache/huggingface
     deploy:
       resources:
