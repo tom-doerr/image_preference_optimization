@@ -23,10 +23,10 @@ Uses NVIDIA CUDA 13.0.1 base image for GB10 GPU compatibility.
 
 ## Architecture
 
-- `ipo/core/` - Core algorithms (optimizer, latent_state, value_model)
+- `ipo/core/` - Core algorithms (optimizer, latent_state, value_model, latent_optimizer)
 - `ipo/core/model_manager.py` - Unified model management (local/server)
-- `ipo/ui/` - Streamlit UI (sampling.py, curation.py, batch_ui.py)
-- `ipo/infra/` - Infrastructure (pipeline, constants)
+- `ipo/ui/` - Streamlit UI (batch_ui.py, clip_mode.py, app_api.py)
+- `ipo/infra/` - Infrastructure (pipeline_local, flux_pipeline, constants)
 - `ipo/server/` - FastAPI generation server + client
 
 ## Inference Batching
@@ -95,7 +95,7 @@ SigLIP image embeddings + Ridge regression with alpha cross-validation.
 ## Development
 
 ```bash
-pytest tests/ -v              # Run tests (24 tests)
+pytest tests/ -v              # Run tests (48 tests)
 python scripts/benchmark_batch.py   # Benchmark inference batching
 python scripts/benchmark_models.py  # Benchmark all models
 ```
