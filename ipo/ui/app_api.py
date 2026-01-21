@@ -8,12 +8,6 @@ from ipo.ui import batch_ui as _batch_ui
 log = logging.getLogger(__name__)
 
 
-def _export_state_bytes(state, prompt: str):
-    from ipo.core.persistence import export_state_bytes as _rpc
-
-    return _rpc(state, prompt)
-
-
 def _init_pair_for_state(new_state) -> None:
     try:
         from ipo.core.latent_state import propose_pair_prompt_anchor
@@ -90,115 +84,6 @@ def build_controls(st, lstate, base_prompt):
     st.session_state[Keys.GUIDANCE_EFF] = guidance
     return (vm_choice, "batch", None, width, height, steps, guidance,
             reg_lambda, iter_steps, iter_eta, False)
-
-
-def generate_pair(base_prompt: str) -> None:
-    from ipo.core.latent_state import z_to_latents as _z2l
-    from ipo.infra.pipeline_local import generate_flux_image_latents as _gen
-    try:
-        lstate = st.session_state.lstate
-        if st.session_state.get("lz_pair") is None:
-            from ipo.core.latent_state import z_from_prompt
-
-            z_p = z_from_prompt(lstate, base_prompt)
-            r = lstate.rng.standard_normal(lstate.d)
-            r = r / (float(_np.linalg.norm(r)) + 1e-12)
-            delta = float(lstate.sigma) * 0.5 * r
-            st.session_state.lz_pair = (z_p + delta, z_p - delta)
-        z_a, z_b = st.session_state.lz_pair
-        la = _z2l(lstate, z_a)
-        lb = _z2l(lstate, z_b)
-        with st.spinner("Generating image A..."):
-            img_a = _gen(
-                base_prompt,
-                latents=la,
-                width=lstate.width,
-                height=lstate.height,
-                steps=int(st.session_state.get("steps", 6) or 6),
-                guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
-            )
-        with st.spinner("Generating image B..."):
-            img_b = _gen(
-                base_prompt,
-                latents=lb,
-                width=lstate.width,
-                height=lstate.height,
-                steps=int(st.session_state.get("steps", 6) or 6),
-                guidance=float(st.session_state.get("guidance_eff", 0.0) or 0.0),
-            )
-        st.session_state[Keys.IMAGES] = (img_a, img_b)
-    except Exception as e:
-        log.error("generate_pair failed: %s", e)
-
-
-def render_sidebar_tail(*_args, **_kwargs) -> None:
-    """Sidebar removed; no-op stub for backwards compatibility."""
-    pass
-
-
-def _curation_init_batch() -> None:
-    try:
-        _batch_ui._curation_init_batch()
-    except Exception as e:
-        log.warning("_curation_init_batch primary: %s", e)
-    try:
-        if not getattr(st.session_state, "cur_batch", None):
-            from ipo.core.latent_state import z_from_prompt as _zfp
-
-            z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
-            n = int(getattr(st.session_state, "batch_size", 4))
-            rng = _np.random.default_rng(0)
-            zs = [z_p + 0.01 * rng.standard_normal(z_p.shape) for _ in range(n)]
-            st.session_state.cur_batch = zs
-            st.session_state.cur_labels = [None] * n
-    except Exception as e:
-        log.error("_curation_init_batch fallback: %s", e)
-
-
-def _curation_new_batch() -> None:
-    try:
-        _batch_ui._curation_new_batch()
-    except Exception as e:
-        log.warning("_curation_new_batch: %s", e)
-    try:
-        if not getattr(st.session_state, "cur_batch", None):
-            _curation_init_batch()
-    except Exception as e:
-        log.debug("_curation_new_batch fallback: %s", e)
-
-
-def _curation_replace_at(idx: int) -> None:
-    try:
-        _batch_ui._curation_replace_at(idx)
-    except Exception as e:
-        log.warning("_curation_replace_at: %s", e)
-    try:
-        zs = getattr(st.session_state, "cur_batch", None)
-        if isinstance(zs, list) and len(zs) > 0:
-            from ipo.core.latent_state import z_from_prompt as _zfp
-
-            z_p = _zfp(st.session_state.lstate, st.session_state.prompt)
-            rng = _np.random.default_rng(idx + 1)
-            zs[idx % len(zs)] = z_p + 0.01 * rng.standard_normal(z_p.shape)
-            st.session_state.cur_batch = zs
-    except Exception as e:
-        log.debug("_curation_replace_at fallback: %s", e)
-
-
-def _curation_add(label: int, z, img=None) -> None:
-    try:
-        return _batch_ui._curation_add(label, z, img)
-    except Exception as e:
-        log.error("_curation_add failed: %s", e)
-        return None
-
-
-def _curation_train_and_next() -> None:
-    try:
-        return _batch_ui._curation_train_and_next()
-    except Exception as e:
-        log.error("_curation_train_and_next: %s", e)
-        return None
 
 
 def run_app(_st, _vm_choice: str, _selected_gen_mode: str | None) -> None:
