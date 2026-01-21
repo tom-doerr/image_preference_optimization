@@ -44,20 +44,23 @@ def _lstate_and_prompt():
 from ipo.core.latent_optimizer import optimize_latent as _optimize_z
 
 def _get_good_mean(prompt, ss):
-    from ipo.ui.sampling import get_good_mean
     X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
-    return get_good_mean(X, y)
+    if X is not None and y is not None and (y > 0).sum() > 0:
+        return X[y > 0].mean(axis=0)
+    return None
 
 def _get_good_dist(ss):
-    from ipo.ui.sampling import get_good_dist
     X, y = ss.get(Keys.DATASET_X), ss.get(Keys.DATASET_Y)
-    return get_good_dist(X, y)
+    if X is not None and y is not None and (y > 0).sum() >= 2:
+        Xg = X[y > 0]
+        return Xg.mean(axis=0), Xg.std(axis=0) + 1e-6
+    return None, None
 
 
 def _random_offset(lstate, scale=0.8):
-    from ipo.ui.sampling import random_offset
     rng = getattr(lstate, "rng", None) or np.random.default_rng()
-    return random_offset(lstate.d, float(lstate.sigma), rng, scale)
+    r = rng.standard_normal(lstate.d)
+    return lstate.sigma * scale * r / (np.linalg.norm(r) + 1e-12)
 
 def _sample_z(lstate, prompt, scale=0.8):
     import streamlit as st
